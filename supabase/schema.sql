@@ -22,7 +22,7 @@ create table if not exists public.cards (
 
 comment on table public.cards is 'Trading cards in the public vault. Visitors can read. Only the owner can write.';
 comment on column public.cards.serial is 'Printed serial such as 82/100. Empty when the card is not numbered.';
-comment on column public.cards.image_path is 'Path inside the card-images bucket: <auth uid>/<uuid>.jpg';
+comment on column public.cards.image_path is 'Public front photo in card-images. A front in <uid>/pairs/<uuid>/ has a corresponding back object in that folder.';
 comment on column public.cards.featured is 'When true, the card rotates in the Hall of Fame spotlight.';
 comment on column public.cards.owner is 'auth.users id of the person who added the card.';
 

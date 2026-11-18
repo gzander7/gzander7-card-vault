@@ -29,6 +29,27 @@
 }
 
 .scan-pickers { gap: 0 .6rem; }
+.photo-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+/* The native file input receives the tap directly, including in mobile dialogs. */
+.photo-picker input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.photo-picker:focus-within {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
 .scan-pickers .gold-btn {
   min-height: 44px;
   padding: .48rem .72rem;

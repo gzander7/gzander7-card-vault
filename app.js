@@ -8,6 +8,7 @@ import { createCropPreview } from './photos/crop-preview.mjs';
 import { openCardViewer } from './card-viewer.mjs';
 import { createScanEditor } from './scanning/editor.mjs';
 import { createScanFields } from './scanning/fields.mjs';
+import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
 import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
 
 const SPOTLIGHT_MS = 5000;
@@ -108,6 +109,8 @@ let preparingFront = false;
 let preparingBack = false;
 let previewUrl = '';
 let photoGeneration = 0;
+let frontPreparation = null;
+let activeBatch = null;
 let busy = false;
 let statusTimer = 0;
 
@@ -131,12 +134,28 @@ const scanner = createScanEditor({
     updateSaveAvailability();
   },
   getCardHints: () => cards || [],
+  autoRead: (front, back) => front && (activeBatch ? !activeBatch.preparing && !activeBatch.backProblem && !activeBatch.entry.retry : back),
+  onBackFile: file => {
+    if (!activeBatch) return;
+    activeBatch.entry.back = file;
+    activeBatch.backProblem = false;
+    updateSaveAvailability();
+  },
   onSourceChange: () => scanFields.clearSuggestions(),
   onSuggestions: suggestions => ui.cardDialog.open && !busy ? scanFields.apply(suggestions) : 0,
 });
 
 function updateSaveAvailability() {
-  ui.cardSave.disabled = busy || preparingFront || preparingBack;
+  ui.cardSave.disabled = busy || preparingFront || preparingBack || Boolean(activeBatch?.preparing || activeBatch?.backProblem);
+  ui.cardForm.querySelector('.form-grid').inert = Boolean(activeBatch && (busy || activeBatch.entry.retry));
+  if (activeBatch) {
+    ui.cardCancel.disabled = busy;
+    $('batch-skip').disabled = busy || Boolean(activeBatch.entry.retry);
+    $('batch-front-only').hidden = !activeBatch.backProblem;
+    $('batch-photo-status').textContent = activeBatch.entry.retry ? 'The previous save is unconfirmed. Reconnect and retry to check it.'
+      : activeBatch.backProblem ? 'The queued back could not be read. Replace the back or choose Use front only.'
+      : activeBatch.preparing ? 'Preparing the queued photos…' : '';
+  }
 }
 
 function el(tag, className, text) {
@@ -372,6 +391,10 @@ function renderAuth() {
   add.type = 'button';
   add.id = 'add-card-btn';
   add.addEventListener('click', () => openEditor(null));
+  const batch = el('button', 'link-button', batchButtonText());
+  batch.type = 'button';
+  batch.id = 'batch-scan-btn';
+  batch.addEventListener('click', () => { if (!busy) batchDialog.open(); });
   const setPassword = el('button', 'link-button', 'Set password');
   setPassword.type = 'button';
   setPassword.addEventListener('click', openPasswordDialog);
@@ -380,7 +403,7 @@ function renderAuth() {
   signOut.addEventListener('click', () => {
     supabase.auth.signOut();
   });
-  ui.authBar.append(add, setPassword, signOut);
+  ui.authBar.append(add, batch, setPassword, signOut);
 }
 
 function renderStats(list) {
@@ -653,6 +676,17 @@ function createSpotlight() {
 const spotlight = createSpotlight();
 const vaultValue = createVaultValue(card => openEditor(card, true));
 const purchaseEditor = createPurchaseEditor(vaultValue.purchases);
+const batchQueue = createScanQueue();
+function batchButtonText() {
+  return batchQueue.items.length ? 'Resume batch (' + batchQueue.items.length + ')' : 'Batch scan';
+}
+const batchDialog = createBatchDialog(batchQueue, {
+  onReview: entry => openEditor(null, false, entry),
+  onCount() {
+    const button = $('batch-scan-btn');
+    if (button) button.textContent = batchButtonText();
+  },
+});
 
 function syncVaultValue() {
   const owned = Array.isArray(cards) && !loadError ? cards.filter(owns) : null;
@@ -675,6 +709,7 @@ function render() {
 }
 
 function upsertCard(card) {
+  if (!cards) cards = [];
   const index = cards.findIndex((item) => item.id === card.id);
   if (index === -1) cards.push(card);
   else cards[index] = card;
@@ -729,7 +764,7 @@ async function encodePhoto(canvas) {
   return blob;
 }
 
-async function compressCardImage(file) {
+async function compressCardImage(file, signal) {
   const type = file.type || '';
   if (type && type !== 'application/octet-stream' && !type.startsWith('image/')) throw new Error('Choose an image file.');
   const source = URL.createObjectURL(file);
@@ -740,6 +775,7 @@ async function compressCardImage(file) {
     await image.decode().catch(() => {
       throw new Error('This device could not read that photo. Try a JPEG or PNG.');
     });
+    signal?.throwIfAborted();
     const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
     if (!image.naturalWidth || !image.naturalHeight) throw new Error('This device could not read that photo. Try a JPEG or PNG.');
     const scale = Math.min(1, MAX_EDGE / longEdge);
@@ -755,6 +791,7 @@ async function compressCardImage(file) {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, width, height);
     const blob = await encodePhoto(canvas);
+    signal?.throwIfAborted();
     canvas.width = canvas.height = 1;
     let crop = null;
     let cropUnavailable = false;
@@ -779,21 +816,30 @@ async function compressCardImage(file) {
   }
 }
 
-function openEditor(card, focusPurchase = false) {
+function openEditor(card, focusPurchase = false, entry = null) {
   if (busy) return;
+  frontPreparation?.abort();
   photoGeneration += 1;
+  activeBatch = entry ? {entry, preparing:true, backProblem:false} : null;
   editingId = card?.id || null;
   editorOriginal = card;
-  editorRowId = editingId || crypto.randomUUID();
+  editorRowId = editingId || entry?.id || crypto.randomUUID();
   preparingFront = false;
   ui.cardForm.reset();
   scanner.reset();
   scanFields.reset();
   clearPreview();
   ui.cardError.textContent = '';
+  $('batch-progress').hidden = $('batch-skip').hidden = !entry;
+  $('batch-front-only').hidden = true;
+  ui.cardCancel.textContent = entry ? 'Back to batch' : 'Close';
+  ui.cardCancel.disabled = false;
+  ui.photoField.inert = Boolean(entry);
   updateSaveAvailability();
-  ui.cardSave.textContent = card ? 'Save changes' : 'Save card';
-  ui.cardTitle.textContent = card ? 'Edit card' : 'Add card';
+  ui.cardSave.textContent = saveLabel();
+  ui.cardTitle.textContent = entry ? 'Review card' : card ? 'Edit card' : 'Add card';
+  $('scan-auto-hint').textContent = entry ? 'Each card is read automatically. A back photo can help identify its set and number.'
+    : 'Add both sides to read the printed details automatically.';
   ui.photoField.disabled = false;
   ui.photoNote.textContent = card
     ? 'The current photo is kept unless you choose a new one.'
@@ -820,10 +866,71 @@ function openEditor(card, focusPurchase = false) {
     if (backSrc) scanner.setSavedBack(backSrc, signal => fetchSavedPhoto(backSrc, signal));
   }
   if (!ui.cardDialog.open) ui.cardDialog.showModal();
-  purchaseEditor.open(card, focusPurchase);
-  if (!focusPurchase) {
+  purchaseEditor.open(card, focusPurchase, entry?.draft?.purchase);
+  if (entry) {
+    const done = batchQueue.saved + batchQueue.skipped;
+    $('batch-position').textContent = 'Card ' + (done + 1) + ' of ' + (done + batchQueue.items.length)
+      + ' · ' + batchQueue.saved + ' saved · ' + batchQueue.skipped + ' skipped';
+    scanFields.restoreManual(entry.draft?.manual);
+    ui.cardNotes.value = entry.draft?.notes || '';
+    ui.cardFeatured.checked = Boolean(entry.draft?.featured);
+    ui.cardDialog.scrollTop = 0;
+    ui.cardTitle.focus();
+    void prepareBatchPhotos(activeBatch);
+  } else if (!focusPurchase) {
     const firstField = window.matchMedia('(pointer: coarse)').matches ? ui.cardTitle : ui.cardPlayer;
     firstField.focus();
+  }
+}
+
+function saveLabel() {
+  if (!activeBatch) return editingId ? 'Save changes' : 'Save card';
+  if (activeBatch.entry.retry) return 'Retry save';
+  return batchQueue.items.length > 1 ? 'Save & next' : 'Save last card';
+}
+
+async function prepareBatchPhotos(review) {
+  const {entry} = review;
+  try {
+    const frontReady = await prepareFrontFile(entry.front, !entry.draft?.fullFront);
+    if (activeBatch !== review || !ui.cardDialog.open) return;
+    if (entry.back) {
+      const ready = await scanner.prepareBack(entry.back, !entry.draft?.fullBack);
+      if (activeBatch !== review || !ui.cardDialog.open) return;
+      review.backProblem = !ready && !entry.retry;
+    }
+    scanFields.apply(entry.draft?.suggestions);
+    review.preparing = false;
+    if (!entry.retry && frontReady && !review.backProblem) void scanner.start();
+  } finally {
+    if (activeBatch === review) {
+      review.preparing = false;
+      ui.photoField.inert = false;
+      updateSaveAvailability();
+    }
+  }
+}
+
+function rememberBatchDraft(review) {
+  const {entry} = review;
+  const previous = entry.draft;
+  const {manual,suggestions} = scanFields.snapshot();
+  entry.draft = {
+    manual, suggestions:review.preparing ? (previous?.suggestions || {}) : suggestions,
+    fullFront:review.preparing ? previous?.fullFront : frontCrop.fullSelected(),
+    fullBack:review.preparing ? previous?.fullBack : scanner.backFullSelected(),
+    notes:ui.cardNotes.value, featured:ui.cardFeatured.checked, purchase:purchaseEditor.snapshot(),
+  };
+}
+
+function advanceBatch(review, outcome) {
+  if (activeBatch !== review || !batchQueue.finish(review.entry, outcome)) return;
+  activeBatch = null;
+  const next = batchQueue.items[0];
+  if (next) openEditor(null, false, next);
+  else {
+    ui.cardDialog.close();
+    batchDialog.open();
   }
 }
 
@@ -867,44 +974,55 @@ async function saveCard(event) {
   const targetId = editingId;
   const owner = session.user.id;
   const id = editorRowId;
+  const review = activeBatch;
   const photo = pendingBlob;
   const back = scanner.getBackChange();
-  if (!targetId && !photo) {
+  if (!targetId && !photo && !review?.entry.retry) {
     ui.cardError.textContent = 'Add a photo of the card.';
     ui.cardImage.focus();
     return;
   }
 
   busy = true;
+  updateSaveAvailability();
   scanner.pause();
   ui.photoField.disabled = true;
   ui.cardSave.disabled = true;
   ui.cardSave.textContent = 'Saving…';
   const previous = targetId ? cards.find((card) => card.id === targetId) : null;
+  let confirmed = false;
   try {
     if (targetId && !previous) throw new Error('This card is no longer in the vault. Reload to check it.');
     // Compare the public fields the editor opened, excluding timestamp formatting.
     const originalFields = editorOriginal && Object.fromEntries(
       [...Object.keys(payload), 'image_path'].map(key => [key, editorOriginal[key]]));
-    const { saved, cleaned } = await savePhotoRevision(supabase, {
+    const { saved, cleaned } = review?.entry.retry ? await review.entry.retry() : await savePhotoRevision(supabase, {
       id, owner, previousFront: editorOriginal?.image_path, previousCard: originalFields,
       fields: payload, front: photo, back, purchase,
     });
-    if (session?.user?.id !== owner) return;
-    if (purchase) vaultValue.purchases.accept(owner, id, purchase);
+    if (session?.user?.id !== owner || (review && activeBatch !== review)) return;
+    const savedPurchase = review?.entry.retry ? review.entry.submittedPurchase : purchase;
+    if (savedPurchase) vaultValue.purchases.accept(owner, id, savedPurchase);
+    confirmed = true;
     upsertCard(saved);
-    ui.cardDialog.close();
+    if (!review) ui.cardDialog.close();
     const message = targetId ? `Updated ${saved.player}.` : `Added ${saved.player}.`;
     announce(cleaned ? message : message + ' An older photo could not be removed from storage.');
   } catch (error) {
-    ui.cardError.textContent = friendlyError(error);
-    ui.cardSave.textContent = targetId ? 'Save changes' : 'Save card';
+    if (session?.user?.id !== owner || (review && activeBatch !== review)) return;
+    if (review && error.retrySave && !review.entry.retry) {
+      review.entry.retry = error.retrySave;
+      review.entry.submittedPurchase = purchase;
+    }
+    ui.cardError.textContent = review?.entry.retry ? 'The vault has not confirmed this card yet.' : friendlyError(error);
+    ui.cardSave.textContent = saveLabel();
   } finally {
     ui.photoField.disabled = false;
     busy = false;
     updateSaveAvailability();
     if (ui.cardDialog.open) scanner.resume();
   }
+  if (review && confirmed) advanceBatch(review, 'saved');
 }
 
 async function deleteCard(card) {
@@ -1195,6 +1313,13 @@ async function prepareCardPhoto(event) {
   const file = input.files?.[0];
   if (!file || busy) return;
   input.value = '';
+  await prepareFrontFile(file);
+}
+
+async function prepareFrontFile(file, preferCrop = true) {
+  frontPreparation?.abort();
+  const controller = new AbortController();
+  frontPreparation = controller;
   const generation = ++photoGeneration;
   scanner.pause();
   ui.cardError.textContent = '';
@@ -1202,9 +1327,11 @@ async function prepareCardPhoto(event) {
   updateSaveAvailability();
   ui.photoNote.textContent = 'Preparing photo…';
   try {
-    const prepared = await compressCardImage(file);
-    if (generation !== photoGeneration) return;
-    frontCrop.set(prepared);
+    const prepared = await compressCardImage(file, controller.signal);
+    if (generation !== photoGeneration || !ui.cardDialog.open) return false;
+    if (activeBatch) activeBatch.entry.front = file;
+    frontCrop.set(prepared, preferCrop);
+    return true;
   } catch (error) {
     if (generation !== photoGeneration) return;
     scanner.resume();
@@ -1212,8 +1339,10 @@ async function prepareCardPhoto(event) {
     ui.photoNote.textContent = pendingBlob || editingId
       ? 'The previous photo is still selected.'
       : 'Choose another photo to continue.';
+    return false;
   } finally {
     if (generation === photoGeneration) {
+      frontPreparation = null;
       preparingFront = false;
       updateSaveAvailability();
     }
@@ -1223,8 +1352,18 @@ ui.cardImage.addEventListener('change', prepareCardPhoto);
 ui.cardCamera.addEventListener('change', prepareCardPhoto);
 ui.cardForm.addEventListener('submit', saveCard);
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
+$('batch-front-only').addEventListener('click', () => { if (activeBatch?.backProblem && !busy) scanner.removeBack(); });
+$('batch-skip').addEventListener('click', () => {
+  if (activeBatch && !busy && !activeBatch.entry.retry) advanceBatch(activeBatch, 'skipped');
+});
+ui.cardDialog.addEventListener('cancel', event => { if (activeBatch && busy) event.preventDefault(); });
 ui.cardDialog.addEventListener('close', () => {
   if (ui.cardDialog.open) return;
+  const review = activeBatch;
+  if (review) rememberBatchDraft(review);
+  activeBatch = null;
+  frontPreparation?.abort();
+  frontPreparation = null;
   purchaseEditor.close();
   editorOriginal = null;
   photoGeneration += 1;
@@ -1234,6 +1373,7 @@ ui.cardDialog.addEventListener('close', () => {
   clearPreview();
   ui.cardImage.value = '';
   ui.cardCamera.value = '';
+  if (review && batchQueue.items[0] === review.entry) batchDialog.open();
 });
 ui.authForm.addEventListener('submit', handleSignIn);
 ui.authCancel.addEventListener('click', () => ui.authDialog.close());
@@ -1246,6 +1386,11 @@ function setSession(next) {
   const previous = session?.user?.id || '';
   session = next || null;
   const current = session?.user?.id || '';
+  if (previous !== current) {
+    activeBatch = null;
+    batchQueue.setOwner(current);
+    batchDialog.close();
+  }
   if (current && ui.authDialog.open) ui.authDialog.close();
   if (previous !== current && ui.passwordDialog.open) ui.passwordDialog.close();
   if (previous !== current && ui.cardDialog.open) ui.cardDialog.close();

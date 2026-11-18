@@ -25,12 +25,13 @@ export function createCropPreview(side, apply) {
     show();
   });
   return {
-    set(prepared) {
+    set(prepared, preferCrop = true) {
       full = prepared;
       crop = prepared.crop || null;
-      useCrop = Boolean(crop);
+      useCrop = Boolean(crop) && preferCrop;
       show();
     },
+    fullSelected() { return Boolean(crop) && !useCrop; },
     clear() {
       full = crop = null;
       useCrop = false;

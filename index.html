@@ -271,11 +271,47 @@
     </form>
   </dialog>
 
+  <dialog id="batch-dialog" aria-labelledby="batch-title">
+    <div class="batch-sheet">
+      <div class="dialog-head">
+        <h2 id="batch-title" tabindex="-1">Batch scan</h2>
+        <button type="button" class="link-button" id="batch-close">Close</button>
+      </div>
+      <p id="batch-outcome" class="batch-outcome" role="status"></p>
+      <label class="batch-order-label" for="batch-order">Photo order
+        <select id="batch-order" aria-describedby="batch-order-hint">
+          <option value="fronts">Fronts only</option>
+          <option value="pairs">Alternating fronts and backs</option>
+        </select>
+      </label>
+      <p id="batch-order-hint" class="hint">Each selected photo starts a card. You can add its back during review.</p>
+      <div class="dialog-actions scan-pickers">
+        <label class="photo-picker gold-btn" for="batch-files">Choose photos
+          <input id="batch-files" type="file" accept="image/*" multiple aria-label="Choose batch photos">
+        </label>
+        <label class="photo-picker link-button" for="batch-camera">Take a front photo
+          <input id="batch-camera" type="file" accept="image/*" capture="environment" aria-label="Take a front photo for the batch">
+        </label>
+      </div>
+      <p class="form-error" id="batch-message" role="alert"></p>
+      <section id="batch-queue" aria-labelledby="batch-count" hidden>
+        <h3 id="batch-count" aria-live="polite"></h3>
+        <ol id="batch-list"></ol>
+      </section>
+      <p class="hint">Review and save each card to add it to your vault. Unfinished scans stay in this tab until you reload or sign out.</p>
+      <button type="button" id="batch-review" class="gold-btn" hidden>Review cards</button>
+    </div>
+  </dialog>
   <dialog id="card-dialog" aria-labelledby="card-dialog-title">
     <form id="card-form" autocomplete="off">
       <div class="dialog-head">
         <h2 id="card-dialog-title" tabindex="-1">Add card</h2>
         <button type="button" class="link-button" id="card-cancel">Close</button>
+      </div>
+      <div id="batch-progress" class="batch-progress" hidden>
+        <p id="batch-position" role="status"></p>
+        <p id="batch-photo-status" role="status"></p>
+        <button type="button" class="link-button" id="batch-front-only" hidden>Use front only</button>
       </div>
       <div class="form-grid">
         <fieldset class="photo-field scan-editor span-2" id="photo-field" aria-describedby="scan-hint">
@@ -320,7 +356,7 @@
               </div>
             </fieldset>
           </div>
-          <p id="scan-hint" class="hint">Leave space around all four corners for auto-crop. Add both sides to read the printed details automatically. Saving a card with a back photo lets visitors flip it over.</p>
+          <p id="scan-hint" class="hint">Leave space around all four corners for auto-crop. <span id="scan-auto-hint">Add both sides to read the printed details automatically.</span> Saving a card with a back photo lets visitors flip it over.</p>
           <div class="scan-actions">
             <button type="button" id="scan-read" class="link-button" disabled>Read photos</button>
             <button type="button" id="scan-stop" class="link-button" hidden>Cancel scan</button>
@@ -393,6 +429,7 @@
       <p id="card-form-error" class="form-error" role="alert"></p>
       <div class="dialog-actions">
         <button type="submit" class="gold-btn" id="card-save">Save card</button>
+        <button type="button" id="batch-skip" class="link-button" hidden>Skip card</button>
       </div>
     </form>
   </dialog>

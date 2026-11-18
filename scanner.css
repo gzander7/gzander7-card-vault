@@ -80,6 +80,31 @@
 #card-dialog input[type="checkbox"][data-scan-filled] { outline: 1px solid #c89e60; outline-offset: 2px; }
 #card-dialog input[type="checkbox"][data-scan-filled]:focus-visible { outline: 3px solid var(--gold); }
 
+#batch-dialog { width: min(36rem, calc(100% - 1.25rem)); }
+.batch-sheet { display: grid; gap: .8rem; padding: clamp(1rem, 4vw, 2rem); }
+.batch-order-label { display: grid; gap: .3rem; color: #ead8c0; }
+.batch-sheet > .gold-btn { justify-self: start; }
+.batch-sheet .hint { margin: 0; }
+.batch-sheet :is(.photo-picker, button), #batch-skip, #batch-front-only { min-height: 44px; }
+#batch-queue { min-width: 0; border-block: 1px solid #806347; }
+#batch-count { margin: .7rem 0 .25rem; font: 600 1.1rem/1.3 Georgia, serif; }
+#batch-list { list-style: none; margin: 0; padding: 0; max-height: min(40dvh, 20rem); overflow-y: auto; }
+#batch-list li + li { border-top: 1px solid #694b3b; }
+#batch-list summary { padding: .7rem .2rem; cursor: pointer; line-height: 1.4; }
+#batch-list summary strong { font: 600 1rem Georgia, serif; }
+#batch-list summary span { margin-left: .65rem; color: #d5bea1; font-size: .82rem; overflow-wrap: anywhere; }
+.batch-photos { display: flex; gap: .8rem; }
+.batch-photos figure { margin: 0; max-width: 45%; min-width: 0; }
+.batch-photos img { display: block; width: 5rem; height: 6.6rem; object-fit: contain; background: #211217; }
+.batch-photos figcaption, .batch-row-actions { font-size: .82rem; }
+.batch-photos figcaption { color: #d5bea1; overflow-wrap: anywhere; }
+.batch-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .15rem 1rem; }
+.batch-progress { display: grid; gap: .25rem; padding: .4rem 0; border-bottom: 1px solid #806347; }
+.batch-progress button { justify-self: start; }
+#batch-position, .batch-outcome { color: #e6ca99; font: 600 .86rem/1.4 "Courier New", monospace; }
+#batch-photo-status { color: #ded0bc; font-size: .84rem; }
+#batch-photo-status:empty, .batch-outcome:empty { display: none; }
+
 @media (max-width: 25rem) {
   .scan-photos { gap: .4rem; }
   .scan-side { padding-inline: .4rem; }

@@ -1,17 +1,33 @@
-import { localDay, parsePurchase } from './purchases.mjs';
+import { hasPurchaseDetails, localDay, parsePurchase } from './purchases.mjs';
 
 export function createPurchaseEditor(ledger) {
   const section = document.getElementById('card-purchase');
   const field = name => document.getElementById('purchase-' + name);
   const amount = field('amount'), date = field('date'), source = field('source');
+  const purchased = field('purchased'), pulled = field('pulled'), box = field('box'), boxField = field('box-field');
   const fields = field('fields'), status = field('form-status'), clear = field('clear'), retry = field('retry');
   let draft = null;
 
-  function fill(row) {
-    amount.value = row?.amount_cents != null ? (row.amount_cents / 100).toFixed(2) : '';
-    date.value = row?.purchased_on || '';
-    source.value = row?.source || '';
-    clear.hidden = row?.amount_cents == null;
+  function updateBox() {
+    boxField.hidden = box.disabled = !pulled.checked;
+    if (box.disabled) box.value = '';
+    field('amount-label').textContent = pulled.checked ? 'Cost for this card (USD)' : 'Total paid (USD)';
+    field('date-label').textContent = pulled.checked ? 'Date pulled' : 'Purchase date';
+    field('source-label').textContent = pulled.checked ? 'Source' : 'Purchased from';
+    field('hint').textContent = pulled.checked
+      ? 'Leave the cost blank if unknown. Enter 0 if this card was free.'
+      : 'Include tax, shipping and fees. Enter 0 for a free card.';
+  }
+
+  function fill(values) {
+    amount.value = values?.amount || '';
+    date.value = values?.date || '';
+    source.value = values?.source || '';
+    pulled.checked = values?.acquisitionType === 'pulled';
+    purchased.checked = !pulled.checked;
+    box.value = values?.boxName || '';
+    updateBox();
+    clear.hidden = true;
   }
 
   async function load(current) {
@@ -21,12 +37,17 @@ export function createPurchaseEditor(ledger) {
     try {
       await ledger.load(true);
       if (draft !== current) return;
-      current.original = ledger.records[current.card.id] || null;
-      fill(current.original);
+      const row = ledger.records[current.card.id] || null;
+      current.original = row;
+      fill({amount:row?.amount_cents != null ? (row.amount_cents / 100).toFixed(2) : '',
+        date:row?.purchased_on, source:row?.source, acquisitionType:row?.acquisition_type, boxName:row?.box_name});
+      clear.hidden = !hasPurchaseDetails(row);
       current.ready = true;
       fields.disabled = false;
       status.textContent = '';
-      if (current.focus && document.activeElement === section.querySelector('summary')) amount.focus();
+      if (current.focus && document.activeElement === section.querySelector('summary')) {
+        (pulled.checked ? box : amount).focus();
+      }
     } catch {
       if (draft !== current) return;
       status.textContent = 'Purchase details could not be loaded. Reconnect and retry to edit them.';
@@ -36,15 +57,9 @@ export function createPurchaseEditor(ledger) {
 
   function open(card, focus = false, savedDraft = null) {
     draft = {card, focus, ready:!card, original:null};
-    section.open = focus;
+    section.open = !card && savedDraft ? savedDraft.open : focus;
     date.max = localDay();
-    fill(null);
-    if (!card && savedDraft) {
-      amount.value = savedDraft.amount;
-      date.value = savedDraft.date;
-      source.value = savedDraft.source;
-      section.open = savedDraft.open;
-    }
+    fill(card ? null : savedDraft);
     retry.hidden = true;
     fields.disabled = false;
     status.textContent = '';
@@ -57,18 +72,20 @@ export function createPurchaseEditor(ledger) {
     if (!draft?.ready) return null;
     let value;
     try {
-      value = parsePurchase({amount:amount.value, date:date.value, source:source.value});
+      value = parsePurchase(snapshot());
     } catch (error) {
       section.open = true;
       amount.focus();
       throw error;
     }
-    const record = value || {amount_cents:null, purchased_on:null, source:null};
+    const record = {amount_cents:null, purchased_on:null, source:null, acquisition_type:null, box_name:null, ...value};
     const original = draft.original;
     if (Object.keys(record).every(key => record[key] === (original?.[key] ?? null))) return null;
     return {...record, expected_revision:original?.revision ?? null, revision:crypto.randomUUID()};
   }
 
+  purchased.addEventListener('change', updateBox);
+  pulled.addEventListener('change', updateBox);
   retry.addEventListener('click', () => { if (draft?.card) void load(draft); });
   clear.addEventListener('click', () => {
     fill(null);
@@ -84,7 +101,8 @@ export function createPurchaseEditor(ledger) {
     section.open = false;
   }
   function snapshot() {
-    return {amount:amount.value, date:date.value, source:source.value, open:section.open};
+    return {amount:amount.value, date:date.value, source:source.value,
+      acquisitionType:pulled.checked ? 'pulled' : null, boxName:box.value, open:section.open};
   }
   return {open, close, change, snapshot};
 }

@@ -57,6 +57,8 @@ Keep all four corners of the printed card in the frame. On phones and computers,
 
 Choose **Adjust corners** under either photo to fine-tune the crop. Drag each handle to a printed corner of the card, or select a handle and tap its destination. You can also focus a handle and move it with the arrow keys. Choose **Apply crop** to preview the straightened image, then save the card. When editing a saved photo, the available area is the image currently in the vault. Choose the original photo again if you need detail beyond its saved edges.
 
+If the details you enter or scan match a card you own, **View card** opens the saved copy for comparison. Close the viewer to return to your draft. You can save another copy, including during batch review.
+
 ### Scan the front and back
 
 In **Add card**, choose or take a photo under **Card front** and **Card back**. Once both are ready, the editor reads the printed text and fills the fields it recognizes. With one photo, choose **Read front** or **Read back** to start. When editing an existing card, adding its back can pair it with the saved front.
@@ -99,11 +101,11 @@ Run the pricing checks with `node --test pricing/*.test.mjs`.
 
 ## Private purchase tracking
 
-In **Add card** or **Edit**, open **Purchase details** and enter the total you paid in USD, including any tax, shipping and fees. Date and source are optional. A zero records a gift or free card. Existing cards also have a **Record purchase** or **Edit purchase** shortcut beneath their sold comps. To remove a cost, choose **Clear purchase details** and save the card.
+In **Add card** or **Edit**, open **Purchase details**. For a purchase, enter the total paid in USD, including tax, shipping and fees. Date and source are optional. For a card you pulled, choose **Pulled** and optionally enter **From box**, such as “2024 Prizm blaster, box 2.” Leave the cost blank if you haven’t assigned one to that card. Entering $0 records a known zero cost. The box name is private. Any cost you enter applies only to this card. You can reopen that entry with **Edit purchase details** beneath the card’s sold comps. Choose **Clear purchase details** and save to remove the private entry.
 
 **Vault Value** shows total spent across cards with a recorded cost. Estimated gain or loss compares current sold-comp estimates with cost for the same cards. The percentage uses their combined cost, and is omitted when that cost is zero. Cards awaiting an estimate still count toward total spent. Purchase changes sync to the signed-in owner’s devices and are saved with the card in one transaction.
 
-For a new Supabase installation, run [supabase/purchases.sql](supabase/purchases.sql) after [supabase/schema.sql](supabase/schema.sql). This creates a separate owner-only table. Cards already in the gallery have no recorded cost until the owner enters one.
+For a new installation, run [supabase/purchases.sql](supabase/purchases.sql) after [supabase/schema.sql](supabase/schema.sql). Existing installations with private purchase tracking can rerun the updated purchase script before deploying this editor. It preserves existing purchases and adds the optional pull fields to the owner-only table. Cards already in the gallery have no recorded cost until the owner enters one.
 
 ## Local preview
 

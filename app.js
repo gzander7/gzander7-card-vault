@@ -10,6 +10,7 @@ import { createCornerDialog } from './photos/corner-dialog.mjs';
 import { openCardViewer } from './card-viewer.mjs';
 import { createScanEditor } from './scanning/editor.mjs';
 import { createScanFields } from './scanning/fields.mjs';
+import { findSimilarCard } from './scanning/duplicates.mjs';
 import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
 import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
 
@@ -84,6 +85,8 @@ const ui = {
   cardYear: $('card-year'),
   cardSet: $('card-set'),
   cardNumber: $('card-number'),
+  similarCard: $('similar-card-hint'),
+  similarCardView: $('similar-card-view'),
   cardParallel: $('card-parallel'),
   cardSerial: $('card-serial'),
   cardAuto: $('card-auto'),
@@ -130,7 +133,7 @@ const scanFields = createScanFields({
   grade: ui.cardGrade,
   is_auto: ui.cardAuto,
   is_relic: ui.cardRelic,
-});
+}, syncSimilarCard);
 
 const cornerEditor = createCornerDialog();
 const scanner = createScanEditor({
@@ -245,6 +248,14 @@ function detailLine(card) {
   return bits.join(' · ');
 }
 
+function syncSimilarCard() {
+  const card = ui.cardDialog.open && !editingId && session?.user?.id
+    ? findSimilarCard(cards || [], session.user.id, { ...scanFields.values(), id: editorRowId })
+    : null;
+  ui.similarCard.hidden = !card;
+  return card;
+}
+
 function gradeLabel(card) {
   const grader = String(card.grader || '').trim();
   const grade = String(card.grade || '').trim();
@@ -299,6 +310,17 @@ function bindTilt(card) {
   card.addEventListener('pointercancel', reset);
 }
 
+function inspectCard(card, trigger, extraDetail = '') {
+  const dialog = openCardViewer({
+    title: card.player || 'Trading card',
+    detail: [metaLine(card), detailLine(card), extraDetail].filter(Boolean).join(' · '),
+    frontUrl: imageUrl(card.image_path),
+    backUrl: imageUrl(backPhotoPath(card.image_path)),
+  }, trigger);
+  spotlight.pauseForViewer(dialog);
+  return dialog;
+}
+
 function figureFor(card, options = {}) {
   const slab = el('div', 'slab');
   const inner = el('div', 'slab-inner');
@@ -325,15 +347,7 @@ function figureFor(card, options = {}) {
     trigger.setAttribute('aria-label', `${label} — ${altText(card)}`);
     trigger.setAttribute('aria-haspopup', 'dialog');
     trigger.appendChild(el('span', 'inspect-label', label));
-    trigger.addEventListener('click', () => {
-      const dialog = openCardViewer({
-        title: card.player || 'Trading card',
-        detail: [metaLine(card), detailLine(card)].filter(Boolean).join(' · '),
-        frontUrl: src,
-        backUrl,
-      }, trigger);
-      spotlight.pauseForViewer(dialog);
-    });
+    trigger.addEventListener('click', () => inspectCard(card, trigger));
     slab.appendChild(trigger);
   }
   return slab;
@@ -733,6 +747,7 @@ function render() {
   renderStats(cards || []);
   refreshFilterChoices();
   syncVaultValue();
+  syncSimilarCard();
   renderGrid();
   spotlight.sync();
 }
@@ -862,6 +877,7 @@ function openEditor(card, focusPurchase = false, entry = null) {
     const firstField = window.matchMedia('(pointer: coarse)').matches ? ui.cardTitle : ui.cardPlayer;
     firstField.focus();
   }
+  syncSimilarCard();
 }
 
 function saveLabel() {
@@ -1349,6 +1365,15 @@ async function prepareFrontFile(file, draft) {
 ui.cardImage.addEventListener('change', prepareCardPhoto);
 ui.cardCamera.addEventListener('change', prepareCardPhoto);
 ui.cardForm.addEventListener('submit', saveCard);
+ui.similarCardView.addEventListener('click', () => {
+  if (busy) return;
+  const card = syncSimilarCard();
+  if (!card) return;
+  const dialog = inspectCard(card, ui.similarCardView, [card.serial, gradeLabel(card)].filter(Boolean).join(' · '));
+  dialog.addEventListener('close', () => {
+    if (ui.cardDialog.open && ui.similarCard.hidden) ui.cardNumber.focus({ preventScroll: true });
+  }, { once: true });
+});
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
 $('batch-front-only').addEventListener('click', () => { if (activeBatch?.backProblem && !busy) scanner.removeBack(); });
 $('batch-skip').addEventListener('click', () => {
@@ -1357,6 +1382,7 @@ $('batch-skip').addEventListener('click', () => {
 ui.cardDialog.addEventListener('cancel', event => { if (activeBatch && busy) event.preventDefault(); });
 ui.cardDialog.addEventListener('close', () => {
   if (ui.cardDialog.open) return;
+  ui.similarCard.hidden = true;
   const review = activeBatch;
   if (review) rememberBatchDraft(review);
   activeBatch = null;
@@ -1392,7 +1418,10 @@ function setSession(next) {
   }
   if (current && ui.authDialog.open) ui.authDialog.close();
   if (previous !== current && ui.passwordDialog.open) ui.passwordDialog.close();
-  if (previous !== current && ui.cardDialog.open) ui.cardDialog.close();
+  if (previous !== current && ui.cardDialog.open) {
+    $('card-viewer')?.close();
+    ui.cardDialog.close();
+  }
   syncVaultValue();
   if (previous !== current || !ui.authBar.childElementCount) {
     renderAuth();

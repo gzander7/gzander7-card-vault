@@ -172,6 +172,10 @@
 .purchase-editor summary { padding-block: .8rem; cursor: pointer; font: 600 1.05rem Georgia, serif; }
 .purchase-editor summary span { margin-left: .45rem; color: #d5b987; font: .75rem "Courier New", monospace; }
 .purchase-editor fieldset { min-width: 0; margin: 0; padding: .2rem 0 .85rem; border: 0; }
+.purchase-editor .purchase-method { padding: 0; }
+.purchase-method legend { padding: 0; color: #ead8c0; }
+.purchase-choices { display: flex; flex-wrap: wrap; column-gap: 1.25rem; }
+.purchase-choices input { width: 1.15rem; height: 1.15rem; padding: 0; accent-color: var(--gold); }
 .purchase-editor .link-button { min-height: 44px; justify-self: start; }
 #purchase-form-status:not(:empty) { margin: 0 0 .65rem; }
 

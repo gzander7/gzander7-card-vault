@@ -3,27 +3,43 @@ export function localDay(now = new Date()) {
   return [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate())].join('-');
 }
 
-export function parsePurchase({amount, date, source}, today = localDay()) {
-  const price = amount.trim();
-  const purchasedOn = date.trim();
-  const from = source.trim();
-  if (!price && !purchasedOn && !from) return null;
-  if (!price) throw new Error('Enter the total paid. Use 0 for a gift or a free card.');
+function parseCents(price) {
   if (!/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(price)) {
     throw new Error('Enter a nonnegative USD amount with up to two decimal places.');
   }
   const [dollars, fraction = ''] = price.split('.');
   const cents = Number(dollars) * 100 + Number(fraction.padEnd(2, '0'));
   if (!Number.isSafeInteger(cents) || cents > 999999999999) throw new Error('The total paid is too large.');
+  return cents;
+}
+
+export function parsePurchase({amount, date, source, acquisitionType, boxName = ''}, today = localDay()) {
+  const price = amount.trim();
+  const purchasedOn = date.trim();
+  const from = source.trim();
+  const pulled = acquisitionType === 'pulled';
+  if (!pulled && !price) {
+    if (!purchasedOn && !from) return null;
+    throw new Error('Enter the total paid. Use 0 for a gift or a free card.');
+  }
+  const cents = price ? parseCents(price) : null;
   if (purchasedOn) {
     const day = new Date(purchasedOn + 'T00:00:00Z');
     if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(purchasedOn) || !Number.isFinite(+day)
         || day.toISOString().slice(0, 10) !== purchasedOn || purchasedOn < '0001-01-01' || purchasedOn > today) {
-      throw new Error('Choose a valid purchase date on or before today.');
+      throw new Error(pulled ? 'Choose a valid pull date on or before today.' : 'Choose a valid purchase date on or before today.');
     }
   }
   if (from.length > 160) throw new Error('Keep the purchase source to 160 characters.');
-  return {amount_cents:cents, purchased_on:purchasedOn || null, source:from || null};
+  const record = {amount_cents:cents, purchased_on:purchasedOn || null, source:from || null};
+  if (!pulled) return record;
+  const box = boxName.trim();
+  if (box.length > 160) throw new Error('Keep the box name to 160 characters.');
+  return {...record, acquisition_type:'pulled', box_name:box || null};
+}
+
+export function hasPurchaseDetails(row) {
+  return row?.amount_cents != null || row?.acquisition_type === 'pulled';
 }
 
 export function purchaseTotals(cards, records, valueFor) {

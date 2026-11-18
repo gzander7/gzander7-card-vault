@@ -455,6 +455,12 @@
           <label class="check"><input id="card-relic" type="checkbox"> Relic</label>
           <label class="check"><input id="card-featured" type="checkbox"> Hall of Fame</label>
         </div>
+        <div class="similar-card-status" role="status" aria-atomic="true">
+          <p class="hint span-2" id="similar-card-hint" hidden>
+            Similar card in your vault <span aria-hidden="true">·</span>
+            <button type="button" id="similar-card-view" class="link-button" aria-haspopup="dialog">View card</button>
+          </p>
+        </div>
         <label class="span-2">
           Notes
           <textarea id="card-notes" name="notes" rows="3" maxlength="2000" placeholder="Centering, patch, where it came from"></textarea>
@@ -463,16 +469,26 @@
           <summary>Purchase details <span>Private</span></summary>
           <fieldset id="purchase-fields" class="form-grid">
             <legend class="visually-hidden">Private purchase details</legend>
-            <label>Total paid (USD)
-              <input id="purchase-amount" type="text" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="0.00" aria-describedby="purchase-hint">
+            <fieldset class="purchase-method span-2">
+              <legend>How acquired</legend>
+              <div class="purchase-choices">
+                <label class="check"><input id="purchase-purchased" type="radio" name="acquisition" value="purchased" checked> Purchased</label>
+                <label class="check"><input id="purchase-pulled" type="radio" name="acquisition" value="pulled"> Pulled</label>
+              </div>
+            </fieldset>
+            <label id="purchase-box-field" class="span-2" hidden>From box (optional)
+              <input id="purchase-box" type="text" maxlength="160" autocomplete="off" placeholder="e.g. 2024 Topps Chrome Hobby" disabled>
             </label>
-            <label>Purchase date <span class="visually-hidden">(optional)</span>
+            <label><span id="purchase-amount-label">Total paid (USD)</span>
+              <input id="purchase-amount" type="text" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="e.g. 12.50" aria-describedby="purchase-hint">
+            </label>
+            <label><span id="purchase-date-label">Purchase date</span> <span class="visually-hidden">(optional)</span>
               <input id="purchase-date" type="date">
             </label>
-            <label class="span-2">Purchased from <span class="visually-hidden">(optional)</span>
+            <label class="span-2"><span id="purchase-source-label">Purchased from</span> <span class="visually-hidden">(optional)</span>
               <input id="purchase-source" type="text" maxlength="160" autocomplete="off" placeholder="Shop, seller or card show">
             </label>
-            <p id="purchase-hint" class="hint span-2">Include tax, shipping and fees in the total. Enter 0 for a gift. Date and source are optional.</p>
+            <p id="purchase-hint" class="hint span-2">Include tax, shipping and fees. Enter 0 for a free card.</p>
             <button type="button" id="purchase-clear" class="link-button" hidden>Clear purchase details</button>
           </fieldset>
           <p id="purchase-form-status" class="hint" role="status"></p>

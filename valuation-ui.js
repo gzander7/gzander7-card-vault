@@ -2,7 +2,7 @@ import { historyCardLabel, loadVaultPrices, refreshVaultPrices, reviewSale } fro
 import { identityKey } from './pricing/identity.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
 import { readCloudPurchases } from './pricing/cloud-store.mjs';
-import { createPurchaseLedger, purchaseTotals } from './pricing/purchases.mjs';
+import { createPurchaseLedger, hasPurchaseDetails, purchaseTotals } from './pricing/purchases.mjs';
 import { createHistoryChart } from './pricing/history-chart.mjs';
 import { createHistoryComparison } from './pricing/history-changes-ui.mjs';
 
@@ -233,7 +233,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
     const record = purchases.records[card.id];
     const hasCost = record?.amount_cents != null;
     const label = row.querySelector('button');
-    label.textContent = hasCost ? 'Edit purchase' : purchases.status === 'ready' ? 'Record purchase' : 'Purchase details';
+    label.textContent = hasPurchaseDetails(record) ? 'Edit purchase details' : purchases.status === 'ready' ? 'Record purchase' : 'Purchase details';
     const note = row.querySelector('p');
     note.hidden = !hasCost;
     if (!hasCost) { note.textContent = ''; return; }

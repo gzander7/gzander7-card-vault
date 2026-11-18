@@ -56,6 +56,9 @@
   font-size: .85rem;
 }
 .scan-pickers .link-button, #remove-back-photo { font-size: .82rem; }
+.similar-card-status { display: contents; }
+#similar-card-hint { margin: 0; }
+#similar-card-view { font-size: inherit; }
 #card-dialog .scan-side .hint { margin-top: .45rem; font-size: .77rem; }
 #card-dialog .scan-preview { margin-top: .6rem; }
 #card-dialog .scan-preview .slab {

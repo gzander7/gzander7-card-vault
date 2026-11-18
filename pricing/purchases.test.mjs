@@ -13,11 +13,29 @@ test('purchase inputs preserve exact cents, optional details and a zero-cost acq
   assert.throws(() => parse('', '', 'Shop'));
 });
 
+test('a pull can record a box or just the acquisition without inventing a cost', () => {
+  const fields = {amount:'', date:'', source:'', acquisitionType:'pulled', boxName:''};
+  assert.deepEqual(parsePurchase(fields), {
+    acquisition_type:'pulled', box_name:null, amount_cents:null, purchased_on:null, source:null,
+  });
+  assert.deepEqual(parsePurchase({...fields, boxName:'  2023 Topps Chrome Hobby  ', date:'2024-02-29', source:' Card shop '}), {
+    acquisition_type:'pulled', box_name:'2023 Topps Chrome Hobby', amount_cents:null, purchased_on:'2024-02-29', source:'Card shop',
+  });
+  assert.equal(parsePurchase({...fields, amount:'0'}).amount_cents, 0);
+  assert.equal(parsePurchase({...fields, amount:'9.25'}).amount_cents, 925);
+  assert.throws(() => parsePurchase({...fields, amount:'1.005'}));
+  assert.throws(() => parsePurchase({...fields, date:'2025-02-29'}));
+  assert.equal(parsePurchase({...fields, boxName:'x'.repeat(160)}).box_name.length, 160);
+  assert.throws(() => parsePurchase({...fields, boxName:'x'.repeat(161)}), /box/i);
+  assert.equal(parsePurchase({...fields, acquisitionType:null, boxName:'old draft value'}), null);
+});
+
 test('spending includes unpriced cards and gains use only cards with both amounts', () => {
-  const cards = ['priced', 'unpriced', 'free', 'unknown', 'cleared'].map(id => ({id}));
-  const purchases = {priced:{amount_cents:1000}, unpriced:{amount_cents:4000}, free:{amount_cents:0},
+  const cards = ['priced', 'unpriced', 'free', 'unknown', 'cleared', 'pull'].map(id => ({id}));
+  const purchases = {priced:{amount_cents:1000}, unpriced:{amount_cents:4000}, free:{acquisition_type:'pulled', amount_cents:0},
+    pull:{acquisition_type:'pulled', box_name:'Hobby', amount_cents:null},
     cleared:{amount_cents:null}, deleted:{amount_cents:6000}};
-  const quotes = {priced:800, free:400, unknown:90000, cleared:800};
+  const quotes = {priced:800, free:400, unknown:90000, cleared:800, pull:1500};
   assert.deepEqual(purchaseTotals(cards, purchases, card => quotes[card.id]), {
     tracked:3, spent:5000, compared:2, comparedCost:1000, comparedValue:1200, change:200, percent:20,
   });

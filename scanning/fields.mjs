@@ -1,6 +1,6 @@
 // A cleared or unchecked field is still a collector's choice. Keep track of
 // edits separately from values so a scan finishing later respects that choice.
-export function createScanFields(controls) {
+export function createScanFields(controls, onChange = () => {}) {
   const edited = new Set();
   const generated = new Map();
   const read = input => input.type === 'checkbox' ? input.checked : input.value;
@@ -10,6 +10,7 @@ export function createScanFields(controls) {
       edited.add(key);
       generated.delete(key);
       input.removeAttribute('data-scan-filled');
+      onChange();
     };
     input.addEventListener('input', markEdited);
     input.addEventListener('change', markEdited);
@@ -22,6 +23,7 @@ export function createScanFields(controls) {
   }
 
   function clearSuggestions() {
+    if (!generated.size) return;
     for (const [key, value] of generated) {
       const input = controls[key];
       if (read(input) === value) {
@@ -33,6 +35,7 @@ export function createScanFields(controls) {
       input.removeAttribute('data-scan-filled');
     }
     generated.clear();
+    onChange();
   }
 
   function apply(suggestions) {
@@ -55,6 +58,7 @@ export function createScanFields(controls) {
       input.setAttribute('data-scan-filled', '');
       changed++;
     }
+    if (changed) onChange();
     return changed;
   }
 
@@ -75,6 +79,10 @@ export function createScanFields(controls) {
       else input.value = value;
       edited.add(key);
     }
+    if (values) onChange();
   }
-  return { apply, clearSuggestions, reset, snapshot, restoreManual };
+  function values() {
+    return Object.fromEntries(Object.entries(controls).map(([key, input]) => [key, read(input)]));
+  }
+  return { apply, clearSuggestions, reset, snapshot, restoreManual, values };
 }

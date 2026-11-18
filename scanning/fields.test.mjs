@@ -76,3 +76,23 @@ test('pausing a batch preserves confirmed, cleared and browser-filled fields acr
   assert.equal(fields.apply({player:'New read', year:'2024', serial:'31/99', grade:'10', is_auto:true}), 1);
   assert.deepEqual([player.value, year.value, serial.value, grade.value, is_auto.checked], ['Checked player','2024','','9.5',false]);
 });
+
+test('publishes current editor values after manual edits, OCR, photo clearing and batch restoration', () => {
+  const player = new Input(), is_auto = new Input('checkbox');
+  const seen = [];
+  const fields = createScanFields({player, is_auto}, () => seen.push(fields.values()));
+  fields.apply({player:'Scanned player', is_auto:true});
+  player.value = 'Typed player';
+  player.dispatchEvent(new Event('input'));
+  fields.clearSuggestions();
+  fields.restoreManual({player:'Restored player'});
+  is_auto.checked = true;
+  is_auto.dispatchEvent(new Event('change'));
+  assert.deepEqual(seen, [
+    {player:'Scanned player', is_auto:true},
+    {player:'Typed player', is_auto:true},
+    {player:'Typed player', is_auto:false},
+    {player:'Restored player', is_auto:false},
+    {player:'Restored player', is_auto:true},
+  ]);
+});

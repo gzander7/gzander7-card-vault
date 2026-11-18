@@ -141,7 +141,7 @@
                 <button type="button" data-range="all" aria-label="All time" aria-pressed="true">All</button>
               </div>
             </div>
-            <div class="history-plot" role="slider" tabindex="0" aria-label="Recorded vault estimate" aria-describedby="history-help" hidden>
+            <div class="history-plot" role="slider" tabindex="0" aria-label="Recorded vault estimate" aria-describedby="history-help" aria-controls="history-comparison" hidden>
               <svg aria-hidden="true" focusable="false">
                 <defs>
                   <linearGradient id="history-gold" x2="0" y2="1">
@@ -153,10 +153,27 @@
               </svg>
             </div>
             <figcaption>
-              <span class="history-change" hidden>Period change <strong></strong></span>
+              <span class="history-change" hidden>Change between priced dates <strong></strong></span>
               <span id="history-help"></span>
             </figcaption>
           </figure>
+          <section class="history-changes" aria-labelledby="history-changes-heading">
+            <div class="history-changes-head">
+              <div>
+                <h3 id="history-changes-heading">What changed?</h3>
+                <p class="history-comparison-dates"></p>
+              </div>
+              <label class="history-day-control" hidden>
+                Recorded date
+                <select id="history-day" aria-controls="history-comparison"></select>
+              </label>
+            </div>
+            <div id="history-comparison">
+              <p class="history-net" hidden><span>Net change in priced value</span><strong></strong></p>
+              <p class="history-comparison-note"></p>
+              <ul class="history-card-changes" aria-label="Changes by card" hidden></ul>
+            </div>
+          </section>
           <div class="table-wrap">
             <table aria-label="Daily Vault Value history">
               <thead><tr><th scope="col">Date</th><th scope="col">Estimate</th><th scope="col">Cards priced</th></tr></thead>

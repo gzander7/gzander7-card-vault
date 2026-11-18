@@ -91,7 +91,9 @@ The estimate is the median of the latest two to five distinct matching sales wit
 
 Open **Vault Value → Value history** to chart your saved daily estimates over 30 days, 90 days, one year or all time. Tap or hover over the chart, or focus it and use the arrow keys, to see a date’s estimate and how many cards were priced. A single priced date shows one point. The table below lists every recorded date.
 
-Sold comps, exclusions, values and history are visible to the signed-in owner. They save in the current browser by default. To sync between devices, run the current [supabase/valuations.sql](supabase/valuations.sql) in this project's SQL Editor. If you enabled valuation sync before manual comps were added, run the updated SQL once. The next signed-in visit on the original device syncs its saved records. Clearing browser data before that sync removes its local copy.
+**What changed?** compares the selected date with the preceding recorded date. Pick a point on the graph or choose a **Recorded date** to see which cards were added, removed, repriced, or gained or lost an estimate. Their contributions add up to the change in priced value. A signed-in visit starts card-level tracking, and the next recorded day supplies the first comparison. Earlier dates show the totals saved at the time.
+
+Sold comps, exclusions, values and history are visible to the signed-in owner. They save in the current browser by default. To set up cross-device sync in another installation, including one with an older valuation schema, run the current [supabase/valuations.sql](supabase/valuations.sql) in that project's SQL Editor. The next signed-in visit on the original device syncs its saved records. Clearing browser data before that sync removes its local copy.
 
 Run the pricing checks with `node --test pricing/*.test.mjs`.
 

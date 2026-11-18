@@ -2,11 +2,53 @@ import { identityKey, needsDetails } from './pricing/identity.mjs';
 import { lookupComps } from './pricing/cardpricer.mjs';
 import { readCloud, writeCloud, writeCloudReviews } from './pricing/cloud-store.mjs';
 import { changeReview, mergeReviews, reviewedQuote } from './pricing/reviews.mjs';
+import { presentCard } from './display/cards.mjs';
 
 const DAY = 86400000;
 const CACHE_PREFIX = 'card-vault:values:v1:';
-const newer = (a, b) => a && (!b || Date.parse(a) > Date.parse(b));
+const newer = (a, b) => a && (!b || compareTimes(a, b) > 0);
 const emptyStore = () => ({ quotes: {}, reviews: {}, removedCards: [], history: [], failures: {}, cooldownUntil: 0 });
+
+export function historyCardLabel(card) {
+  return Array.from(presentCard(card).label).slice(0, 320).join('').trimEnd();
+}
+
+// Postgres returns up to six fractional digits. Date.parse retains only three.
+function remainingMicros(time) {
+  return Number((/\.\d{3}(\d{1,3})/.exec(time)?.[1] || '').padEnd(3, '0'));
+}
+
+function compareTimes(left, right) {
+  if (left === right) return 0;
+  const milliseconds = Date.parse(left) - Date.parse(right);
+  return milliseconds === 0 ? remainingMicros(left) - remainingMicros(right) : milliseconds;
+}
+
+function nextObservation(now, date, previous) {
+  const nextTime = Math.max(+now, (Date.parse(previous) || 0) + 1);
+  const endOfDay = Date.parse(date + 'T23:59:59.999Z');
+  if (nextTime <= endOfDay) return new Date(nextTime).toISOString();
+  // Same-tick edits need distinct RPC timestamps, even just before midnight.
+  const micros = remainingMicros(previous) + 1;
+  if (micros > 999) throw new RangeError('No later observation time remains on this UTC date.');
+  return date + 'T23:59:59.999' + String(micros).padStart(3, '0') + 'Z';
+}
+
+function sameTotals(left, right) {
+  return left.valueCents === right.valueCents && left.priced === right.priced && left.total === right.total;
+}
+
+function sameCards(previous, cards) {
+  return Array.isArray(previous) && previous.length === cards.length && cards.every((card, index) => {
+    const saved = previous[index];
+    return saved && card.id === saved.id && card.label === saved.label && card.valueCents === saved.valueCents;
+  });
+}
+
+function addsCardDetails(day, other) {
+  return Array.isArray(day?.cards) && other && !Array.isArray(other.cards)
+    && compareTimes(day.observedAt, other.observedAt) === 0 && sameTotals(day, other);
+}
 
 function combine(left, right) {
   const copy = { ...left.quotes };
@@ -15,7 +57,9 @@ function combine(left, right) {
   }
   const dates = new Map(left.history.map(entry => [entry.date, entry]));
   for (const entry of right?.history || []) {
-    if (entry?.observedAt && !newer(dates.get(entry.date)?.observedAt, entry.observedAt)) dates.set(entry.date, entry);
+    if (!entry?.observedAt) continue;
+    const previous = dates.get(entry.date);
+    if (!newer(previous?.observedAt, entry.observedAt) && !addsCardDetails(previous, entry)) dates.set(entry.date, entry);
   }
   const failures = { ...left.failures };
   for (const [id, failure] of Object.entries(right?.failures || {})) {
@@ -93,17 +137,20 @@ export function createPricingClient({
   function recordDay(state) {
     if (!state.cards) return;
     const quotes = cardQuotes(state);
-    const amounts = state.cards.map(card => quotes[card.id]).filter(q => q?.status === 'valued' && Number.isSafeInteger(q.valueCents));
+    const cards = state.cards.map(card => {
+      const quote = quotes[card.id];
+      const valued = quote?.status === 'valued' && Number.isSafeInteger(quote.valueCents) && quote.valueCents >= 0;
+      return { id: card.id, label: historyCardLabel(card), valueCents: valued ? quote.valueCents : null };
+    }).sort((a, b) => a.id.localeCompare(b.id));
+    const priced = cards.filter(card => card.valueCents !== null);
+    const valueCents = priced.length ? priced.reduce((sum, card) => sum + card.valueCents, 0) : null;
+    if (valueCents !== null && !Number.isSafeInteger(valueCents)) throw new RangeError('Vault total exceeds supported precision.');
+    const totals = { valueCents, priced: priced.length, total: cards.length };
     const now = clock();
     const date = now.toISOString().slice(0, 10);
     const previous = state.data.history.find(day => day.date === date);
-    const valueCents = amounts.length ? amounts.reduce((sum, q) => sum + q.valueCents, 0) : null;
-    if (previous && previous.valueCents === valueCents && previous.priced === amounts.length && previous.total === state.cards.length) return;
-    // Multiple form actions can happen in the same clock tick. Give each change
-    // a newer stamp for the existing history RPC, staying within its UTC day.
-    const nextTime = Math.max(+now, (Date.parse(previous?.observedAt) || 0) + 1);
-    const endOfDay = Date.parse(date + 'T23:59:59.999Z');
-    const entry = {date, valueCents, priced: amounts.length, total: state.cards.length, observedAt: new Date(Math.min(endOfDay, nextTime)).toISOString()};
+    if (previous && sameTotals(previous, totals) && sameCards(previous.cards, cards)) return;
+    const entry = { date, ...totals, observedAt: nextObservation(now, date, previous?.observedAt), cards };
     state.data = combine(state.data, {history:[entry]});
   }
 
@@ -115,13 +162,13 @@ export function createPricingClient({
 
   function rememberRemote(state, result) {
     state.serverQuotes = Object.fromEntries(Object.entries(result.quotes || {}).map(([id, q]) => [id, q.checkedAt]));
-    state.serverDays = Object.fromEntries((result.history || []).map(e => [e.date, e.observedAt]));
+    state.serverDays = Object.fromEntries((result.history || []).map(entry => [entry.date, entry]));
     state.serverReviews = result.reviews ?? null;
   }
 
   async function loadVaultPrices(session, cards) {
     const state = stateFor(session);
-    if (cards) state.cards = cards.filter(card => card.owner === session.user.id);
+    if (cards !== undefined) state.cards = Array.isArray(cards) ? cards.filter(card => card.owner === session.user.id) : null;
     if (clock().getTime() < state.nextRead) return snapshot(state);
     if (!state.reading) {
       state.reading = (async () => {
@@ -175,12 +222,15 @@ export function createPricingClient({
       // Older installations can still sync provider quotes. A total with local
       // receipts should travel only once its evidence is available on the server.
       const syncDays = state.serverReviews || !Object.keys(state.data.reviews).length;
-      const days = syncDays ? state.data.history.filter(h => newer(h.observedAt, state.serverDays[h.date])) : [];
+      const days = syncDays ? state.data.history.filter(day => {
+        const remote = state.serverDays[day.date];
+        return newer(day.observedAt, remote?.observedAt) || addsCardDetails(day, remote);
+      }) : [];
       if (!Object.keys(changed).length && !days.length) return;
       const ok = await writeRemote(session, changed, days);
       if (ok === null) { state.sync = 'absent'; state.nextRead = 0; return; }
       for (const [id, q] of Object.entries(changed)) state.serverQuotes[id] = q.checkedAt;
-      for (const h of days) state.serverDays[h.date] = h.observedAt;
+      for (const day of days) state.serverDays[day.date] = day;
     } catch {
       state.sync = 'offline';
       state.nextRead = clock().getTime() + 60000;
@@ -221,6 +271,7 @@ export function createPricingClient({
     if (force) stateFor(session).nextRead = 0;
     await loadVaultPrices(session, cards);
     const state = stateFor(session);
+    if (!Array.isArray(cards) || signal?.aborted) return snapshot(state);
     const owner = session.user.id;
     const owned = cards.filter(c => c.owner === owner);
     const ids = new Set(owned.map(c => c.id));

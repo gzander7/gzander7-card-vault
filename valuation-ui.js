@@ -1,5 +1,6 @@
-import { loadVaultPrices, refreshVaultPrices } from './pricing-client.js';
+import { loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
 import { identityKey } from './pricing/identity.mjs';
+import { createReviewDialog } from './pricing/review-dialog.mjs';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const calendarDate = new Intl.DateTimeFormat('en-US', {
@@ -35,7 +36,7 @@ function saleLink(sale) {
     return element('span', sale.title);
   }
   if (url.protocol !== 'https:' || url.username || url.password ||
-      !salesHosts.some(host => url.hostname === host || url.hostname.endsWith('.' + host))) {
+      (!sale.manual && !sale.flag && !salesHosts.some(host => url.hostname === host || url.hostname.endsWith('.' + host)))) {
     return element('span', sale.title);
   }
   const link = element('a', sale.title);
@@ -63,16 +64,27 @@ function soldSearch(card) {
   return link;
 }
 
-function drawCardDetails(details, card, quote, loading, failed) {
+function actionButton(text, onClick) {
+  const button = element('button', text);
+  button.type = 'button';
+  button.className = 'link-button';
+  button.addEventListener('click', () => onClick(button));
+  return button;
+}
+
+function drawCardDetails(details, card, quote, loading, failed, onAction) {
   // A background lookup for a different card must not replace a focused sale link.
   const pending = !quote && loading;
   const unavailable = !quote && failed;
   const previous = renderedDetails.get(details);
   if (previous && previous.quote === quote && previous.pending === pending && previous.unavailable === unavailable) return;
-  renderedDetails.set(details, { quote, pending, unavailable });
+  const content = JSON.stringify(quote);
+  renderedDetails.set(details, { quote, content, pending, unavailable });
+  if (previous && previous.content === content && previous.pending === pending && previous.unavailable === unavailable) return;
   const summary = details.querySelector('summary');
   const body = details.querySelector('.comp-evidence');
   const sales = Array.isArray(quote?.sales) ? quote.sales : [];
+  const evidence = quote?.evidence || sales;
   const quoteAmount = hasValue(quote) ? money(quote.valueCents) : 'Unpriced';
   summary.textContent = 'Sold comps · ' + quoteAmount;
   const contents = [];
@@ -86,11 +98,22 @@ function drawCardDetails(details, card, quote, loading, failed) {
       : quote?.status === 'insufficient' ? 'Too few matching sales for an estimate.' : waitingText;
     contents.push(element('p', quote?.message || reason));
   }
-  if (sales.length) {
+  if (evidence.length) {
     const list = element('ul');
-    for (const sale of sales) {
+    for (const sale of evidence) {
       const row = element('li');
-      row.append(saleLink(sale), element('span', dateText(sale.soldAt)), element('strong', money(sale.priceCents)));
+      const actions = element('div');
+      actions.className = 'comp-row-actions';
+      if (sale.manual) actions.append(actionButton('Edit sale', () => onAction('save', card, sale)));
+      if (sale.flag) actions.append(actionButton('Restore sale', button => onAction('restore', card, sale, button)));
+      else if (!sale.reason || sale.automatic) actions.append(actionButton('Flag wrong match', () => onAction('exclude', card, sale)));
+      const state = element('small');
+      const source = sale.automatic && sale.manual ? 'CardPricer and your entry' : sale.automatic ? 'CardPricer' : sale.manual ? 'Entered by you' : 'Flagged sale';
+      const use = sale.flag ? 'Excluded · ' + sale.flag : sale.reason || (hasValue(quote) ? 'Used in estimate' : 'Matching sale');
+      state.textContent = source + ' · ' + use;
+      state.className = 'comp-source';
+      row.append(saleLink(sale), element('span', dateText(sale.soldAt)), element('strong', money(sale.priceCents)), state);
+      if (actions.childElementCount) row.append(actions);
       list.appendChild(row);
     }
     contents.push(list);
@@ -100,7 +123,7 @@ function drawCardDetails(details, card, quote, loading, failed) {
   }
   if (!hasValue(quote) && !loading && card.player) contents.push(soldSearch(card));
   const checked = dateText(quote?.checkedAt);
-  if (checked) contents.push(element('small', 'Checked ' + checked));
+  if (checked) contents.push(element('small', 'Automatic lookup checked ' + checked));
   body.replaceChildren(...contents);
 }
 
@@ -121,6 +144,7 @@ export function createVaultValue() {
   let quotes = {};
   let history = [];
   let storage = '';
+  let reviewStorage = '';
   let notice = '';
   let revision = 0;
   let signature;
@@ -129,6 +153,28 @@ export function createVaultValue() {
   let loaded = false;
   let loading = false;
   let failed = false;
+  const feedback = new Map();
+  const editor = createReviewDialog(commitReview);
+
+  async function commitReview(card, command) {
+    const session = activeSession;
+    if (!session || !byId.has(card.id)) throw new Error('Sign in and reopen this card’s sold comps.');
+    const next = await reviewSale(session, cards, card, command);
+    if (owner !== session.user.id || !byId.has(card.id)) return;
+    const action = {save:'Sale saved', exclude:'Sale excluded', restore:'Sale restored', remove:'Saved sale removed'}[command.type];
+    const location = next.reviewStorage === 'cloud' ? ' and synced.' : next.reviewStorage === 'session' ? ' for this session only.' : ' on this device.';
+    feedback.set(card.id, action + location);
+    apply(next);
+    paint();
+  }
+
+  async function handleAction(mode, card, sale, button) {
+    if (mode !== 'restore') { editor.show(mode, card, sale); return; }
+    button.disabled = true;
+    try { await commitReview(card, {type:'restore', url:sale.url}); }
+    catch (error) { feedback.set(card.id, error.message); paint(); }
+    finally { button.disabled = false; }
+  }
 
   function quoteFor(card) {
     const quote = quotes[card.id];
@@ -141,8 +187,13 @@ export function createVaultValue() {
     details.dataset.cardId = card.id;
     const body = element('div');
     body.className = 'comp-evidence';
-    details.append(element('summary'), body);
-    drawCardDetails(details, card, quoteFor(card), loading, failed);
+    const add = actionButton('Add sold comp', () => editor.show('save', card));
+    add.classList.add('comp-add');
+    const message = element('p', feedback.get(card.id) || '');
+    message.className = 'comp-feedback';
+    message.setAttribute('role', 'status');
+    details.append(element('summary'), body, add, message);
+    drawCardDetails(details, card, quoteFor(card), loading, failed, handleAction);
     return details;
   }
 
@@ -159,8 +210,9 @@ export function createVaultValue() {
     else if (!cards.length) status.textContent = 'Add a card to start tracking your vault.';
     else if (!matches.length) status.textContent = 'Open a card’s sold comps to see what it needs for an estimate.';
     else status.textContent = '';
-    const persistence = storage === 'session' ? 'History is available for this session only.'
-      : storage === 'device' || storage === 'device-offline' ? 'History is saved on this device.' : '';
+    const persistence = storage === 'session' ? 'Sold comps and history are available for this session only.'
+      : storage === 'device' || storage === 'device-offline' ? 'Sold comps and history are saved on this device.'
+      : storage === 'cloud' && reviewStorage === 'device' ? 'History syncs across devices. Manual sold comps are saved on this device.' : '';
     storageNote.textContent = owner ? [persistence, notice].filter(Boolean).join(' ') : '';
 
     const rows = [...history].sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -175,23 +227,20 @@ export function createVaultValue() {
     historyDetails.hidden = !owner || !rows.length;
     for (const details of document.querySelectorAll('.value-card')) {
       const card = byId.get(details.dataset.cardId);
-      if (card) drawCardDetails(details, card, quoteFor(card), loading, failed);
+      if (card) {
+        drawCardDetails(details, card, quoteFor(card), loading, failed, handleAction);
+        details.querySelector('.comp-feedback').textContent = feedback.get(card.id) || '';
+      }
       else details.remove();
     }
   }
 
   function apply(snapshot) {
     if (!snapshot) return;
-    const next = { ...snapshot.quotes };
-    for (const [id, quote] of Object.entries(next)) {
-      const previous = quotes[id];
-      if (quote?.status === 'unavailable' && hasValue(previous) && previous.identity === quote.identity) {
-        next[id] = { ...previous, refreshFailed: true };
-      }
-    }
-    quotes = next;
+    quotes = snapshot.quotes;
     history = Array.isArray(snapshot.history) ? snapshot.history : [];
     storage = snapshot.storage || '';
+    reviewStorage = snapshot.reviewStorage || '';
     notice = snapshot.notice || '';
   }
 
@@ -204,11 +253,13 @@ export function createVaultValue() {
       owner = nextOwner;
       quotes = {};
       history = [];
-      storage = notice = '';
+      storage = reviewStorage = notice = '';
       signature = undefined;
       queue = Promise.resolve();
       loaded = loading = failed = false;
       historyDetails.open = false;
+      feedback.clear();
+      editor.close();
     }
     cards = owner ? ownerCards : null;
     byId = new Map((cards || []).map(card => [card.id, card]));
@@ -237,7 +288,7 @@ export function createVaultValue() {
       if (revision !== ticket) return;
       if (!loaded) {
         try {
-          const cached = await loadVaultPrices(session);
+          const cached = await loadVaultPrices(session, ownerCards);
           if (revision !== ticket) return;
           apply(cached);
           loaded = true;
@@ -274,5 +325,10 @@ export function createVaultValue() {
   refresh.addEventListener('click', () => {
     if (!refresh.disabled) sync(activeSession, cards, true);
   });
-  return { sync, cardDetails };
+  function resume() {
+    if (!owner || !cards || loading) return;
+    signature = undefined;
+    sync(activeSession, cards);
+  }
+  return { sync, resume, cardDetails };
 }

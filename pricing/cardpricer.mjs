@@ -1,6 +1,7 @@
 // CardPricer distinguishes sales, asking prices and quotes in its public sales feed.
 // Its card provenance mixes those types, so verify every observation against the feed.
 import { matchesSale, needsDetails } from './identity.mjs';
+import { medianCents } from './reviews.mjs';
 
 const API = 'https://cardpricer.co/api/v1/';
 const DAY = 86400000;
@@ -129,7 +130,7 @@ function saleFor(card, row, candidate, now) {
   return { id: text(row.id), title: row.title.trim(), soldAt: new Date(time).toISOString(), priceCents, url };
 }
 
-export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), signal } = {}) {
+export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), signal, excludedUrls = new Set() } = {}) {
   signal?.throwIfAborted();
   const checkedAt = now.toISOString();
   const result = (status, message, sales = [], valueCents = null) => ({status, valueCents, sales, checkedAt, message, source: 'CardPricer'});
@@ -207,6 +208,7 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
   const sources = new Set();
   const tape = new Map();
   let calls = 0;
+  let eligible = 0;
   for (const obs of recent) {
     if (seen.has(obs.id)) continue;
     seen.add(obs.id);
@@ -228,11 +230,12 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
     if (!sale || sources.has(sale.url)) continue;
     sources.add(sale.url);
     sales.push(sale);
-    if (sales.length === MAX_SALES) break;
+    if (!excludedUrls.has(sale.url)) eligible++;
+    if (eligible === MAX_SALES) break;
   }
   if (sales.length < 2) return result('insufficient', 'Two recent, verified sales of this exact card are needed for an estimate.', sales);
-  const prices = sales.map(sale => sale.priceCents).sort((a, b) => a - b);
-  const mid = Math.floor(prices.length / 2);
-  const median = prices.length % 2 ? prices[mid] : prices[mid - 1] + Math.round((prices[mid] - prices[mid - 1]) / 2);
-  return result('valued', 'Median of recent verified sales of this card.', sales, median);
+  const latest = sales.slice(0, MAX_SALES);
+  const quote = result('valued', 'Median of recent verified sales of this card.', latest, medianCents(latest));
+  if (sales.length > MAX_SALES) quote.extraSales = sales.slice(MAX_SALES);
+  return quote;
 }

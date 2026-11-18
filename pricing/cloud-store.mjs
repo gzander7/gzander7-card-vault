@@ -48,3 +48,10 @@ export async function writeCloud(session, updates, entries, fetchImpl = fetch) {
   if (!Object.keys(updates).length && !entries.length) return true;
   return callVaultRpc(session, 'vault_prices_write', { updates, entries }, fetchImpl);
 }
+
+export async function writeCloudReviews(session, changes, fetchImpl = fetch) {
+  const result = await callVaultRpc(session, 'vault_comp_reviews_write', { changes }, fetchImpl);
+  if (result === null) return null;
+  if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data)) throw new Error('Invalid sold comp sync response.');
+  return result.data;
+}

@@ -1,6 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
+import { forgetCardReviews } from './pricing-client.js';
 import { croppedCanvas } from './photos/crop.mjs';
 import { createCropPreview } from './photos/crop-preview.mjs';
 import { openCardViewer } from './card-viewer.mjs';
@@ -655,7 +656,7 @@ function syncVaultValue() {
   vaultValue.sync(session, owned);
 }
 document.addEventListener('visibilitychange', () => {
-  if (session && !document.hidden) syncVaultValue();
+  if (session && !document.hidden) vaultValue.resume();
 });
 
 function render() {
@@ -899,6 +900,7 @@ async function deleteCard(card) {
     const { data, error } = await supabase.from('cards').delete().eq('id', card.id).eq('image_path', card.image_path).select();
     if (error) throw error;
     if (!data?.length) throw new Error('That card changed. Reload the vault before deleting it.');
+    forgetCardReviews(session, card);
     const cleaned = await removeStoredCard(supabase.storage.from('card-images'), data[0].image_path);
     cards = cards.filter((item) => item.id !== card.id);
     render();

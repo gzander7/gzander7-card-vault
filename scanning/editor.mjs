@@ -2,7 +2,7 @@ import { readCardPhotos } from './ocr.mjs';
 import { createCropPreview } from '../photos/crop-preview.mjs';
 import { parseCardScan } from './parser.mjs';
 
-export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, onSourceChange = () => {},
+export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, cornerEditor, onSourceChange = () => {},
   autoRead = (hasFront, hasBack) => hasFront && hasBack, onBackFile = () => {} }) {
   const byId = id => document.getElementById(id);
   const dialog = byId('card-dialog');
@@ -147,6 +147,7 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
   function discardPendingBack() {
     pendingBack?.abort();
     pendingBack = null;
+    backCrop.setPreparing(false);
     onBackPreparing(false);
   }
 
@@ -155,10 +156,11 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     backChange = prepared.blob;
     backUrl = URL.createObjectURL(backChange);
     back = prepared.scanBlob;
+    savedBack = null;
     backImage.src = backUrl;
     backPreview.hidden = false;
     sourceChanged();
-  });
+  }, cornerEditor);
 
   function clearBack() {
     backCrop.clear();
@@ -172,10 +174,17 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
 
   function setSavedBack(url, loadBlob) {
     clearBack();
-    backChange = undefined;
-    savedBack = loadBlob;
-    backImage.src = url;
-    backPreview.hidden = false;
+    const restore = () => {
+      if (backUrl) URL.revokeObjectURL(backUrl);
+      backUrl = '';
+      back = null;
+      backChange = undefined;
+      savedBack = loadBlob;
+      backImage.src = url;
+      backPreview.hidden = false;
+    };
+    backCrop.setSaved(loadBlob, () => { restore(); sourceChanged(); });
+    restore();
     updateControls();
   }
 
@@ -187,17 +196,18 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     await prepareBack(photo);
   }
 
-  async function prepareBack(photo, preferCrop = true) {
+  async function prepareBack(photo, draft) {
     if (!photo || !dialog.open || photoField.disabled) return false;
     discardPendingBack();
     cancelScan();
     const token = new AbortController();
     pendingBack = token;
+    backCrop.setPreparing(true);
     onBackPreparing(true);
     updateControls();
     setStatus('Preparing the back photo…');
     try {
-      const prepared = await prepareImage(photo, token.signal);
+      const prepared = await prepareImage(photo, token.signal, draft?.corners);
       if (pendingBack !== token) return;
       if (!dialog.open || photoField.disabled) {
         discardPendingBack();
@@ -207,7 +217,7 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
       discardPendingBack();
       clearBack();
       onBackFile(photo);
-      backCrop.set(prepared, preferCrop);
+      backCrop.set(prepared, draft);
       return true;
     } catch (error) {
       if (pendingBack !== token) return;
@@ -255,5 +265,5 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
   read.addEventListener('click', start);
   stop.addEventListener('click', cancel);
   return { setFront, setSavedFront, setSavedBack, getBackChange: () => backChange, reset, cancel, pause, resume,
-    prepareBack, removeBack, start, backFullSelected:backCrop.fullSelected };
+    prepareBack, removeBack, start, backCropSnapshot:backCrop.snapshot };
 }

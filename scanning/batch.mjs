@@ -88,7 +88,10 @@ export function createBatchDialog(queue, {onReview, onCount}) {
       if (!file || !queue.items.includes(entry)) return;
       if (!isPhoto(file)) { message.textContent = 'Choose an image for the back.'; return; }
       entry.back = file;
-      if (entry.draft) entry.draft.suggestions = {};
+      if (entry.draft) {
+        entry.draft.suggestions = {};
+        entry.draft.backCrop = null;
+      }
       render(entry);
     });
     label.append(input);
@@ -113,7 +116,7 @@ export function createBatchDialog(queue, {onReview, onCount}) {
         [entry.front,entry.back] = [entry.back,entry.front];
         if (entry.draft) {
           entry.draft.suggestions = {};
-          entry.draft.fullFront = entry.draft.fullBack = false;
+          [entry.draft.frontCrop, entry.draft.backCrop] = [entry.draft.backCrop, entry.draft.frontCrop];
         }
         render(entry);
       }));

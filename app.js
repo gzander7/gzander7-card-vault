@@ -3,8 +3,9 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
 import { createPurchaseEditor } from './pricing/purchase-editor.mjs';
 import { forgetCardReviews } from './pricing-client.js';
-import { croppedCanvas } from './photos/crop.mjs';
+import { compressCardImage } from './photos/prepare.mjs';
 import { createCropPreview } from './photos/crop-preview.mjs';
+import { createCornerDialog } from './photos/corner-dialog.mjs';
 import { openCardViewer } from './card-viewer.mjs';
 import { createScanEditor } from './scanning/editor.mjs';
 import { createScanFields } from './scanning/fields.mjs';
@@ -12,7 +13,6 @@ import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
 import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
 
 const SPOTLIGHT_MS = 5000;
-const MAX_EDGE = 1400;
 const SCHEMA_MESSAGE = 'Database not set up yet. In the Supabase SQL editor, run supabase/schema.sql, then reload this page.';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -111,6 +111,7 @@ let previewUrl = '';
 let photoGeneration = 0;
 let frontPreparation = null;
 let activeBatch = null;
+let displayCases = null;
 let busy = false;
 let statusTimer = 0;
 
@@ -127,7 +128,9 @@ const scanFields = createScanFields({
   is_relic: ui.cardRelic,
 });
 
+const cornerEditor = createCornerDialog();
 const scanner = createScanEditor({
+  cornerEditor,
   prepareImage: compressCardImage,
   onBackPreparing: preparing => {
     preparingBack = preparing;
@@ -373,6 +376,24 @@ function cardActions(card) {
   return row;
 }
 
+async function openDisplayCases() {
+  const owner = session?.user?.id;
+  if (!owner || busy) return;
+  try {
+    if (!displayCases) {
+      const { createDisplayCases } = await import('./display/manager.mjs');
+      if (session?.user?.id !== owner) return;
+      displayCases ??= createDisplayCases({
+        client: supabase,
+        getOwner: () => session?.user?.id || '',
+      });
+    }
+    await displayCases.open();
+  } catch {
+    if (session?.user?.id === owner) announce('Display cases could not be opened. Try again.');
+  }
+}
+
 function renderAuth() {
   ui.authBar.replaceChildren();
   if (!session) {
@@ -395,6 +416,10 @@ function renderAuth() {
   batch.type = 'button';
   batch.id = 'batch-scan-btn';
   batch.addEventListener('click', () => { if (!busy) batchDialog.open(); });
+  const casesButton = el('button', 'link-button', 'Display cases');
+  casesButton.type = 'button';
+  casesButton.setAttribute('aria-haspopup', 'dialog');
+  casesButton.addEventListener('click', openDisplayCases);
   const setPassword = el('button', 'link-button', 'Set password');
   setPassword.type = 'button';
   setPassword.addEventListener('click', openPasswordDialog);
@@ -403,7 +428,7 @@ function renderAuth() {
   signOut.addEventListener('click', () => {
     supabase.auth.signOut();
   });
-  ui.authBar.append(add, batch, setPassword, signOut);
+  ui.authBar.append(add, batch, casesButton, setPassword, signOut);
 }
 
 function renderStats(list) {
@@ -724,7 +749,7 @@ const frontCrop = createCropPreview('front', prepared => {
   const kb = Math.max(1, Math.round(prepared.blob.size / 1024));
   showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
   scanner.setFront(prepared.scanBlob);
-});
+}, cornerEditor);
 
 function clearPreview() {
   frontCrop.clear();
@@ -757,65 +782,6 @@ async function fetchSavedPhoto(src, signal) {
   }
 }
 
-async function encodePhoto(canvas) {
-  const encode = type => new Promise(resolve => canvas.toBlob(resolve, type, .88));
-  const blob = await encode('image/jpeg') || await encode('image/webp');
-  if (!blob) throw new Error('This browser could not prepare the photo.');
-  return blob;
-}
-
-async function compressCardImage(file, signal) {
-  const type = file.type || '';
-  if (type && type !== 'application/octet-stream' && !type.startsWith('image/')) throw new Error('Choose an image file.');
-  const source = URL.createObjectURL(file);
-  const image = new Image();
-  let canvas;
-  try {
-    image.src = source;
-    await image.decode().catch(() => {
-      throw new Error('This device could not read that photo. Try a JPEG or PNG.');
-    });
-    signal?.throwIfAborted();
-    const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
-    if (!image.naturalWidth || !image.naturalHeight) throw new Error('This device could not read that photo. Try a JPEG or PNG.');
-    const scale = Math.min(1, MAX_EDGE / longEdge);
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    ctx.fillStyle = '#12080c';
-    ctx.fillRect(0, 0, width, height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(image, 0, 0, width, height);
-    const blob = await encodePhoto(canvas);
-    signal?.throwIfAborted();
-    canvas.width = canvas.height = 1;
-    let crop = null;
-    let cropUnavailable = false;
-    let cropped;
-    try {
-      cropped = croppedCanvas(image, MAX_EDGE);
-      if (cropped) {
-        const croppedBlob = await encodePhoto(cropped);
-        crop = { blob: croppedBlob, scanBlob: croppedBlob, width: cropped.width, height: cropped.height, type: croppedBlob.type };
-      }
-    } catch {
-      cropUnavailable = true;
-    } finally {
-      if (cropped) cropped.width = cropped.height = 1;
-    }
-    const scanBlob = file.size <= 32 * 1024 * 1024 && type.startsWith('image/') ? file : blob;
-    return { blob, scanBlob, crop, cropUnavailable, width, height, type: blob.type || 'image/jpeg' };
-  } finally {
-    URL.revokeObjectURL(source);
-    image.removeAttribute?.('src');
-    if (canvas) canvas.width = canvas.height = 1;
-  }
-}
-
 function openEditor(card, focusPurchase = false, entry = null) {
   if (busy) return;
   frontPreparation?.abort();
@@ -841,9 +807,7 @@ function openEditor(card, focusPurchase = false, entry = null) {
   $('scan-auto-hint').textContent = entry ? 'Each card is read automatically. A back photo can help identify its set and number.'
     : 'Add both sides to read the printed details automatically.';
   ui.photoField.disabled = false;
-  ui.photoNote.textContent = card
-    ? 'The current photo is kept unless you choose a new one.'
-    : 'Photos are resized to about 1400px on the long edge.';
+  ui.photoNote.textContent = card ? '' : 'Photos are resized to about 1400px on the long edge.';
   if (card) {
     ui.cardPlayer.value = card.player || '';
     ui.cardYear.value = card.year ?? '';
@@ -859,8 +823,16 @@ function openEditor(card, focusPurchase = false, entry = null) {
     ui.cardFeatured.checked = Boolean(card.featured);
     const src = imageUrl(card.image_path);
     if (src) {
-      showPreview(src, ui.photoNote.textContent);
-      scanner.setSavedFront(signal => fetchSavedPhoto(src, signal));
+      const load = signal => fetchSavedPhoto(src, signal);
+      const restore = () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = '';
+        pendingBlob = null;
+        showPreview(src, '');
+        scanner.setSavedFront(load);
+      };
+      frontCrop.setSaved(load, restore);
+      restore();
     }
     const backSrc = imageUrl(backPhotoPath(card.image_path));
     if (backSrc) scanner.setSavedBack(backSrc, signal => fetchSavedPhoto(backSrc, signal));
@@ -892,10 +864,10 @@ function saveLabel() {
 async function prepareBatchPhotos(review) {
   const {entry} = review;
   try {
-    const frontReady = await prepareFrontFile(entry.front, !entry.draft?.fullFront);
+    const frontReady = await prepareFrontFile(entry.front, entry.draft?.frontCrop);
     if (activeBatch !== review || !ui.cardDialog.open) return;
     if (entry.back) {
-      const ready = await scanner.prepareBack(entry.back, !entry.draft?.fullBack);
+      const ready = await scanner.prepareBack(entry.back, entry.draft?.backCrop);
       if (activeBatch !== review || !ui.cardDialog.open) return;
       review.backProblem = !ready && !entry.retry;
     }
@@ -917,8 +889,8 @@ function rememberBatchDraft(review) {
   const {manual,suggestions} = scanFields.snapshot();
   entry.draft = {
     manual, suggestions:review.preparing ? (previous?.suggestions || {}) : suggestions,
-    fullFront:review.preparing ? previous?.fullFront : frontCrop.fullSelected(),
-    fullBack:review.preparing ? previous?.fullBack : scanner.backFullSelected(),
+    frontCrop:frontCrop.snapshot() || previous?.frontCrop,
+    backCrop:entry.back ? scanner.backCropSnapshot() || previous?.backCrop : null,
     notes:ui.cardNotes.value, featured:ui.cardFeatured.checked, purchase:purchaseEditor.snapshot(),
   };
 }
@@ -1316,21 +1288,22 @@ async function prepareCardPhoto(event) {
   await prepareFrontFile(file);
 }
 
-async function prepareFrontFile(file, preferCrop = true) {
+async function prepareFrontFile(file, draft) {
   frontPreparation?.abort();
   const controller = new AbortController();
   frontPreparation = controller;
   const generation = ++photoGeneration;
+  frontCrop.setPreparing(true);
   scanner.pause();
   ui.cardError.textContent = '';
   preparingFront = true;
   updateSaveAvailability();
   ui.photoNote.textContent = 'Preparing photo…';
   try {
-    const prepared = await compressCardImage(file, controller.signal);
+    const prepared = await compressCardImage(file, controller.signal, draft?.corners);
     if (generation !== photoGeneration || !ui.cardDialog.open) return false;
     if (activeBatch) activeBatch.entry.front = file;
-    frontCrop.set(prepared, preferCrop);
+    frontCrop.set(prepared, draft);
     return true;
   } catch (error) {
     if (generation !== photoGeneration) return;
@@ -1344,6 +1317,7 @@ async function prepareFrontFile(file, preferCrop = true) {
     if (generation === photoGeneration) {
       frontPreparation = null;
       preparingFront = false;
+      frontCrop.setPreparing(false);
       updateSaveAvailability();
     }
   }
@@ -1387,6 +1361,7 @@ function setSession(next) {
   session = next || null;
   const current = session?.user?.id || '';
   if (previous !== current) {
+    displayCases?.close();
     activeBatch = null;
     batchQueue.setOwner(current);
     batchDialog.close();

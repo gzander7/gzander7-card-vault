@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="valuation.css">
   <link rel="stylesheet" href="scanner.css">
   <link rel="stylesheet" href="card-viewer.css">
+  <link rel="stylesheet" href="display/cases.css">
 </head>
 <body>
   <canvas id="backdrop" aria-hidden="true"></canvas>
@@ -332,7 +333,10 @@
                   <div class="slab-inner"><img id="photo-preview-img" alt="Selected card front"></div>
                 </div>
                 <p id="front-crop-note" class="hint" role="status"></p>
-                <button type="button" id="front-crop-toggle" class="link-button" hidden>Use full photo</button>
+                <div class="crop-actions">
+                  <button type="button" id="front-crop-adjust" class="link-button" aria-label="Adjust front corners" aria-haspopup="dialog" hidden>Adjust corners</button>
+                  <button type="button" id="front-crop-toggle" class="link-button" hidden>Use full photo</button>
+                </div>
               </div>
               <p id="photo-note" class="hint" role="status"></p>
             </fieldset>
@@ -351,8 +355,11 @@
                   <div class="slab-inner"><img id="back-preview-img" alt="Selected card back"></div>
                 </div>
                 <p id="back-crop-note" class="hint" role="status"></p>
-                <button type="button" id="back-crop-toggle" class="link-button" hidden>Use full photo</button>
-                <button type="button" id="remove-back-photo" class="link-button">Remove back</button>
+                <div class="crop-actions">
+                  <button type="button" id="back-crop-adjust" class="link-button" aria-label="Adjust back corners" aria-haspopup="dialog" hidden>Adjust corners</button>
+                  <button type="button" id="back-crop-toggle" class="link-button" hidden>Use full photo</button>
+                  <button type="button" id="remove-back-photo" class="link-button">Remove back</button>
+                </div>
               </div>
             </fieldset>
           </div>
@@ -432,6 +439,33 @@
         <button type="button" id="batch-skip" class="link-button" hidden>Skip card</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="crop-dialog" aria-labelledby="crop-title" aria-describedby="crop-help">
+    <div class="crop-sheet">
+      <div class="dialog-head">
+        <h2 id="crop-title" tabindex="-1">Adjust corners</h2>
+        <button type="button" class="link-button" id="crop-cancel">Cancel</button>
+      </div>
+      <p id="crop-help" class="hint">Drag each handle to a card corner, or tap a handle and then its new spot. Use the arrow keys for fine adjustments.</p>
+      <div class="crop-workbench">
+        <div id="crop-surface" hidden>
+          <img id="crop-image" alt="Full card photo" draggable="false">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path id="crop-shade" fill-rule="evenodd"></path>
+            <polygon id="crop-outline"></polygon>
+          </svg>
+          <button type="button" class="crop-handle" data-corner="0" aria-label="Top left corner" aria-pressed="true"></button>
+          <button type="button" class="crop-handle" data-corner="1" aria-label="Top right corner" aria-pressed="false"></button>
+          <button type="button" class="crop-handle" data-corner="2" aria-label="Bottom right corner" aria-pressed="false"></button>
+          <button type="button" class="crop-handle" data-corner="3" aria-label="Bottom left corner" aria-pressed="false"></button>
+        </div>
+      </div>
+      <p id="crop-position" class="visually-hidden" role="status"></p>
+      <p id="crop-status" class="hint" role="status"></p>
+      <div class="dialog-actions">
+        <button type="button" class="gold-btn" id="crop-apply" disabled>Apply crop</button>
+      </div>
+    </div>
   </dialog>
   <script type="module" src="app.js"></script>
 </body>

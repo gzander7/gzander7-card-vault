@@ -2,6 +2,24 @@ import { detectCard } from './outline.mjs';
 
 export { detectCard };
 
+// Points are normalized against the full, orientation-corrected photo and
+// run clockwise from the top left. A convex outline has four positive turns.
+export function validCropCorners(points) {
+  if (!Array.isArray(points) || points.length !== 4 || points.some(p =>
+    !Number.isFinite(p?.x) || !Number.isFinite(p?.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)) return false;
+  return points.every((a, i) => {
+    const b = points[(i + 1) % 4], c = points[(i + 2) % 4];
+    return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x) > .0004;
+  });
+}
+
+export function moveCropCorner(points, index, { x, y }) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return points;
+  const moved = points.slice();
+  moved[index] = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+  return validCropCorners(moved) ? moved : points;
+}
+
 // Project each output pixel back into the photographed plane and interpolate
 // its color. This straightens converging sides without changing their order.
 export function rectify(source, target, corners) {
@@ -36,7 +54,7 @@ export function rectify(source, target, corners) {
   }
 }
 
-export function croppedCanvas(image, maxEdge) {
+export function detectPhotoCorners(image) {
   const canvas = document.createElement('canvas');
   try {
     const scale = Math.min(1, 320 / Math.max(image.naturalWidth, image.naturalHeight));
@@ -45,10 +63,17 @@ export function croppedCanvas(image, maxEdge) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const quad = detectCard(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    if (!quad) return null;
+    return detectCard(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  } finally {
+    canvas.width = canvas.height = 1;
+  }
+}
 
-    const points = quad.map(p => ({ x: p.x * (image.naturalWidth - 1), y: p.y * (image.naturalHeight - 1) }));
+export function croppedCanvas(image, maxEdge, corners = detectPhotoCorners(image)) {
+  if (!validCropCorners(corners) || Math.min(image.naturalWidth, image.naturalHeight) < 2) return null;
+  const canvas = document.createElement('canvas');
+  try {
+    const points = corners.map(p => ({ x: p.x * (image.naturalWidth - 1), y: p.y * (image.naturalHeight - 1) }));
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
     const left = Math.floor(Math.min(...xs)), top = Math.floor(Math.min(...ys));
     const boxWidth = Math.ceil(Math.max(...xs)) - left + 1;
@@ -56,6 +81,8 @@ export function croppedCanvas(image, maxEdge) {
     const sampleScale = Math.min(1, maxEdge / Math.max(boxWidth, boxHeight));
     canvas.width = Math.max(2, Math.round(boxWidth * sampleScale));
     canvas.height = Math.max(2, Math.round(boxHeight * sampleScale));
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, left, top, boxWidth, boxHeight, 0, 0, canvas.width, canvas.height);
     const source = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const local = points.map(p => ({

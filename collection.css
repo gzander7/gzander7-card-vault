@@ -1,0 +1,392 @@
+/* The collection is a dark display case with paper catalogue slips. */
+#collection,
+#stats {
+  --catalogue-paper: #f4ead7;
+  --catalogue-ink: #321d21;
+  --catalogue-burgundy: #661b2c;
+  --catalogue-serif: Georgia, "Palatino Linotype", Palatino, serif;
+  --catalogue-rule: #c6b395;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#collection {
+  background: transparent;
+  border: 0;
+  color: var(--catalogue-paper);
+  padding: clamp(0.8rem, 2vw, 1.4rem) 0;
+}
+
+#collection .section-head,
+#stats .section-head {
+  align-items: baseline;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 3px double currentColor;
+}
+
+#collection .section-head {
+  border-color: #97774e;
+}
+
+#collection .section-head h2,
+#stats .section-head h2 {
+  color: inherit;
+  font-family: var(--catalogue-serif);
+  font-weight: 500;
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  letter-spacing: -0.035em;
+}
+
+#collection .section-note,
+#stats .section-note {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#collection .section-note,
+#collection .status,
+#collection #loading {
+  color: #e1c59c;
+}
+
+#collection .filters {
+  gap: 0.35rem 1rem;
+  margin: 0 0 clamp(1rem, 2.5vw, 1.75rem);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #816448;
+}
+
+#collection .filters label {
+  color: #e1c59c;
+  font-size: 0.72rem;
+  letter-spacing: 0.095em;
+}
+
+#collection .filter-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: 0.55rem;
+}
+
+#collection :is(input[type="search"], select) {
+  color-scheme: dark;
+  min-height: 44px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #a18869;
+  border-radius: 2px;
+  background: #27171b;
+  color: #fff3dd;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+#collection input::placeholder {
+  color: #ccbdac;
+}
+
+#collection .filter-toggles {
+  grid-column: 1 / -1;
+  gap: 0 1.45rem;
+}
+
+#collection .filter-toggles .check {
+  display: inline-flex;
+  gap: 0.5rem;
+  color: var(--catalogue-paper);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+#collection input[type="checkbox"] {
+  accent-color: #e0b473;
+}
+
+#collection #clear-filters {
+  margin-inline-start: auto;
+  color: #f0cb91;
+}
+
+#collection .status:not(:empty) {
+  padding: 0.25rem 0 0.75rem;
+}
+
+#collection .card-grid {
+  grid-template-columns: 1fr;
+  gap: clamp(1rem, 2.3vw, 1.6rem);
+}
+
+#collection .tilt {
+  background: var(--catalogue-paper);
+  border: 1px solid #a48563;
+  border-radius: 2px;
+  box-shadow: 0 4px 9px #160a0c4a;
+  color: var(--catalogue-ink);
+}
+
+#collection .card-body {
+  gap: 0;
+  padding: 0;
+}
+
+#collection .glare {
+  mix-blend-mode: soft-light;
+}
+
+#collection .slab {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  border-bottom: 3px double #b48e57;
+  border-radius: 0;
+  background: repeating-linear-gradient(135deg, #ffffff04 0 1px, transparent 1px 4px), #371d24;
+  box-shadow: none;
+}
+
+#collection .slab::before {
+  content: "";
+  position: absolute;
+  inset: 0.42rem;
+  border: 1px solid #a6805359;
+  pointer-events: none;
+}
+
+#collection .slab-inner {
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+#collection .slab-inner img {
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px #14090a85);
+}
+
+#collection .badge {
+  top: auto;
+  bottom: 0.4rem;
+  left: auto;
+  right: 0.42rem;
+  padding: 0.17rem 0.43rem;
+  border: 1px solid #c3a16c;
+  border-radius: 0;
+  background: #42212a;
+  color: #f6dba5;
+  font-size: 0.62rem;
+}
+
+#collection .card-copy {
+  padding: 0.95rem clamp(0.9rem, 1.6vw, 1.2rem) 1.1rem;
+}
+
+#collection .card-copy h3 {
+  margin: 0.15rem 0 0.2rem;
+  color: var(--catalogue-ink);
+  font-family: var(--catalogue-serif);
+  font-size: clamp(1.4rem, 2.6vw, 1.9rem);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+#collection .meta {
+  color: var(--catalogue-burgundy);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  letter-spacing: 0.11em;
+}
+
+#collection .detail,
+#collection .card-copy .desc {
+  color: #5d4840;
+  font-size: 0.9rem;
+}
+
+#collection .card-copy .desc {
+  margin-top: 0.4rem;
+}
+
+#collection .badges {
+  gap: 0.25rem 0.6rem;
+  margin-top: 0.55rem;
+}
+
+#collection .badges li {
+  border-block: 1px solid #bea181;
+  border-radius: 0;
+  background: none;
+  padding: 0.14rem 0;
+  color: #6a2931;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+}
+
+#collection .card-actions {
+  margin-inline: clamp(0.9rem, 1.6vw, 1.2rem);
+  border-top: 1px solid var(--catalogue-rule);
+}
+
+#collection .card-actions button {
+  min-height: 44px;
+  color: #652536;
+}
+
+#collection .card-actions :focus-visible {
+  outline: 2px solid var(--catalogue-burgundy);
+  outline-offset: -2px;
+}
+
+#collection .empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0;
+  text-align: left;
+}
+
+#collection .empty-slab {
+  display: none;
+}
+
+#collection #empty-message {
+  max-width: 100%;
+  color: #e6d7bf;
+  font-size: 0.96rem;
+}
+
+/* A ruled scorebook holds the collection totals and player register. */
+#stats {
+  padding: clamp(1.1rem, 3.4vw, 2.6rem);
+  border: 1px solid #c9b38e;
+  border-top: 4px solid #bb9254;
+  background: var(--catalogue-paper);
+  color: var(--catalogue-ink);
+  color-scheme: light;
+}
+
+#stats .section-head {
+  border-color: #a78863;
+}
+
+#stats .section-note,
+#stats .desc,
+#stats .empty-cell {
+  color: #655044;
+}
+
+#stats .stat-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px solid var(--catalogue-rule);
+}
+
+#stats .stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem 0.9rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+#stats .stat:nth-child(odd) {
+  padding-left: 0;
+}
+
+#stats .stat:nth-child(even) {
+  border-left: 1px solid var(--catalogue-rule);
+}
+
+#stats .stat:nth-child(n+3) {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--catalogue-rule);
+}
+
+#stats .stat strong {
+  margin: 0;
+  color: var(--catalogue-burgundy);
+  font: 500 clamp(2rem, 4.4vw, 3.15rem)/1 var(--catalogue-serif);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+#stats .stat span,
+#stats thead th {
+  color: #654834;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+}
+
+#stats #players-heading {
+  margin: 0 0 0.6rem;
+  color: var(--catalogue-ink);
+  font: 500 1.35rem/1.2 var(--catalogue-serif);
+}
+
+#stats :is(th, td) {
+  border-color: var(--catalogue-rule);
+  padding: 0.45rem 0.55rem;
+}
+
+#stats thead th {
+  border-block: 1px solid #aa9073;
+}
+
+#stats tbody th {
+  font-weight: 500;
+}
+
+#stats tbody tr:nth-child(odd) {
+  background: #71513209;
+}
+
+#stats td {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 35rem) {
+  #collection .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #stats .stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #stats .stat:nth-child(n) {
+    padding: 0.3rem 0.8rem 0.9rem;
+    border: 0;
+  }
+
+  #stats .stat:first-child {
+    padding-left: 0;
+  }
+
+  #stats .stat + .stat {
+    border-left: 1px solid var(--catalogue-rule);
+  }
+}
+
+@media (min-width: 52rem) {
+  #collection .filters {
+    grid-template-columns: minmax(13rem, 0.78fr) minmax(0, 1.6fr);
+  }
+
+  #collection .filter-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 60rem) {
+  #collection .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

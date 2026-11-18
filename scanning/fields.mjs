@@ -58,5 +58,23 @@ export function createScanFields(controls) {
     return changed;
   }
 
-  return { apply, clearSuggestions, reset };
+  function snapshot() {
+    const manual = {}, suggestions = {};
+    for (const [key,input] of Object.entries(controls)) {
+      const value = read(input);
+      if (generated.has(key) && generated.get(key) === value) suggestions[key] = value;
+      else if (edited.has(key) || generated.has(key) || value) manual[key] = value;
+    }
+    return {manual, suggestions};
+  }
+  function restoreManual(values) {
+    for (const [key,value] of Object.entries(values || {})) {
+      const input = controls[key];
+      if (!input) continue;
+      if (input.type === 'checkbox') input.checked = value;
+      else input.value = value;
+      edited.add(key);
+    }
+  }
+  return { apply, clearSuggestions, reset, snapshot, restoreManual };
 }

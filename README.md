@@ -63,6 +63,12 @@ Review the highlighted fields and choose **Save card**. A clear photo of the ful
 
 Text recognition runs on your device. The first scan downloads the English reader. Saving uploads the front and any selected back to the public collection. Scanning and two-sided viewing work with the existing photo bucket and table. [Tesseract.js](https://github.com/naptha/tesseract.js)
 
+### Batch scan
+
+Sign in and choose **Batch scan**. For a stack of front photos, leave **Fronts only** selected. For two-sided cards, select **Alternating fronts and backs**, then choose the photos in front/back order. Each file selection starts with a front and an odd final photo becomes a front-only card. **Take a front photo** adds a camera shot to the queue. Expand a queued card to check its images, swap the sides, or take a missing back.
+
+Choose **Review cards**. The vault crops and reads one card at a time, including front-only cards. Check the highlighted details, replace a photo or add its back, and optionally enter a private purchase. **Save & next** adds the card to your collection and starts the next scan. **Skip card** advances without saving. **Back to batch** keeps the current draft, including your corrections, while the tab stays open. Reopen it with **Resume batch**. Reloading the page or signing out clears unfinished drafts. Confirmed cards are already in the vault.
+
 ### Flip a card
 
 Select a card photo in the gallery or Hall of Fame to open the viewer. For a card with both photos, drag left or right to turn it over, or use the flip button. The gallery always shows the front. Cards saved before back photos were supported open with their front only. To add a back, choose **Edit**, select its back photo, then choose **Save changes**.

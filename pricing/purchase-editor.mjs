@@ -34,11 +34,17 @@ export function createPurchaseEditor(ledger) {
     }
   }
 
-  function open(card, focus = false) {
+  function open(card, focus = false, savedDraft = null) {
     draft = {card, focus, ready:!card, original:null};
     section.open = focus;
     date.max = localDay();
     fill(null);
+    if (!card && savedDraft) {
+      amount.value = savedDraft.amount;
+      date.value = savedDraft.date;
+      source.value = savedDraft.source;
+      section.open = savedDraft.open;
+    }
     retry.hidden = true;
     fields.disabled = false;
     status.textContent = '';
@@ -77,5 +83,8 @@ export function createPurchaseEditor(ledger) {
     status.textContent = '';
     section.open = false;
   }
-  return {open, close, change};
+  function snapshot() {
+    return {amount:amount.value, date:date.value, source:source.value, open:section.open};
+  }
+  return {open, close, change, snapshot};
 }

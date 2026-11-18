@@ -54,3 +54,25 @@ test('changing photos removes only unchanged scanner-generated values', () => {
   assert.equal(is_relic.checked, false);
   assert.equal(fields.apply({ serial: '42/50', grade: '10', player: 'New card' }), 1);
 });
+
+test('pausing a batch preserves confirmed, cleared and browser-filled fields across a new scan', () => {
+  const player = new Input(), year = new Input(), serial = new Input(), grade = new Input(), is_auto = new Input('checkbox');
+  const fields = createScanFields({ player, year, serial, grade, is_auto });
+  fields.apply({ player:'Old read', year:'2025', serial:'12/99', is_auto:true });
+  player.value = 'Checked player';
+  player.dispatchEvent(new Event('input'));
+  serial.value = ''; // A browser can update a field before firing change.
+  grade.value = '9.5';
+  is_auto.checked = false;
+  is_auto.dispatchEvent(new Event('change'));
+  const draft = fields.snapshot();
+  assert.deepEqual(draft, {
+    manual:{player:'Checked player', serial:'', grade:'9.5', is_auto:false}, suggestions:{year:'2025'},
+  });
+  fields.reset();
+  for (const control of [player, year, serial, grade]) control.value = '';
+  fields.restoreManual(draft.manual);
+  fields.apply(draft.suggestions);
+  assert.equal(fields.apply({player:'New read', year:'2024', serial:'31/99', grade:'10', is_auto:true}), 1);
+  assert.deepEqual([player.value, year.value, serial.value, grade.value, is_auto.checked], ['Checked player','2024','','9.5',false]);
+});

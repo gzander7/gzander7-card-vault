@@ -190,3 +190,34 @@ test('purchases commit with the card and lost responses require a matching priva
   await assert.rejects(store.save({back, purchase}), error => error.code === 'PT409');
   assert.deepEqual([...store.files.keys()], [saved.image_path]);
 });
+
+test('an interrupted batch create can confirm the original row and photos without another upload', async () => {
+  const store = vault();
+  store.faults.ambiguous = store.faults.offline = true;
+  let pending;
+  try { await store.save({front, back}); } catch (error) { pending = error; }
+  assert.equal(typeof pending?.retrySave, 'function');
+  const uploaded = [...store.files.keys()];
+  store.faults.offline = false;
+  const result = await pending.retrySave();
+  assert.equal(result.saved.image_path, store.row().image_path);
+  assert.deepEqual([...store.files.keys()], uploaded);
+});
+
+test('retrying an interrupted batch insert reuses both uploaded photos and its private purchase revision', async () => {
+  const store = vault();
+  const purchase = {revision:'draft-r1', expected_revision:null, amount_cents:625, purchased_on:null, source:'Card shop'};
+  store.faults.skipCommit = store.faults.ambiguous = store.faults.offline = true;
+  let pending;
+  try { await store.save({front, back, purchase}); } catch (error) { pending = error; }
+  assert.equal(typeof pending?.retrySave, 'function');
+  assert.equal(store.row(), undefined);
+  const staged = [...store.files.keys()];
+  await assert.rejects(pending.retrySave(), /Network disconnected/);
+  store.faults.skipCommit = store.faults.ambiguous = store.faults.offline = false;
+  const {saved} = await pending.retrySave();
+  assert.equal(saved.id, 'card');
+  assert.equal(store.purchase().revision, purchase.revision);
+  assert.deepEqual([saved.image_path, backPhotoPath(saved.image_path)], staged);
+  assert.deepEqual([...store.files.keys()], staged);
+});

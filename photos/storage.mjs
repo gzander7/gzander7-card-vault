@@ -64,42 +64,59 @@ export async function savePhotoRevision(client, { id, owner, previousFront, prev
   const bucket = client.storage.from('card-images');
   const change = await stageCardPhotos(bucket, { owner, previousFront, front, back });
   const row = { ...fields, owner, image_path: change.frontPath };
-  let response;
-  try {
+  async function writeRow() {
     if (purchase) {
-      response = await client.rpc('vault_save_card_purchase', {
+      return client.rpc('vault_save_card_purchase', {
         card_data: {...row, id}, previous_card: previousCard || (previousFront ? {image_path:previousFront} : null), purchase,
       }).single();
-    } else {
-      const table = client.from('cards');
-      const write = previousFront
-        ? table.update(row).eq('id', id).eq('image_path', previousFront)
-        : table.insert({ ...row, id });
-      response = await write.select().single();
     }
-  } catch { /* A transport failure leaves the outcome unknown. */ }
-  if (response?.error && response.status >= 400 && response.status < 500) {
-    await removeCardPhotos(bucket, change.created);
-    if (response.error.code === 'PGRST116' || response.error.code === '23505') {
-      throw new Error('This card changed since you opened it. Reload the vault before editing it again.');
-    }
-    throw response.error;
+    const table = client.from('cards');
+    const write = previousFront
+      ? table.update(row).eq('id', id).eq('image_path', previousFront)
+      : table.insert({...row, id});
+    return write.select().single();
   }
-  let saved = response?.error ? null : response?.data;
-  if (!saved) {
-    try {
-      const result = await client.from('cards').select('*').eq('id', id).maybeSingle();
-      if (!result.error && result.data && Object.entries(row).every(([key, value]) => result.data[key] === value)) {
-        if (purchase) {
-          const receipt = await client.from('vault_card_purchases').select('revision').eq('card_id', id).maybeSingle();
-          if (!receipt.error && receipt.data?.revision === purchase.revision) saved = result.data;
-        } else {
-          saved = result.data;
+
+  async function readCommitted() {
+    const result = await client.from('cards').select('*').eq('id', id).maybeSingle();
+    if (result.error) throw result.error;
+    if (!result.data) return null;
+    if (!Object.entries(row).every(([key,value]) => result.data[key] === value)) return null;
+    if (purchase) {
+      const receipt = await client.from('vault_card_purchases').select('revision').eq('card_id', id).maybeSingle();
+      if (receipt.error) throw receipt.error;
+      if (receipt.data?.revision !== purchase.revision) return null;
+    }
+    return result.data;
+  }
+
+  async function commit(retry = false) {
+    // A retry uses the original row ID, private revision and uploaded paths.
+    // It can acknowledge a lost reply or submit the very same insert again.
+    let saved = retry ? await readCommitted() : null;
+    if (!saved) {
+      let response;
+      try { response = await writeRow(); } catch { /* The server may have committed. */ }
+      const duplicate = response?.error?.code === '23505';
+      if (response?.error && response.status >= 400 && response.status < 500 && !(retry && duplicate)) {
+        if (!retry) await removeCardPhotos(bucket, change.created);
+        if (response.error.code === 'PGRST116' || duplicate) {
+          throw new Error('This card changed since you opened it. Reload the vault before editing it again.');
         }
+        throw response.error;
       }
-    } catch { /* Keep staged objects if the connection is still down. */ }
-    if (!saved) throw new Error('Could not confirm the save. Reconnect and reload the vault to check the card before trying again.');
+      saved = response?.error ? null : response?.data;
+      if (!saved) {
+        try { saved = await readCommitted(); } catch { /* Retain staged files while the result is unknown. */ }
+      }
+      if (!saved) {
+        const error = new Error('Could not confirm the save. Reconnect and check the card before trying again.');
+        if (!previousFront) error.retrySave = () => commit(true);
+        throw error;
+      }
+    }
+    const cleaned = await removeCardPhotos(bucket, change.replaced);
+    return {saved, cleaned};
   }
-  const cleaned = await removeCardPhotos(bucket, change.replaced);
-  return { saved, cleaned };
+  return commit();
 }

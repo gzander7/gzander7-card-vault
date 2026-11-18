@@ -2,7 +2,8 @@ import { readCardPhotos } from './ocr.mjs';
 import { createCropPreview } from '../photos/crop-preview.mjs';
 import { parseCardScan } from './parser.mjs';
 
-export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, onSourceChange = () => {} }) {
+export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, onSourceChange = () => {},
+  autoRead = (hasFront, hasBack) => hasFront && hasBack, onBackFile = () => {} }) {
   const byId = id => document.getElementById(id);
   const dialog = byId('card-dialog');
   const photoField = byId('photo-field');
@@ -123,7 +124,7 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     cancelScan();
     onSourceChange();
     setStatus('');
-    if ((front || savedFront) && (back || savedBack) && !paused && !pendingBack) void start();
+    if (!paused && !pendingBack && autoRead(Boolean(front || savedFront), Boolean(back || savedBack))) void start();
   }
 
   function setFront(blob) {
@@ -144,6 +145,7 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
   }
 
   function discardPendingBack() {
+    pendingBack?.abort();
     pendingBack = null;
     onBackPreparing(false);
   }
@@ -182,15 +184,20 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     const photo = input.files?.[0];
     if (!photo || !dialog.open || photoField.disabled) return;
     input.value = '';
+    await prepareBack(photo);
+  }
+
+  async function prepareBack(photo, preferCrop = true) {
+    if (!photo || !dialog.open || photoField.disabled) return false;
     discardPendingBack();
     cancelScan();
-    const token = {};
+    const token = new AbortController();
     pendingBack = token;
     onBackPreparing(true);
     updateControls();
     setStatus('Preparing the back photo…');
     try {
-      const prepared = await prepareImage(photo);
+      const prepared = await prepareImage(photo, token.signal);
       if (pendingBack !== token) return;
       if (!dialog.open || photoField.disabled) {
         discardPendingBack();
@@ -199,12 +206,15 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
       }
       discardPendingBack();
       clearBack();
-      backCrop.set(prepared);
+      onBackFile(photo);
+      backCrop.set(prepared, preferCrop);
+      return true;
     } catch (error) {
       if (pendingBack !== token) return;
       discardPendingBack();
       setStatus('Could not open the back photo. ' + (error?.message || 'Choose a JPEG or PNG, or take another photo.'));
       updateControls();
+      return false;
     }
   }
 
@@ -212,6 +222,7 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     discardPendingBack();
     clearBack();
     backChange = null;
+    onBackFile(null);
     sourceChanged();
   }
 
@@ -243,5 +254,6 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
   backCamera.addEventListener('change', chooseBack);
   read.addEventListener('click', start);
   stop.addEventListener('click', cancel);
-  return { setFront, setSavedFront, setSavedBack, getBackChange: () => backChange, reset, cancel, pause, resume };
+  return { setFront, setSavedFront, setSavedBack, getBackChange: () => backChange, reset, cancel, pause, resume,
+    prepareBack, removeBack, start, backFullSelected:backCrop.fullSelected };
 }

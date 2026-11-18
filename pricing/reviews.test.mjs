@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPricingClient } from '../pricing-client.js';
 import { identityKey } from './identity.mjs';
+import { changeReview, reviewedQuote } from './reviews.mjs';
 
 const card = { id: 'card', owner: 'owner', player: 'Test Player', year: 2025, card_number: '17', set_name: 'Test set', parallel: 'Silver', is_auto: true };
 const session = { user: { id: card.owner } };
@@ -184,4 +185,93 @@ test('a confirmed card deletion drops its private reviews even if an older tab l
   await secondTab.refresh();
   await assert.rejects(secondTab.change({type:'save',input:second}), /removed/i);
   assert.ok(![...disk.values()].some(value => value.includes(first.url)));
+});
+
+test('editing a manual sale overrides a matching feed receipt in evidence, median and daily totals after reload', async () => {
+  const provider = [];
+  const f = fixture({provider});
+  await f.change({type:'save', input:first});
+  provider.push(
+    {...auto(sale(1, '10', '2026-11-01')), url:'https://m.ebay.co.uk/itm/test/123456789001?mkcid=123'},
+    auto(sale(2, '30')),
+  );
+  await f.client.refreshVaultPrices(session, [card], {force:true});
+  const corrected = await f.change({type:'save', key:first.url, input:sale(1, '50')});
+  const reopened = fixture({disk:f.disk, provider});
+  const refreshed = await reopened.client.refreshVaultPrices(session, [card], {force:true});
+  for (const result of [corrected, refreshed]) {
+    const q = result.quotes.card;
+    assert.equal(q.evidence.length, 2);
+    assert.equal(q.valueCents, 4000);
+    const receipt = q.evidence.find(row => row.url === first.url);
+    assert.equal(receipt.priceCents, 5000);
+    assert.equal(receipt.soldAt, '2026-11-17');
+    assert.equal(receipt.title, 'Test Player · Silver');
+    assert.equal(receipt.automatic, true);
+    assert.ok(receipt.manual);
+    assert.equal(result.history.at(-1).valueCents, 4000);
+    assert.equal(result.history.at(-1).cards[0].valueCents, 4000);
+  }
+  const removed = await reopened.change({type:'remove', url:first.url});
+  assert.equal(removed.quotes.card.valueCents, 2000);
+  const original = removed.quotes.card.evidence.find(row => row.url === first.url);
+  assert.equal(original.priceCents, 1000);
+  assert.equal(original.soldAt, '2026-11-01T15:00:00Z');
+  assert.ok(!original.manual);
+});
+
+for (const {manualDate, feedDate, value, reason} of [
+  {manualDate:'2026-08-01', feedDate:'2026-11-17', value:null, reason:'Outside the 90-day window'},
+  {manualDate:'2026-11-17', feedDate:'2026-08-01', value:4000, reason:undefined},
+  {manualDate:'2026-11-17', feedDate:'2026-11-19', value:4000, reason:undefined},
+]) {
+  test(`manual date ${manualDate} controls eligibility over feed date ${feedDate}`, async () => {
+    const provider = [];
+    const f = fixture({provider});
+    await f.change({type:'save', input:sale(1, '50', manualDate)});
+    provider.push(auto(sale(1, '10', feedDate)), auto(sale(2, '30')));
+    const q = (await f.client.refreshVaultPrices(session, [card], {force:true})).quotes.card;
+    assert.equal(q.valueCents, value);
+    assert.equal(q.evidence.find(row => row.url === first.url).reason, reason);
+    assert.equal(q.evidence.find(row => row.url === first.url).soldAt, manualDate);
+    assert.equal(q.sales.some(row => row.url === first.url), value !== null);
+  });
+}
+
+test('the corrected date moves a provider overflow receipt into the latest five', () => {
+  const entries = changeReview(card, {}, null, {type:'save', input:sale(1, '100')}, now);
+  const automatic = quote([2, 3, 4, 5, 6].map(id => auto(sale(id, String(id * 10), `2026-11-${18 - id}`))));
+  automatic.extraSales = [auto(sale(1, '10', '2026-11-01'))];
+  const original = structuredClone(automatic);
+  const q = reviewedQuote(card, automatic, entries, now);
+  assert.deepEqual(q.sales.map(row => row.url), [1, 2, 3, 4, 5].map(id => sale(id).url));
+  assert.equal(q.evidence.find(row => row.url === sale(6).url).reason, 'Outside the latest five');
+  assert.equal(q.valueCents, 4000);
+  assert.deepEqual(automatic, original);
+});
+
+test('manual precedence respects reference status, exclusions and the card identity', () => {
+  const entries = changeReview(card, {}, null, {type:'save', input:sale(1, '50')}, now);
+  const automatic = quote([auto(sale(1, '10', '2026-11-01')), auto(sale(2, '30'))]);
+  let q = reviewedQuote(card, automatic, entries, now);
+  const excluded = changeReview(card, entries, q, {type:'exclude', url:first.url, reason:'Wrong parallel'}, now);
+  q = reviewedQuote(card, automatic, excluded, now);
+  assert.equal(q.valueCents, null);
+  assert.equal(q.evidence.find(row => row.url === first.url).priceCents, 5000);
+  assert.equal(q.evidence.find(row => row.url === first.url).reason, 'Wrong parallel');
+  const restored = changeReview(card, excluded, q, {type:'restore', url:first.url}, now);
+  assert.equal(reviewedQuote(card, automatic, restored, now).valueCents, 4000);
+
+  const reference = changeReview(card, entries, q, {type:'save', key:first.url, input:{...sale(1, '50'), exact:false}}, now);
+  q = reviewedQuote(card, automatic, reference, now);
+  assert.equal(q.valueCents, null);
+  assert.equal(q.evidence.find(row => row.url === first.url).reason, 'Reference only');
+
+  const changedCard = {...card, parallel:'Gold'};
+  q = reviewedQuote(changedCard, {...automatic, identity:identityKey(changedCard)}, entries, now);
+  assert.equal(q.valueCents, 2000);
+  assert.equal(q.evidence.find(row => row.url === first.url).priceCents, 1000);
+  q = reviewedQuote(changedCard, undefined, entries, now);
+  assert.equal(q.sales.length, 0);
+  assert.equal(q.evidence[0].reason, 'Card details changed');
 });

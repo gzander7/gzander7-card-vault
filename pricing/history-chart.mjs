@@ -3,16 +3,27 @@ const svgNamespace = 'http://www.w3.org/2000/svg';
 const axisDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const axisDateWithYear = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
 
+function hasPrice(day) {
+  return day.priced > 0 && Number.isSafeInteger(day.valueCents) && day.valueCents >= 0;
+}
+
 export function chartSeries(history, range, now = Date.now()) {
   const today = Math.floor(now / DAY) * DAY;
   const cutoff = range === 'all' ? -Infinity : today - (Number(range) - 1) * DAY;
-  const days = history.map(record => ({ ...record, time: Date.parse(record.date + 'T00:00:00Z') }))
-    .filter(day => day.time >= cutoff && day.time <= today)
+  const sorted = history.map(record => ({ ...record, time: Date.parse(record.date + 'T00:00:00Z') }))
+    .filter(day => day.time <= today)
     .sort((a, b) => a.time - b.time);
+  const days = [];
+  let previousDay = null;
   const segments = [];
   let segment;
-  for (const day of days) {
-    if (day.priced > 0 && Number.isSafeInteger(day.valueCents) && day.valueCents >= 0) {
+  for (const day of sorted) {
+    if (day.time < cutoff) {
+      previousDay = day;
+      continue;
+    }
+    days.push(day);
+    if (hasPrice(day)) {
       if (!segment) { segment = []; segments.push(segment); }
       segment.push(day);
     } else {
@@ -21,7 +32,7 @@ export function chartSeries(history, range, now = Date.now()) {
   }
   const start = range === 'all' ? days[0]?.time : cutoff;
   const end = range === 'all' ? days.at(-1)?.time : today;
-  return { start, end, segments, points: segments.flat() };
+  return { start, end, days, previousDay, segments, points: segments.flat() };
 }
 
 export function priceTicks(amounts) {
@@ -49,7 +60,7 @@ function svgNode(tag, attrs, text) {
   return node;
 }
 
-export function createHistoryChart(figure, { money, dateText, changeText }) {
+export function createHistoryChart(figure, { money, dateText, changeText, datePicker, onSelect }) {
   const details = figure.closest('details');
   const ranges = figure.querySelector('.history-ranges');
   const buttons = [...ranges.querySelectorAll('button')];
@@ -66,24 +77,32 @@ export function createHistoryChart(figure, { money, dateText, changeText }) {
   let series = chartSeries(records, range), index = -1;
   let positions = [], guide, marker;
 
-  function showPoint(next) {
-    const point = series.points[next];
-    if (!point) return;
+  function positionMarker() {
+    if (!positions[index]) return;
+    const { x, y } = positions[index];
+    guide.setAttribute('x1', x);
+    guide.setAttribute('x2', x);
+    marker.setAttribute('visibility', y === null ? 'hidden' : 'visible');
+    if (y !== null) {
+      marker.setAttribute('cx', x);
+      marker.setAttribute('cy', y);
+    }
+  }
+
+  function showDay(next) {
+    const point = series.days[next];
     index = next;
     const label = dateText(point.date);
-    const value = money(point.valueCents);
+    const value = hasPrice(point) ? money(point.valueCents) : point.total === 0 ? 'Empty vault' : 'Unpriced';
     const count = point.priced + ' of ' + point.total + (point.total === 1 ? ' card priced' : ' cards priced');
     date.textContent = label;
     amount.textContent = value;
     coverage.textContent = count;
+    datePicker.selectedIndex = series.days.length - 1 - next;
     plot.setAttribute('aria-valuenow', next + 1);
     plot.setAttribute('aria-valuetext', [label, value, count].join(', '));
-    if (!positions[next]) return;
-    const { x, y } = positions[next];
-    guide.setAttribute('x1', x);
-    guide.setAttribute('x2', x);
-    marker.setAttribute('cx', x);
-    marker.setAttribute('cy', y);
+    positionMarker();
+    onSelect(series.days[next - 1] ?? series.previousDay, point);
   }
 
   function draw() {
@@ -112,10 +131,9 @@ export function createHistoryChart(figure, { money, dateText, changeText }) {
       nodes.push(svgNode('text', { x: x(time), y: height - 5, 'text-anchor': anchor }, formatter.format(time)));
     });
 
-    positions = [];
+    positions = series.days.map(day => ({ x: x(day.time), y: hasPrice(day) ? y(day.valueCents) : null }));
     for (const segment of series.segments) {
       const coords = segment.map(day => ({ x: x(day.time), y: y(day.valueCents) }));
-      positions.push(...coords);
       const vertices = coords.map(p => p.x.toFixed(2) + ',' + p.y.toFixed(2));
       if (coords.length > 1) {
         const path = 'M' + vertices.join(' L');
@@ -129,25 +147,37 @@ export function createHistoryChart(figure, { money, dateText, changeText }) {
     guide = svgNode('line', { class: 'history-guide', y1: top, y2: bottom });
     marker = svgNode('circle', { class: 'history-marker', r: 4.5 });
     drawing.replaceChildren(...nodes, guide, marker);
-    showPoint(index);
+    positionMarker();
+  }
+
+  function updateDateOptions(days) {
+    const count = days.length;
+    datePicker.closest('label').hidden = !count;
+    const existing = datePicker.options;
+    if (existing.length === count && days.every((day, i) => existing[count - 1 - i].value === day.date)) return;
+    const options = days.map(day => new Option(dateText(day.date), day.date)).reverse();
+    datePicker.replaceChildren(...options);
   }
 
   function refresh() {
     series = chartSeries(records, range);
-    const { points } = series;
+    const { days, points } = series;
     positions = [];
     drawing.replaceChildren();
+    updateDateOptions(days);
     for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.range === range));
     ranges.hidden = !records.length;
-    readout.hidden = plot.hidden = !points.length;
+    readout.hidden = !days.length;
+    plot.hidden = !points.length;
     change.hidden = points.length < 2;
     const first = points[0], last = points.at(-1);
-    if (!last) {
+    if (!days.length) {
       selectedDate = null;
       index = -1;
       date.textContent = amount.textContent = coverage.textContent = changeAmount.textContent = '';
       for (const attr of ['aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext']) plot.removeAttribute(attr);
-      help.textContent = range === 'all' ? 'Your chart starts with your first priced card.' : 'No priced estimates were recorded in this range.';
+      help.textContent = range === 'all' ? 'Your chart starts with your first priced card.' : 'No dates were recorded in this range.';
+      onSelect(null, null, records.length > 0);
       return;
     }
     if (points.length > 1) {
@@ -157,20 +187,21 @@ export function createHistoryChart(figure, { money, dateText, changeText }) {
     } else {
       changeAmount.textContent = '';
     }
-    help.textContent = points.length === 1 ? 'One priced date in this range. A second date will show a trend.'
+    help.textContent = !points.length ? 'No priced estimates in this range. Choose a recorded date below to inspect the vault.'
+      : points.length === 1 ? 'One priced date in this range. A second priced date will show a trend.'
       : 'Hover, tap, or use the arrow keys to inspect a date.';
     plot.setAttribute('aria-valuemin', 1);
-    plot.setAttribute('aria-valuemax', points.length);
-    const previous = points.findIndex(point => point.date === selectedDate);
+    plot.setAttribute('aria-valuemax', days.length);
+    const previous = days.findIndex(point => point.date === selectedDate);
     if (previous < 0) selectedDate = null;
-    showPoint(previous < 0 ? points.length - 1 : previous);
+    showDay(previous < 0 ? days.length - 1 : previous);
     draw();
   }
 
   function select(next) {
-    if (next === index || !series.points[next]) return;
-    selectedDate = next === series.points.length - 1 ? null : series.points[next].date;
-    showPoint(next);
+    if (next === index || !series.days[next]) return;
+    selectedDate = next === series.days.length - 1 ? null : series.days[next].date;
+    showDay(next);
   }
   function inspect(event) {
     if (!positions.length || event.isPrimary === false) return;
@@ -184,8 +215,9 @@ export function createHistoryChart(figure, { money, dateText, changeText }) {
   }
   plot.addEventListener('pointerdown', inspect);
   plot.addEventListener('pointermove', inspect);
+  datePicker.addEventListener('change', () => select(series.days.length - 1 - datePicker.selectedIndex));
   plot.addEventListener('keydown', event => {
-    const last = series.points.length - 1;
+    const last = series.days.length - 1;
     const targets = { ArrowLeft: index - 1, ArrowDown: index - 1, ArrowRight: index + 1, ArrowUp: index + 1, Home: 0, End: last };
     if (!Object.hasOwn(targets, event.key)) return;
     event.preventDefault();

@@ -1,9 +1,10 @@
-import { loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
+import { historyCardLabel, loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
 import { identityKey } from './pricing/identity.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
 import { readCloudPurchases } from './pricing/cloud-store.mjs';
 import { createPurchaseLedger, purchaseTotals } from './pricing/purchases.mjs';
 import { createHistoryChart } from './pricing/history-chart.mjs';
+import { createHistoryComparison } from './pricing/history-changes-ui.mjs';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', signDisplay:'exceptZero' });
@@ -138,7 +139,7 @@ function drawCardDetails(details, card, quote, loading, failed, onAction) {
   body.replaceChildren(...contents);
 }
 
-export function createVaultValue(openPurchase) {
+export function createVaultValue(openPurchase, reloadInventory) {
   const section = document.getElementById('vault-value');
   const nav = document.getElementById('value-nav');
   const total = document.getElementById('value-total');
@@ -148,7 +149,12 @@ export function createVaultValue(openPurchase) {
   const refresh = document.getElementById('value-refresh');
   const historyDetails = document.getElementById('value-history');
   const historyRows = document.getElementById('value-history-rows');
-  const historyChart = createHistoryChart(historyDetails.querySelector('.history-chart'), { money, dateText, changeText });
+  const showComparison = createHistoryComparison(historyDetails.querySelector('.history-changes'), {
+    dateText, money, signedMoney: cents => signedUsd.format(cents / 100),
+  });
+  const historyChart = createHistoryChart(historyDetails.querySelector('.history-chart'), {
+    money, dateText, changeText, datePicker: document.getElementById('history-day'), onSelect: showComparison,
+  });
   const spent = document.getElementById('purchase-spent');
   const gain = document.getElementById('purchase-gain');
   const costCoverage = document.getElementById('purchase-cost-coverage');
@@ -169,6 +175,8 @@ export function createVaultValue(openPurchase) {
   let loaded = false;
   let loading = false;
   let failed = false;
+  let inventoryRequest = null;
+  let inventoryFailed = false;
   const feedback = new Map();
   const editor = createReviewDialog(commitReview);
   const purchases = createPurchaseLedger(readCloudPurchases, paint);
@@ -176,6 +184,8 @@ export function createVaultValue(openPurchase) {
   async function commitReview(card, command) {
     const session = activeSession;
     if (!session || !byId.has(card.id)) throw new Error('Sign in and reopen this card’s sold comps.');
+    if (inventoryRequest) throw new Error('Your collection is refreshing. Try again when it finishes.');
+    if (inventoryFailed) throw new Error('Refresh your collection with Check for updates, then try again.');
     const next = await reviewSale(session, cards, card, command);
     if (owner !== session.user.id || !byId.has(card.id)) return;
     const action = {save:'Sale saved', exclude:'Sale excluded', restore:'Sale restored', remove:'Saved sale removed'}[command.type];
@@ -266,11 +276,13 @@ export function createVaultValue(openPurchase) {
 
   function paint() {
     section.hidden = nav.hidden = !owner;
-    refresh.disabled = !owner || !cards?.length || loading;
+    refresh.disabled = !owner || Boolean(inventoryRequest) || loading;
     const matches = (cards || []).map(quoteFor).filter(hasValue);
     total.textContent = matches.length ? money(matches.reduce((sum, quote) => sum + quote.valueCents, 0)) : '—';
     coverage.textContent = cards ? matches.length + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' priced' : '';
     if (!owner) status.textContent = '';
+    else if (inventoryRequest) status.textContent = 'Refreshing your collection…';
+    else if (inventoryFailed) status.textContent = 'Could not refresh your collection. Check for updates to retry.';
     else if (!cards) status.textContent = 'Waiting for your collection.';
     else if (failed) status.textContent = 'Sale data is temporarily unavailable. Existing estimates keep their last checked date.';
     else if (loading && cards.length) status.textContent = 'Checking sold comps…';
@@ -328,6 +340,8 @@ export function createVaultValue(openPurchase) {
       signature = undefined;
       queue = Promise.resolve();
       loaded = loading = failed = false;
+      inventoryRequest = null;
+      inventoryFailed = false;
       historyDetails.open = false;
       historyChart.update(history, true);
       feedback.clear();
@@ -335,17 +349,19 @@ export function createVaultValue(openPurchase) {
     }
     cards = owner ? ownerCards : null;
     byId = new Map((cards || []).map(card => [card.id, card]));
-    // The signature ignores filters, notes, photos, and Hall of Fame selection.
-    const identities = (cards || []).map(card => [card.id, identityKey(card)]);
-    identities.sort(([left], [right]) => String(left).localeCompare(String(right)));
-    const nextSignature = JSON.stringify([new Date().toISOString().slice(0, 10), identities]);
     if (!owner || !cards) {
       controller?.abort();
       signature = undefined;
+      loading = false;
       ++revision;
       paint();
       return;
     }
+    if (inventoryRequest || inventoryFailed) { paint(); return; }
+    // The signature ignores filters, notes, photos, and Hall of Fame selection.
+    const identities = cards.map(card => [card.id, identityKey(card), historyCardLabel(card)]);
+    identities.sort(([left], [right]) => String(left).localeCompare(String(right)));
+    const nextSignature = JSON.stringify([new Date().toISOString().slice(0, 10), identities]);
     if (!force && signature === nextSignature) return;
     void purchases.load(force).catch(() => {});
     controller?.abort();
@@ -395,15 +411,30 @@ export function createVaultValue(openPurchase) {
     });
   }
 
-  refresh.addEventListener('click', () => {
-    if (!refresh.disabled) sync(activeSession, cards, true);
-  });
-  function resume() {
-    if (!owner || !cards) return;
-    void purchases.load(true).catch(() => {});
-    if (loading) return;
+  async function refreshFromInventory(force) {
+    if (!owner || inventoryRequest) return;
+    const request = { owner };
+    inventoryRequest = request;
+    inventoryFailed = false;
+    // An open tab may hold yesterday's inventory or miss edits from another device.
+    controller?.abort();
+    ++revision;
     signature = undefined;
-    sync(activeSession, cards);
+    loading = false;
+    paint();
+    let available = true;
+    try {
+      if (reloadInventory) available = await reloadInventory();
+    } catch { available = false; }
+    if (inventoryRequest !== request || owner !== request.owner) return;
+    inventoryRequest = null;
+    inventoryFailed = !available;
+    if (!available || !cards) { paint(); return; }
+    if (!force) void purchases.load(true).catch(() => {});
+    sync(activeSession, cards, force);
   }
-  return { sync, resume, cardDetails, cardPurchase, purchases };
+  refresh.addEventListener('click', () => {
+    if (!refresh.disabled) void refreshFromInventory(true);
+  });
+  return { sync, resume: () => refreshFromInventory(false), cardDetails, cardPurchase, purchases };
 }

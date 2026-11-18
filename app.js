@@ -1,6 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
+import { readCardPages } from './card-catalogue.mjs';
 import { createPurchaseEditor } from './pricing/purchase-editor.mjs';
 import { forgetCardReviews } from './pricing-client.js';
 import { compressCardImage } from './photos/prepare.mjs';
@@ -99,6 +100,9 @@ const ui = {
 
 let session = null;
 let cards = null;
+let inventoryReady = false;
+let inventoryRevision = 0;
+let inventoryRead = null;
 let loadError = '';
 let authBanner = '';
 let editingId = null;
@@ -699,7 +703,7 @@ function createSpotlight() {
 }
 
 const spotlight = createSpotlight();
-const vaultValue = createVaultValue(card => openEditor(card, true));
+const vaultValue = createVaultValue(card => openEditor(card, true), loadCards);
 const purchaseEditor = createPurchaseEditor(vaultValue.purchases);
 const batchQueue = createScanQueue();
 function batchButtonText() {
@@ -714,7 +718,7 @@ const batchDialog = createBatchDialog(batchQueue, {
 });
 
 function syncVaultValue() {
-  const owned = Array.isArray(cards) && !loadError ? cards.filter(owns) : null;
+  const owned = inventoryReady && !loadError ? cards.filter(owns) : null;
   vaultValue.sync(session, owned);
 }
 document.addEventListener('visibilitychange', () => {
@@ -733,12 +737,17 @@ function render() {
   spotlight.sync();
 }
 
+function newestFirst(a, b) {
+  return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+}
+
 function upsertCard(card) {
+  inventoryRevision++;
   if (!cards) cards = [];
   const index = cards.findIndex((item) => item.id === card.id);
   if (index === -1) cards.push(card);
   else cards[index] = card;
-  cards.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  cards.sort(newestFirst);
   render();
 }
 
@@ -1006,6 +1015,7 @@ async function deleteCard(card) {
     if (!data?.length) throw new Error('That card changed. Reload the vault before deleting it.');
     forgetCardReviews(session, card);
     const cleaned = await removeStoredCard(supabase.storage.from('card-images'), data[0].image_path);
+    inventoryRevision++;
     cards = cards.filter((item) => item.id !== card.id);
     render();
     announce(`Deleted ${card.player}.` + (cleaned ? '' : ' A photo could not be removed from storage.'));
@@ -1016,24 +1026,38 @@ async function deleteCard(card) {
   }
 }
 
-async function loadCards() {
+function loadCards() {
+  if (!inventoryRead) inventoryRead = readInventory().finally(() => { inventoryRead = null; });
+  return inventoryRead;
+}
+
+async function readInventory() {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 15000);
   try {
-    const { data, error } = await supabase
-      .from('cards')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .abortSignal(controller.signal);
-    if (error) throw error;
-    cards = Array.isArray(data) ? data : [];
+    let revision, fresh;
+    // A save or deletion can finish while pages are loading.
+    do {
+      revision = inventoryRevision;
+      fresh = await readCardPages(first => supabase.from('cards').select('*', first ? { count: 'exact' } : {}), controller.signal);
+    } while (revision !== inventoryRevision);
+    fresh.sort(newestFirst);
+    // Keep open card details and keyboard focus when a tab resumes unchanged.
+    if (inventoryReady && !loadError && JSON.stringify(fresh) === JSON.stringify(cards)) return true;
+    cards = fresh;
+    inventoryReady = true;
     loadError = '';
+    render();
+    return true;
   } catch (error) {
-    cards = [];
-    loadError = isSchemaMissing(error) ? SCHEMA_MESSAGE : friendlyError(error);
+    if (!inventoryReady) {
+      cards = [];
+      loadError = isSchemaMissing(error) ? SCHEMA_MESSAGE : friendlyError(error);
+      render();
+    }
+    return false;
   } finally {
     window.clearTimeout(timer);
-    render();
   }
 }
 

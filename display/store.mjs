@@ -1,25 +1,11 @@
+import { readCardPages } from '../card-catalogue.mjs';
+
 const TABLE = 'vault_display_cases';
 const COLUMNS = 'id,title,card_ids,revision';
 const PICKER_COLUMNS = 'id,player,year,set_name,card_number,parallel,serial,is_auto,is_relic,grader,grade,image_path';
 
 export async function listPickerCards(client, owner, signal, onPage) {
-  const cards = [];
-  let cursor = '';
-  while (true) {
-    if (signal?.aborted) throw new Error('Card catalogue request cancelled.');
-    let query = client.from('cards').select(PICKER_COLUMNS).eq('owner', owner);
-    if (cursor) query = query.gt('id', cursor);
-    const { data, error } = await query.order('id').limit(200).abortSignal(signal);
-    if (error) throw error;
-    if (!Array.isArray(data)) throw new Error('Invalid card catalogue response.');
-    // A server can cap the result below 200. Only an empty page proves the scan is complete.
-    if (!data.length) break;
-    const next = data.at(-1)?.id;
-    if (typeof next !== 'string' || next <= cursor) throw new Error('The card catalogue page did not advance.');
-    cards.push(...data);
-    cursor = next;
-    onPage?.(cards.length);
-  }
+  const cards = await readCardPages(() => client.from('cards').select(PICKER_COLUMNS).eq('owner', owner), signal, onPage);
   const byName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
   return cards.sort((a, b) => byName.compare(a.player, b.player));
 }

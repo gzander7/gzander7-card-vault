@@ -1,5 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
+import { createVaultValue } from './valuation-ui.js';
 
 const SPOTLIGHT_MS = 5000;
 const MAX_EDGE = 1400;
@@ -467,7 +468,7 @@ function renderGrid() {
     const body = el('div', 'card-body');
     body.appendChild(figureFor(card, { badge: Boolean(card.featured) }));
     body.appendChild(copyBlock(card, 'h3', false));
-    if (owns(card)) body.appendChild(cardActions(card));
+    if (owns(card)) body.append(vaultValue.cardDetails(card), cardActions(card));
     article.append(glare, body);
     bindTilt(article);
     slot.appendChild(article);
@@ -582,6 +583,15 @@ function createSpotlight() {
 }
 
 const spotlight = createSpotlight();
+const vaultValue = createVaultValue();
+
+function syncVaultValue() {
+  const owned = Array.isArray(cards) && !loadError ? cards.filter(owns) : null;
+  vaultValue.sync(session, owned);
+}
+document.addEventListener('visibilitychange', () => {
+  if (session && !document.hidden) syncVaultValue();
+});
 
 function render() {
   const banner = loadError || authBanner;
@@ -590,6 +600,7 @@ function render() {
   renderAuth();
   renderStats(cards || []);
   refreshFilterChoices();
+  syncVaultValue();
   renderGrid();
   spotlight.sync();
 }
@@ -1123,6 +1134,7 @@ function setSession(next) {
   const current = session?.user?.id || '';
   if (current && ui.authDialog.open) ui.authDialog.close();
   if (previous !== current && ui.passwordDialog.open) ui.passwordDialog.close();
+  syncVaultValue();
   if (previous !== current || !ui.authBar.childElementCount) {
     renderAuth();
     if (Array.isArray(cards)) renderGrid();

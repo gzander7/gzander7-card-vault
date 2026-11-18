@@ -1,0 +1,78 @@
+#vault-value {
+  padding: clamp(1.1rem, 3.4vw, 2.6rem);
+  border: 1px solid #99764b;
+  border-top: 4px double #d1ac6d;
+  background: #341c22;
+  color: #f4ead7;
+}
+
+.value-overview {
+  display: grid;
+  gap: 1rem 2rem;
+}
+
+#vault-value h2 {
+  margin: 0 0 1rem;
+  font: 500 clamp(1.9rem, 4vw, 2.8rem)/1 Georgia, serif;
+  letter-spacing: -.035em;
+}
+
+.value-label {
+  color: #d7bb8d;
+  font: 700 .74rem/1.4 "Courier New", monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.value-amount {
+  margin: .18rem 0 .28rem;
+  color: #f4e0ba;
+  font: 500 clamp(2.5rem, 6vw, 4.25rem)/1.1 Georgia, serif;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+#value-coverage, #value-status, .value-method {
+  color: #e3d0b7;
+  font-size: .91rem;
+}
+
+.value-method { max-width: 45ch; align-self: end; }
+.value-method a { display: block; width: fit-content; margin-top: .45rem; }
+#value-refresh { color: #f1d398; font-size: .85rem; }
+#value-refresh:disabled { color: #c7b5a4; cursor: default; text-decoration: none; }
+#value-status:not(:empty) { margin-top: .75rem; }
+#value-storage:not(:empty) { margin-top: .45rem; color: #d2b797; font-size: .82rem; }
+#value-history { margin-top: 1rem; border-top: 1px solid #907249; }
+#value-history summary, .value-card summary { padding-block: .7rem; cursor: pointer; }
+#value-history :is(th, td) { border-color: #765b46; }
+#value-history th { color: #ecd4af; }
+#value-history td { font-variant-numeric: tabular-nums; }
+#value-history thead th:not(:first-child), #value-history td { text-align: right; }
+
+.value-card {
+  margin: auto clamp(.9rem, 1.6vw, 1.2rem) 0;
+  border-top: 1px solid #c6b395;
+  color: #552633;
+}
+
+.value-card summary { font-weight: 650; font-size: .9rem; }
+#collection .value-card :focus-visible { outline: 2px solid #6b2737; outline-offset: 1px; }
+#collection .value-card + .card-actions { margin-top: 0; }
+.comp-evidence { padding-bottom: .7rem; color: #5d4840; font-size: .85rem; }
+.comp-evidence ul { list-style: none; margin: .5rem 0; padding: 0; }
+.comp-evidence li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .15rem .5rem;
+  padding: .45rem 0;
+  border-bottom: 1px solid #d6c8af;
+}
+.comp-evidence li > :first-child { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.comp-evidence strong { font-variant-numeric: tabular-nums; }
+.comp-evidence small { display: block; margin-top: .4rem; }
+.vault-nav { flex-wrap: wrap; }
+
+@media (min-width: 42rem) {
+  .value-overview { grid-template-columns: 1fr minmax(14rem, .85fr); }
+}

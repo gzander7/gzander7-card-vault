@@ -71,6 +71,18 @@
 .comp-evidence li > :first-child { grid-column: 1 / -1; overflow-wrap: anywhere; }
 .comp-evidence strong { font-variant-numeric: tabular-nums; }
 .comp-evidence small { display: block; margin-top: .4rem; }
+.comp-evidence .comp-source { grid-column: 1 / -1; margin: 0; color: #695347; }
+.comp-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 1rem; }
+.value-card :is(.link-button, a) { color: #642c38; }
+.comp-row-actions button, .value-card .comp-add { min-height: 44px; font-size: .85rem; }
+.value-card .comp-add { font-weight: 700; }
+.comp-feedback:not(:empty) { margin: 0 0 .7rem; color: #5f483c; font-size: .84rem; }
+#sold-comp-dialog { width: min(32rem, calc(100% - 1.25rem)); }
+#sold-comp-dialog fieldset { min-width: 0; margin: 0; border: 0; padding: 0; }
+#sold-comp-dialog .check { display: flex; min-height: 44px; }
+#sold-comp-dialog .check input { flex: none; }
+#sold-comp-card { color: var(--gold-dim); font: italic 1rem/1.45 Georgia, serif; }
+#sold-comp-exact-hint { margin-top: -.65rem; }
 .vault-nav { flex-wrap: wrap; }
 
 @media (min-width: 42rem) {

@@ -113,7 +113,7 @@
             <p id="value-coverage"></p>
           </div>
           <div class="value-method">
-            <p>Each estimate uses the median of the latest two to five matching sales. Open a card’s sold comps in the gallery to see the evidence. <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">Market data from CardPricer</a></p>
+            <p>Estimates use the latest two to five matching sales within 90 days. Open a card’s sold comps to add a sale or flag a bad match. <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">Automatic sales from CardPricer</a></p>
             <button type="button" id="value-refresh" class="link-button">Check for updates</button>
           </div>
         </div>
@@ -219,6 +219,48 @@
       <p id="password-message" class="form-message" role="status"></p>
       <div class="dialog-actions">
         <button type="submit" class="gold-btn" id="password-save">Save password</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="sold-comp-dialog" aria-labelledby="sold-comp-title" aria-describedby="sold-comp-card">
+    <form id="sold-comp-form">
+      <div class="dialog-head">
+        <h2 id="sold-comp-title">Add sold comp</h2>
+        <button type="button" class="link-button" id="sold-comp-close">Close</button>
+      </div>
+      <p id="sold-comp-card"></p>
+      <fieldset id="sold-comp-fields" class="form-grid">
+        <legend class="visually-hidden">Completed sale</legend>
+        <label class="span-2">Sale link
+          <input id="sold-comp-url" type="url" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="https://…">
+        </label>
+        <label>Sold price (USD)
+          <input id="sold-comp-price" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="0.00">
+        </label>
+        <label>Sale date
+          <input id="sold-comp-date" type="date" required>
+        </label>
+        <label class="span-2">Parallel or variation
+          <input id="sold-comp-parallel" type="text" maxlength="120" placeholder="Base, Silver, Gold…">
+        </label>
+        <label class="span-2 check" for="sold-comp-exact">
+          <input id="sold-comp-exact" type="checkbox" aria-describedby="sold-comp-exact-hint"> Count as an exact match
+        </label>
+        <p class="span-2 hint" id="sold-comp-exact-hint">Check this when the completed sale matches the card, parallel, print run, autograph and grade. Leave it unchecked to keep a reference.</p>
+      </fieldset>
+      <fieldset id="sold-comp-flag-fields" class="form-grid" hidden disabled>
+        <legend class="visually-hidden">Exclude sale</legend>
+        <label class="span-2">Reason
+          <select id="sold-comp-reason" required><option value="">Choose a reason</option></select>
+        </label>
+        <p class="hint span-2">The sale stays in your records. You can restore it to the estimate at any time.</p>
+      </fieldset>
+      <p id="sold-comp-detail" class="hint" hidden></p>
+      <p id="sold-comp-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="submit" class="gold-btn" id="sold-comp-submit">Save sale</button>
+        <button type="button" class="link-button" id="sold-comp-remove" hidden>Remove saved sale</button>
       </div>
     </form>
   </dialog>

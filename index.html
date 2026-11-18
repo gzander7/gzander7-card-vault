@@ -135,19 +135,51 @@
   </div>
 
   <dialog id="auth-dialog" aria-labelledby="auth-title">
-    <form id="auth-form">
+    <form id="auth-form" method="post">
       <div class="dialog-head">
         <h2 id="auth-title">Sign in</h2>
         <button type="button" class="link-button" id="auth-cancel">Close</button>
       </div>
-      <p class="hint">A magic link is emailed to you. Open it in this browser.</p>
       <label>
         Email
-        <input id="auth-email" name="email" type="email" autocomplete="email" required inputmode="email" placeholder="you@example.com">
+        <input id="auth-email" name="email" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="you@example.com">
       </label>
+      <label>
+        Password
+        <input id="auth-password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <p class="hint">First time using a password? Use “Forgot password?” to set one for your existing account.</p>
       <p id="auth-message" class="form-message" role="status"></p>
+      <fieldset id="auth-actions" class="dialog-actions">
+        <legend class="visually-hidden">Sign-in options</legend>
+        <button type="submit" class="gold-btn" value="password">Sign in</button>
+        <button type="submit" class="link-button" value="reset" formnovalidate>Forgot password?</button>
+        <button type="submit" class="link-button" value="link" formnovalidate>Email me a sign-in link</button>
+      </fieldset>
+    </form>
+  </dialog>
+
+  <dialog id="password-dialog" aria-labelledby="password-title">
+    <form id="password-form" method="post">
+      <div class="dialog-head">
+        <h2 id="password-title">Set password</h2>
+        <button type="button" class="link-button" id="password-cancel">Close</button>
+      </div>
+      <label>
+        Email
+        <input id="password-email" name="email" type="email" autocomplete="username" readonly>
+      </label>
+      <label>
+        New password
+        <input id="new-password" name="new-password" type="password" autocomplete="new-password" required>
+      </label>
+      <label>
+        Confirm new password
+        <input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" required>
+      </label>
+      <p id="password-message" class="form-message" role="status"></p>
       <div class="dialog-actions">
-        <button type="submit" class="gold-btn" id="auth-send">Send magic link</button>
+        <button type="submit" class="gold-btn" id="password-save">Save password</button>
       </div>
     </form>
   </dialog>
@@ -158,13 +190,17 @@
         <h2 id="card-dialog-title">Add card</h2>
         <button type="button" class="link-button" id="card-cancel">Close</button>
       </div>
-      <p class="hint" id="card-dialog-hint">Take a photo or choose one. It is resized on this device before upload.</p>
       <div class="form-grid">
-        <label class="span-2">
-          Photo
-          <input id="card-image" name="image" type="file" accept="image/*" capture="environment">
-        </label>
-        <p id="photo-note" class="hint span-2"></p>
+        <fieldset class="photo-field span-2" id="photo-field" aria-describedby="photo-note">
+          <legend>Card photo</legend>
+          <div class="dialog-actions">
+            <button type="button" class="gold-btn" id="choose-photo">Choose photo</button>
+            <button type="button" class="link-button" id="take-photo">Take photo</button>
+          </div>
+          <input id="card-image" type="file" accept="image/*" hidden>
+          <input id="card-camera" type="file" accept="image/*" capture="environment" hidden>
+        </fieldset>
+        <p id="photo-note" class="hint span-2" role="status"></p>
         <div id="photo-preview" class="preview span-2" hidden>
           <div class="slab">
             <div class="slab-inner">

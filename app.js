@@ -50,12 +50,22 @@ const ui = {
   authDialog: $('auth-dialog'),
   authForm: $('auth-form'),
   authEmail: $('auth-email'),
+  authPassword: $('auth-password'),
   authMessage: $('auth-message'),
-  authSend: $('auth-send'),
+  authActions: $('auth-actions'),
+  passwordDialog: $('password-dialog'),
+  passwordForm: $('password-form'),
+  passwordEmail: $('password-email'),
+  newPassword: $('new-password'),
+  confirmPassword: $('confirm-password'),
+  passwordMessage: $('password-message'),
+  passwordSave: $('password-save'),
   cardDialog: $('card-dialog'),
   cardForm: $('card-form'),
   cardTitle: $('card-dialog-title'),
   cardImage: $('card-image'),
+  cardCamera: $('card-camera'),
+  photoField: $('photo-field'),
   photoNote: $('photo-note'),
   photoPreview: $('photo-preview'),
   photoPreviewImg: $('photo-preview-img'),
@@ -302,12 +312,15 @@ function renderAuth() {
   add.type = 'button';
   add.id = 'add-card-btn';
   add.addEventListener('click', () => openEditor(null));
+  const setPassword = el('button', 'link-button', 'Set password');
+  setPassword.type = 'button';
+  setPassword.addEventListener('click', openPasswordDialog);
   const signOut = el('button', 'link-button', 'Sign out');
   signOut.type = 'button';
   signOut.addEventListener('click', () => {
     supabase.auth.signOut();
   });
-  ui.authBar.append(add, signOut);
+  ui.authBar.append(add, setPassword, signOut);
 }
 
 function renderStats(list) {
@@ -607,17 +620,17 @@ function showPreview(src, note) {
 async function compressCardImage(file) {
   const type = file.type || '';
   if (type && !type.startsWith('image/')) throw new Error('Choose an image file.');
-  let bitmap;
+  const source = URL.createObjectURL(file);
+  const image = new Image();
   try {
-    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  } catch (error) {
-    throw new Error('This photo could not be read. Try a JPEG or PNG.');
-  }
-  try {
-    const longEdge = Math.max(bitmap.width, bitmap.height);
+    image.src = source;
+    await image.decode().catch(() => {
+      throw new Error('This device could not read that photo. Try a JPEG or PNG.');
+    });
+    const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
     const scale = Math.min(1, MAX_EDGE / longEdge);
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -626,7 +639,7 @@ async function compressCardImage(file) {
     ctx.fillRect(0, 0, width, height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bitmap, 0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
     const blob = await new Promise((resolve, reject) => {
       canvas.toBlob((result) => {
         if (result) resolve(result);
@@ -639,7 +652,7 @@ async function compressCardImage(file) {
     });
     return { blob, width, height, type: blob.type || 'image/jpeg' };
   } finally {
-    bitmap.close();
+    URL.revokeObjectURL(source);
   }
 }
 
@@ -653,7 +666,7 @@ function openEditor(card) {
   ui.cardSave.disabled = false;
   ui.cardSave.textContent = card ? 'Save changes' : 'Save card';
   ui.cardTitle.textContent = card ? 'Edit card' : 'Add card';
-  ui.cardImage.required = !card;
+  ui.photoField.disabled = false;
   ui.photoNote.textContent = card
     ? 'The current photo is kept unless you choose a new one.'
     : 'Photos are resized to about 1400px on the long edge.';
@@ -696,7 +709,7 @@ function formPayload() {
 
 async function saveCard(event) {
   event.preventDefault();
-  if (busy) return;
+  if (busy || ui.cardSave.disabled) return;
   ui.cardError.textContent = '';
   if (!session?.user?.id) {
     ui.cardError.textContent = 'Sign in before saving a card.';
@@ -717,10 +730,12 @@ async function saveCard(event) {
   const photo = pendingBlob;
   if (!targetId && !photo) {
     ui.cardError.textContent = 'Add a photo of the card.';
+    $('choose-photo').focus();
     return;
   }
 
   busy = true;
+  ui.photoField.disabled = true;
   ui.cardSave.disabled = true;
   ui.cardSave.textContent = 'Saving…';
   const previous = targetId ? cards.find((card) => card.id === targetId) : null;
@@ -766,6 +781,7 @@ async function saveCard(event) {
     ui.cardSave.disabled = false;
     ui.cardSave.textContent = targetId ? 'Save changes' : 'Save card';
   } finally {
+    ui.photoField.disabled = false;
     busy = false;
   }
 }
@@ -817,40 +833,83 @@ function redirectUrl() {
   return `${window.location.origin}${window.location.pathname}`;
 }
 
-async function sendMagicLink(event) {
+async function handleSignIn(event) {
   event.preventDefault();
-  ui.authMessage.textContent = '';
-  ui.authSend.disabled = true;
-  ui.authSend.textContent = 'Sending…';
+  if (ui.authActions.disabled || !ui.authEmail.reportValidity()) return;
+  const action = event.submitter?.value || 'password';
+  const email = ui.authEmail.value.trim();
+  ui.authActions.disabled = true;
+  ui.authMessage.textContent = action === 'password' ? 'Signing in…' : 'Sending email…';
   try {
-    const email = ui.authEmail.value.trim();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectUrl() },
-    });
+    if (action === 'password') {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: ui.authPassword.value });
+      if (error) throw error;
+      if (ui.authDialog.open) ui.authDialog.close();
+      return;
+    }
+    const { error } = action === 'reset'
+      ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() })
+      : await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectUrl(), shouldCreateUser: false },
+      });
     if (error) throw error;
-    ui.authMessage.textContent = 'Check your email for the magic link. Open it in this browser.';
+    ui.authMessage.textContent = action === 'reset'
+      ? 'If this email has a vault account, check your inbox for a link to set a password.'
+      : 'Check your email for the sign-in link. Open it in this browser.';
   } catch (error) {
-    ui.authMessage.textContent = error.message || 'The magic link could not be sent.';
+    ui.authMessage.textContent = error.code === 'invalid_credentials'
+      ? 'The email or password is incorrect.'
+      : error.message || 'Sign-in request failed. Please try again.';
   } finally {
-    ui.authSend.disabled = false;
-    ui.authSend.textContent = 'Send magic link';
+    ui.authActions.disabled = false;
+  }
+}
+
+function openPasswordDialog() {
+  if (!session?.user || ui.passwordDialog.open) return;
+  ui.passwordForm.reset();
+  ui.passwordEmail.value = session.user.email || '';
+  ui.passwordMessage.textContent = '';
+  ui.passwordDialog.showModal();
+  ui.newPassword.focus();
+}
+
+async function savePassword(event) {
+  event.preventDefault();
+  if (!session?.user || ui.passwordSave.disabled) return;
+  if (ui.newPassword.value !== ui.confirmPassword.value) {
+    ui.passwordMessage.textContent = 'The passwords do not match.';
+    ui.confirmPassword.focus();
+    return;
+  }
+  ui.passwordSave.disabled = true;
+  ui.passwordMessage.textContent = 'Saving password…';
+  try {
+    const { error } = await supabase.auth.updateUser({ password: ui.newPassword.value });
+    if (error) throw error;
+    ui.newPassword.value = '';
+    ui.confirmPassword.value = '';
+    ui.passwordMessage.textContent = 'Password saved. You can now sign in with your email and password.';
+  } catch (error) {
+    ui.passwordMessage.textContent = error.code === 'reauthentication_needed'
+      ? 'Sign out and use “Forgot password?” to get a fresh password reset link.'
+      : error.message || 'The password could not be saved.';
+  } finally {
+    ui.passwordSave.disabled = false;
   }
 }
 
 function cleanAuthUrl() {
   const url = new URL(window.location.href);
-  const hash = url.hash.replace(/^#/, '');
-  const hashParams = new URLSearchParams(hash);
-  const hadQuery = url.searchParams.has('code') || url.searchParams.has('sb_flow_id');
+  const hashParams = new URLSearchParams(url.hash.slice(1));
+  const callbackKeys = ['code', 'sb_flow_id', 'error', 'error_code', 'error_description'];
+  const hadQuery = callbackKeys.some((key) => url.searchParams.has(key));
   const hadHash = hashParams.has('access_token') || hashParams.has('error') || hashParams.has('error_description');
   if (!hadQuery && !hadHash) return;
-  const description = hashParams.get('error_description');
-  if (description) ui.loadError.textContent = description.replace(/\+/g, ' ');
-  url.searchParams.delete('code');
-  url.searchParams.delete('sb_flow_id');
-  url.hash = '';
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+  callbackKeys.forEach((key) => url.searchParams.delete(key));
+  if (hadHash) url.hash = '';
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 function initBackdrop() {
@@ -1013,16 +1072,14 @@ ui.grid.addEventListener('click', (event) => {
     if (confirmed) deleteCard(card);
   }
 });
-ui.cardImage.addEventListener('change', async () => {
+async function prepareCardPhoto(event) {
+  const input = event.currentTarget;
+  const file = input.files?.[0];
+  if (!file || busy) return;
+  input.value = '';
   const generation = ++photoGeneration;
-  const file = ui.cardImage.files?.[0];
   ui.cardError.textContent = '';
-  pendingBlob = null;
-  if (!file) {
-    if (generation !== photoGeneration) return;
-    if (!editingId) clearPreview();
-    return;
-  }
+  ui.cardSave.disabled = true;
   ui.photoNote.textContent = 'Preparing photo…';
   try {
     const prepared = await compressCardImage(file);
@@ -1034,25 +1091,39 @@ ui.cardImage.addEventListener('change', async () => {
     showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
   } catch (error) {
     if (generation !== photoGeneration) return;
-    pendingBlob = null;
     ui.cardError.textContent = error.message;
-    ui.photoNote.textContent = '';
+    ui.photoNote.textContent = pendingBlob || editingId
+      ? 'The previous photo is still selected.'
+      : 'Choose another photo to continue.';
+  } finally {
+    if (generation === photoGeneration) ui.cardSave.disabled = false;
   }
-});
+}
+$('choose-photo').addEventListener('click', () => ui.cardImage.click());
+$('take-photo').addEventListener('click', () => ui.cardCamera.click());
+ui.cardImage.addEventListener('change', prepareCardPhoto);
+ui.cardCamera.addEventListener('change', prepareCardPhoto);
 ui.cardForm.addEventListener('submit', saveCard);
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
 ui.cardDialog.addEventListener('close', () => {
   photoGeneration += 1;
   clearPreview();
   ui.cardImage.value = '';
+  ui.cardCamera.value = '';
 });
-ui.authForm.addEventListener('submit', sendMagicLink);
+ui.authForm.addEventListener('submit', handleSignIn);
 ui.authCancel.addEventListener('click', () => ui.authDialog.close());
+ui.authDialog.addEventListener('close', () => { ui.authPassword.value = ''; });
+ui.passwordForm.addEventListener('submit', savePassword);
+$('password-cancel').addEventListener('click', () => ui.passwordDialog.close());
+ui.passwordDialog.addEventListener('close', () => ui.passwordForm.reset());
 
 function setSession(next) {
   const previous = session?.user?.id || '';
   session = next || null;
   const current = session?.user?.id || '';
+  if (current && ui.authDialog.open) ui.authDialog.close();
+  if (previous !== current && ui.passwordDialog.open) ui.passwordDialog.close();
   if (previous !== current || !ui.authBar.childElementCount) {
     renderAuth();
     if (Array.isArray(cards)) renderGrid();
@@ -1063,14 +1134,18 @@ async function init() {
   initBackdrop();
   bindTilt(document.getElementById('spotlight-slide'));
   renderAuth();
-  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const authError = hashParams.get('error_description');
-  const { data } = await supabase.auth.getSession();
-  cleanAuthUrl();
-  if (authError && !data.session) authBanner = authError.replace(/\+/g, ' ');
-  setSession(data.session);
-  supabase.auth.onAuthStateChange((_event, next) => {
+  const url = new URL(window.location.href);
+  authBanner = new URLSearchParams(url.hash.slice(1)).get('error_description')
+    || url.searchParams.get('error_description') || '';
+  supabase.auth.onAuthStateChange((event, next) => {
     setSession(next);
+    if (event === 'INITIAL_SESSION') cleanAuthUrl();
+    if (event === 'SIGNED_IN' && authBanner) {
+      authBanner = '';
+      ui.loadError.textContent = loadError;
+      ui.loadError.hidden = !loadError;
+    }
+    if (event === 'PASSWORD_RECOVERY' && next) openPasswordDialog();
   });
   await loadCards();
 }

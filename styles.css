@@ -468,14 +468,6 @@ input[type="checkbox"] {
   padding: 0;
 }
 
-input[type="file"] {
-  padding: 0.45rem 0;
-  border: 0;
-  background: transparent;
-  color: var(--paper);
-  overflow: hidden;
-}
-
 .check {
   display: flex;
   flex-direction: row;
@@ -762,7 +754,20 @@ dialog form {
 .dialog-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+}
+
+fieldset.dialog-actions,
+.photo-field {
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.photo-field legend {
+  padding: 0 0 0.35rem;
 }
 
 ::selection {

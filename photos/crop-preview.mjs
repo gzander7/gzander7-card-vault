@@ -10,7 +10,13 @@ export function createCropPreview(side, apply) {
   function show() {
     button.hidden = !crop;
     button.textContent = useCrop ? 'Use full photo' : 'Use auto-crop';
-    note.textContent = useCrop ? 'Auto-cropped and straightened.' : 'Full photo selected.';
+    if (crop) {
+      note.textContent = useCrop ? 'Auto-cropped and straightened.' : 'Full photo selected.';
+    } else {
+      note.textContent = full.cropUnavailable
+        ? 'This device couldn’t finish the crop. Full photo kept.'
+        : 'No clear card outline found. Full photo kept.';
+    }
     apply(useCrop ? crop : full);
   }
   button.addEventListener('click', () => {

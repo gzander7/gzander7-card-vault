@@ -753,6 +753,7 @@ async function compressCardImage(file) {
     const blob = await encodePhoto(canvas);
     canvas.width = canvas.height = 1;
     let crop = null;
+    let cropUnavailable = false;
     let cropped;
     try {
       cropped = croppedCanvas(image, MAX_EDGE);
@@ -761,12 +762,12 @@ async function compressCardImage(file) {
         crop = { blob: croppedBlob, scanBlob: croppedBlob, width: cropped.width, height: cropped.height, type: croppedBlob.type };
       }
     } catch {
-      // Keep the prepared full photo if the device cannot process a crop.
+      cropUnavailable = true;
     } finally {
       if (cropped) cropped.width = cropped.height = 1;
     }
     const scanBlob = file.size <= 32 * 1024 * 1024 && type.startsWith('image/') ? file : blob;
-    return { blob, scanBlob, crop, width, height, type: blob.type || 'image/jpeg' };
+    return { blob, scanBlob, crop, cropUnavailable, width, height, type: blob.type || 'image/jpeg' };
   } finally {
     URL.revokeObjectURL(source);
     image.removeAttribute?.('src');

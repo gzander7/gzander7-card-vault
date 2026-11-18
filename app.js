@@ -494,20 +494,19 @@ function createSpotlight() {
   }
 
   function show(announceSlide) {
-    if (loadError) {
-      ui.spotlightCount.textContent = 'Unavailable';
+    if (loadError || !items.length) {
+      const loading = cards === null && !loadError;
+      ui.spotlightCount.textContent = loadError ? 'Unavailable' : loading ? '' : '0 cards';
       ui.spotPrev.disabled = true;
       ui.spotNext.disabled = true;
-      ui.spotlightBody.replaceChildren(el('p', 'desc placeholder', 'Featured cards will show here after the database is set up.'));
-      return;
-    }
-    if (!items.length) {
-      ui.spotlightCount.textContent = cards === null ? 'Opening the case…' : 'No cards yet';
-      ui.spotPrev.disabled = true;
-      ui.spotNext.disabled = true;
-      ui.spotlightBody.replaceChildren(el('p', 'desc placeholder', cards === null
-        ? 'Featured cards appear here.'
-        : 'No cards in the vault yet.'));
+      const placeholder = el('div', 'placeholder');
+      const copy = el('div', 'empty-copy');
+      const title = loadError ? 'Cards unavailable' : loading ? 'Opening the case…' : 'The case is empty';
+      copy.appendChild(el('h3', '', title));
+      if (loadError) copy.appendChild(el('p', '', 'Reload the page to try again.'));
+      if (!loadError && !loading) copy.appendChild(el('p', '', 'Featured cards from the collection will appear here.'));
+      placeholder.appendChild(copy);
+      ui.spotlightBody.replaceChildren(placeholder);
       return;
     }
     const card = items[index];

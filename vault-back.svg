@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 300 420" role="img" aria-labelledby="title">
+  <title id="title">Card Vault collector’s monogram in burgundy and engraved gold</title>
+  <defs>
+    <pattern id="cloth" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M-2 2L2 -2M0 8L8 0M6 10L10 6" fill="none" stroke="#caa375" stroke-width=".52" opacity=".29"/>
+    </pattern>
+    <pattern id="stripe" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(28)">
+      <path d="M0 0V5" stroke="#d5a570" stroke-width="1.3"/>
+    </pattern>
+    <path id="plate" d="M0 -168H94L130 -132V132L94 168H-94L-130 132V-132L-94 -168Z"/>
+    <path id="turn" d="M102.0,0.0 101.5,4.0 100.0,7.9 97.6,11.6 94.6,15.0 91.2,18.1 87.7,21.1 84.4,23.8 81.5,26.5 79.2,29.2 77.6,32.1 76.7,35.4 76.4,38.9 76.5,42.9 76.9,47.1 77.3,51.7 77.5,56.3 77.2,60.9 76.3,65.1 74.6,68.9 72.1,72.1 68.9,74.6 65.1,76.3 60.9,77.2 56.3,77.5 51.7,77.3 47.1,76.9 42.9,76.5 38.9,76.4 35.4,76.7 32.1,77.6 29.2,79.2 26.5,81.5 23.8,84.4 21.1,87.7 18.1,91.2 15.0,94.6 11.6,97.6 7.9,100.0 4.0,101.5 0.0,102.0 -4.0,101.5 -7.9,100.0 -11.6,97.6 -15.0,94.6 -18.1,91.2 -21.1,87.7 -23.8,84.4 -26.5,81.5 -29.2,79.2 -32.1,77.6 -35.4,76.7 -38.9,76.4 -42.9,76.5 -47.1,76.9 -51.7,77.3 -56.3,77.5 -60.9,77.2 -65.1,76.3 -68.9,74.6 -72.1,72.1 -74.6,68.9 -76.3,65.1 -77.2,60.9 -77.5,56.3 -77.3,51.7 -76.9,47.1 -76.5,42.9 -76.4,38.9 -76.7,35.4 -77.6,32.1 -79.2,29.2 -81.5,26.5 -84.4,23.8 -87.7,21.1 -91.2,18.1 -94.6,15.0 -97.6,11.6 -100.0,7.9 -101.5,4.0 -102.0,0.0 -101.5,-4.0 -100.0,-7.9 -97.6,-11.6 -94.6,-15.0 -91.2,-18.1 -87.7,-21.1 -84.4,-23.8 -81.5,-26.5 -79.2,-29.2 -77.6,-32.1 -76.7,-35.4 -76.4,-38.9 -76.5,-42.9 -76.9,-47.1 -77.3,-51.7 -77.5,-56.3 -77.2,-60.9 -76.3,-65.1 -74.6,-68.9 -72.1,-72.1 -68.9,-74.6 -65.1,-76.3 -60.9,-77.2 -56.3,-77.5 -51.7,-77.3 -47.1,-76.9 -42.9,-76.5 -38.9,-76.4 -35.4,-76.7 -32.1,-77.6 -29.2,-79.2 -26.5,-81.5 -23.8,-84.4 -21.1,-87.7 -18.1,-91.2 -15.0,-94.6 -11.6,-97.6 -7.9,-100.0 -4.0,-101.5 -0.0,-102.0 4.0,-101.5 7.9,-100.0 11.6,-97.6 15.0,-94.6 18.1,-91.2 21.1,-87.7 23.8,-84.4 26.5,-81.5 29.2,-79.2 32.1,-77.6 35.4,-76.7 38.9,-76.4 42.9,-76.5 47.1,-76.9 51.7,-77.3 56.3,-77.5 60.9,-77.2 65.1,-76.3 68.9,-74.6 72.1,-72.1 74.6,-68.9 76.3,-65.1 77.2,-60.9 77.5,-56.3 77.3,-51.7 76.9,-47.1 76.5,-42.9 76.4,-38.9 76.7,-35.4 77.6,-32.1 79.2,-29.2 81.5,-26.5 84.4,-23.8 87.7,-21.1 91.2,-18.1 94.6,-15.0 97.6,-11.6 100.0,-7.9 101.5,-4.0 102.0,-0.0Z"/>
+    <path id="corner" fill="none" d="M0 38V0H38M4 25V4H25M7 18L18 7M9 8L16 8L8 16V9M12 20L20 12"/>
+    <path id="star" d="M0 -5L1.5 -1.5L5 0L1.5 1.5L0 5L-1.5 1.5L-5 0L-1.5 -1.5Z"/>
+    <path id="fan" d="M-76 0C-56 -10 -25 -10 0 -1C25 -10 56 -10 76 0C45 -2 19 1 0 9C-19 1 -45 -2 -76 0Z" fill="none"/>
+    <path id="c" d="M-54 -44H-15L0 -29V-13H-17V-23L-23 -29H-44L-50 -23V16L-43 23H-25L-17 15V5H0V21L-16 37H-54L-68 23V-30Z"/>
+    <path id="v" d="M-26 -35H2V-24H-4L10 17H12L26 -24H20V-35H48V-24H43L20 40H0L-22 -24H-26Z"/>
+  </defs>
+
+  <!-- Broad unprinted stock and a double bevel keep the silhouette clear at thumbnail size. -->
+  <rect width="300" height="420" rx="7" fill="#ead3a4"/>
+  <rect x="5" y="5" width="290" height="410" rx="4" fill="#521c2a" stroke="#6e443b" stroke-width="1.5"/>
+  <rect x="9" y="9" width="282" height="402" rx="2" fill="url(#cloth)" stroke="#cba36e"/>
+  <rect x="13" y="13" width="274" height="394" rx="1" fill="none" stroke="#b08761" stroke-width=".65"/>
+  <g fill="none" stroke="#dcba83" stroke-width="1.6">
+    <use xlink:href="#corner" x="17" y="17"/>
+    <use xlink:href="#corner" transform="translate(283 17) rotate(90)"/>
+    <use xlink:href="#corner" transform="translate(283 403) rotate(180)"/>
+    <use xlink:href="#corner" transform="translate(17 403) rotate(270)"/>
+  </g>
+  <g transform="translate(150 210)">
+    <use xlink:href="#plate" fill="#652333" stroke="#d6ac78" stroke-width="1.5"/>
+    <use xlink:href="#plate" transform="scale(.968 .975)" fill="url(#cloth)" stroke="#b98860" stroke-width="1"/>
+    <!-- Copperplate hatching underneath the diagonal sporting stripe. -->
+    <path d="M-125 46L125 -89V-49L-125 86Z" fill="#a46a52"/>
+    <path d="M-125 50L125 -85V-53L-125 82Z" fill="#54202c"/>
+    <path d="M-125 53L125 -82V-55L-125 80Z" fill="url(#stripe)"/>
+    <path d="M-125 44L125 -91M-125 88L125 -47" fill="none" stroke="#ecce99" stroke-width="1.2"/>
+    <g fill="none" stroke="#c5a073" stroke-width=".8">
+      <use xlink:href="#fan" transform="translate(0 -106)"/>
+      <use xlink:href="#fan" transform="translate(0 -106) scale(.84 1.7)"/>
+      <use xlink:href="#fan" transform="translate(0 106) rotate(180)"/>
+      <use xlink:href="#fan" transform="translate(0 106) rotate(180) scale(.84 1.7)"/>
+    </g>
+    <circle r="104" fill="#4a1a27" stroke="#e3ba83" stroke-width="2.2"/>
+    <circle r="99" fill="none" stroke="#b88b60" stroke-width=".7"/>
+    <g fill="none" stroke="#e5b87c" stroke-width=".76">
+        <use xlink:href="#turn" transform="rotate(0)"/>
+        <use xlink:href="#turn" transform="rotate(5)"/>
+        <use xlink:href="#turn" transform="rotate(10)"/>
+        <use xlink:href="#turn" transform="rotate(15)"/>
+        <use xlink:href="#turn" transform="rotate(20)"/>
+        <use xlink:href="#turn" transform="rotate(25)"/>
+        <use xlink:href="#turn" transform="rotate(30)"/>
+        <use xlink:href="#turn" transform="rotate(35)"/>
+        <use xlink:href="#turn" transform="rotate(40)"/>
+    </g>
+    <circle r="73.3" fill="#612232" stroke="#e0b880" stroke-width="2.8"/>
+    <circle r="69.8" fill="url(#cloth)" stroke="#dab17c" stroke-width=".75"/>
+    <g transform="translate(6 0) scale(.9)" stroke-linejoin="round">
+      <use xlink:href="#c" transform="translate(2.5 4)" fill="#2c1620" stroke="#2c1620" stroke-width="4"/>
+      <use xlink:href="#c" fill="#e9c995" stroke="#532330" stroke-width="1.8"/>
+      <path d="M-60 18V-26L-49 -37H-19" fill="none" stroke="#a57a56" stroke-width="1.2"/>
+      <use xlink:href="#v" transform="translate(8 5)" fill="#2b1720" stroke="#2b1720" stroke-width="5"/>
+      <use xlink:href="#v" transform="translate(6 2)" fill="#d5a469" stroke="#4d2030" stroke-width="3"/>
+      <path d="M-9 -22L10 31H21" fill="none" stroke="#f6ddaa" stroke-width="1.8"/>
+    </g>
+    <g fill="#deba80">
+      <use xlink:href="#star" x="0" y="-56"/>
+      <use xlink:href="#star" x="0" y="56"/>
+      <use xlink:href="#star" x="-114" y="0"/>
+      <use xlink:href="#star" x="114" y="0"/>
+    </g>
+    <g fill="none" stroke="#d6ab79" stroke-width=".85">
+      <path d="M-105 -130L-88 -147H88L105 -130M-105 130L-88 147H88L105 130"/>
+      <path d="M-17 -54H-8M8 -54H17M-17 54H-8M8 54H17"/>
+    </g>
+    <text x="0" y="-121" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="24" font-weight="bold" letter-spacing="1.2" fill="#f4d9ac">CARD VAULT</text>
+    <text x="0" y="137" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="13" font-weight="bold" letter-spacing="1.6" fill="#efd2a5">GAGE’S COLLECTION</text>
+    <path d="M-43 -158H-8L0 -153L8 -158H43M-43 158H-8L0 153L8 158H43" fill="none" stroke="#cc9f6b"/>
+    <g fill="none" stroke="#cd9f70" stroke-width="1.3">
+      <path d="M-55 -180H-17L-10 -185H10L17 -180H55M-42 -177H-16M16 -177H42"/>
+      <path d="M-55 180H-17L-10 185H10L17 180H55M-42 177H-16M16 177H42"/>
+    </g>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#4a0712"/>
-  <rect x="9" y="3.5" width="14" height="25" rx="1.6" fill="#1a0d11" stroke="#FFB81C" stroke-width="1.7"/>
-  <rect x="11.2" y="6" width="9.6" height="15.2" rx="0.8" fill="#E31837"/>
-  <rect x="11.2" y="22.4" width="9.6" height="3.2" rx="0.6" fill="#FFB81C"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Card Vault</title>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="8" fill="#572131" stroke="#d8b27d" stroke-width="3"/>
+  <path d="M15 12H32L39 19V26H31V22L28 19H19L16 22V39L19 42H27L31 38V34H39V41L32 49H15L8 42V19Z" fill="#f1d7a7"/>
+  <path d="M23 18H36V23H33L39 42L46 23H43V18H56V23H53L43 51H35L25 23H23Z" fill="#d7a66d" stroke="#552031" stroke-width="2" stroke-linejoin="round"/>
 </svg>

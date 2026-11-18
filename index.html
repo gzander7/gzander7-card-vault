@@ -3,26 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Gage's trading card collection.">
-  <meta name="theme-color" content="#4a0712">
-  <title>Card Vault</title>
+  <meta name="description" content="Browse Gage’s personal collection of autographed, graded, and serial-numbered trading cards.">
+  <meta name="theme-color" content="#30151b">
+  <title>Gage’s Card Vault</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="showcase.css">
+  <link rel="stylesheet" href="collection.css">
 </head>
 <body>
   <canvas id="backdrop" aria-hidden="true"></canvas>
   <div class="page">
     <a class="skip-link" href="#collection">Skip to collection</a>
-    <header class="panel site-header">
+    <header class="panel site-header" id="vault-top">
       <div class="header-row">
         <div class="header-copy">
-          <p class="eyebrow">Museum vault</p>
+          <p class="eyebrow">Gage’s collection</p>
           <h1>Card Vault</h1>
-          <p class="lede">Gage's trading card collection. Autos, relics, serials, and slabs.</p>
+          <p class="lede">Autographs, relics, serials &amp; slabs.</p>
         </div>
         <div class="auth-bar" id="auth-bar"></div>
       </div>
     </header>
+    <nav class="vault-nav" aria-label="Vault sections">
+      <a href="#spotlight">Hall of Fame</a>
+      <a href="#collection">Gallery</a>
+      <a href="#stats">Ledger</a>
+    </nav>
     <main>
       <p id="load-error" class="error" role="alert" hidden></p>
       <noscript>
@@ -31,7 +38,7 @@
       <section id="spotlight" class="panel" aria-roledescription="carousel" aria-labelledby="hof-heading">
         <div class="section-head">
           <h2 id="hof-heading">Hall of Fame</h2>
-          <p id="spotlight-count" class="section-note">Opening the case…</p>
+          <p id="spotlight-count" class="section-note"></p>
         </div>
         <div class="spotlight-frame">
           <button type="button" id="spot-prev" class="spot-btn" aria-label="Previous featured card" aria-controls="spotlight-slide" disabled>Previous</button>
@@ -39,50 +46,15 @@
             <article id="spotlight-slide" class="tilt spotlight-card">
               <div class="glare" aria-hidden="true"></div>
               <div id="spotlight-body">
-                <p class="desc placeholder">Featured cards appear here.</p>
+                <div class="placeholder">
+                  <div class="empty-copy"><h3>Opening the case…</h3></div>
+                </div>
               </div>
             </article>
           </div>
           <button type="button" id="spot-next" class="spot-btn" aria-label="Next featured card" aria-controls="spotlight-slide" disabled>Next</button>
         </div>
         <p id="spotlight-status" class="visually-hidden" aria-live="polite"></p>
-      </section>
-      <section id="stats" class="panel" aria-labelledby="stats-heading">
-        <div class="section-head">
-          <h2 id="stats-heading">Collection</h2>
-          <p id="stat-count" class="section-note"></p>
-        </div>
-        <p id="stats-waiting" class="desc" hidden>Stats appear after the database is set up.</p>
-        <div class="stat-grid" id="stat-grid">
-          <p class="stat">
-            <span>Cards</span>
-            <strong id="stat-cards">—</strong>
-          </p>
-          <p class="stat">
-            <span>Autos</span>
-            <strong id="stat-autos">—</strong>
-          </p>
-          <p class="stat">
-            <span>Graded</span>
-            <strong id="stat-graded">—</strong>
-          </p>
-          <p class="stat">
-            <span>Serial numbered</span>
-            <strong id="stat-serials">—</strong>
-          </p>
-        </div>
-        <h3 id="players-heading">Cards per player</h3>
-        <div class="table-wrap">
-          <table aria-labelledby="players-heading">
-            <thead>
-              <tr>
-                <th scope="col">Player</th>
-                <th scope="col">Cards</th>
-              </tr>
-            </thead>
-            <tbody id="player-counts"></tbody>
-          </table>
-        </div>
       </section>
       <section id="collection" class="panel" tabindex="-1" aria-labelledby="collection-heading">
         <div class="section-head">
@@ -128,9 +100,47 @@
         </div>
         <ul id="card-grid" class="card-grid"></ul>
       </section>
+      <section id="stats" class="panel" aria-labelledby="stats-heading">
+        <div class="section-head">
+          <h2 id="stats-heading">Collection ledger</h2>
+          <p id="stat-count" class="section-note"></p>
+        </div>
+        <p id="stats-waiting" class="desc" hidden>Collection totals are unavailable.</p>
+        <div class="stat-grid" id="stat-grid">
+          <p class="stat">
+            <span>Cards</span>
+            <strong id="stat-cards">—</strong>
+          </p>
+          <p class="stat">
+            <span>Autos</span>
+            <strong id="stat-autos">—</strong>
+          </p>
+          <p class="stat">
+            <span>Graded</span>
+            <strong id="stat-graded">—</strong>
+          </p>
+          <p class="stat">
+            <span>Serial numbered</span>
+            <strong id="stat-serials">—</strong>
+          </p>
+        </div>
+        <h3 id="players-heading">Cards per player</h3>
+        <div class="table-wrap">
+          <table aria-labelledby="players-heading">
+            <thead>
+              <tr>
+                <th scope="col">Player</th>
+                <th scope="col">Cards</th>
+              </tr>
+            </thead>
+            <tbody id="player-counts"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
-    <footer class="panel site-footer">
-      <p>Personal collection. Photos are stored so this page can show them. Preview locally with <code>python3 -m http.server 4173</code>. A <code>file://</code> address cannot load the vault.</p>
+    <footer class="site-footer">
+      <span>Gage’s Card Vault</span>
+      <a href="#vault-top">Back to top <span aria-hidden="true">↑</span></a>
     </footer>
   </div>
 

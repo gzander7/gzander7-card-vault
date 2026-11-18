@@ -53,6 +53,16 @@ Sign in, then choose **Add card**. Use **Choose photo** for a picture already in
 
 Fields: player, year, set, card number, parallel, serial (for example `82/100`), autograph, relic, grader, grade, notes, and Hall of Fame. Featured cards rotate in the spotlight. If none are featured, the spotlight shows the newest card.
 
+## Vault Value and sold comps
+
+Sign in to see **Vault Value** in the navigation. Saving a new card or changing its identifying details starts a sold-comps lookup. Include the card number printed on the back, the parallel and print run when applicable, and the grading company and grade for a slab. Open **Sold comps** beneath a card to see individual sale dates, prices and links, or why an estimate is unavailable.
+
+The estimate is the median of the latest two to five verified matching sales available within the past 90 days. Prices are displayed in USD. For supported vaulted physical cards, USD Coin (USDC) sales count at $1 per USDC. Source coverage varies. Cards without two matches stay unpriced, and the total shows how many owned cards contributed. Opening the vault rechecks estimates at least seven days old. **Check for updates** requests a fresh lookup. A provider outage keeps the last saved estimate and its original date. The vault takes a daily snapshot on days you use it. [CardPricer public API](https://cardpricer.co/docs/api)
+
+Values and history are visible to the signed-in owner. History is stored in the current browser by default. To sync between devices, run [supabase/valuations.sql](supabase/valuations.sql) once in this project's SQL Editor. The next signed-in visit syncs the existing local history. Clearing site data before enabling sync removes this browser's copy.
+
+Run the pricing checks with `node --test pricing/*.test.mjs`.
+
 ## Local preview
 
 From the project folder:

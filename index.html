@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="showcase.css">
   <link rel="stylesheet" href="collection.css">
+  <link rel="stylesheet" href="valuation.css">
 </head>
 <body>
   <canvas id="backdrop" aria-hidden="true"></canvas>
@@ -28,6 +29,7 @@
     <nav class="vault-nav" aria-label="Vault sections">
       <a href="#spotlight">Hall of Fame</a>
       <a href="#collection">Gallery</a>
+      <a id="value-nav" href="#vault-value" hidden>Vault Value</a>
       <a href="#stats">Ledger</a>
     </nav>
     <main>
@@ -99,6 +101,31 @@
           <p id="empty-message"></p>
         </div>
         <ul id="card-grid" class="card-grid"></ul>
+      </section>
+      <section id="vault-value" tabindex="-1" aria-labelledby="value-heading" hidden>
+        <div class="value-overview">
+          <div>
+            <h2 id="value-heading">Vault Value</h2>
+            <p class="value-label">Estimated value · USD</p>
+            <p id="value-total" class="value-amount">—</p>
+            <p id="value-coverage"></p>
+          </div>
+          <div class="value-method">
+            <p>Each estimate uses the median of the latest two to five matching sales. Open a card’s sold comps in the gallery to see the evidence. <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">Market data from CardPricer</a></p>
+            <button type="button" id="value-refresh" class="link-button">Check for updates</button>
+          </div>
+        </div>
+        <p id="value-status" role="status"></p>
+        <p id="value-storage"></p>
+        <details id="value-history" hidden>
+          <summary>Value history</summary>
+          <div class="table-wrap">
+            <table aria-label="Daily Vault Value history">
+              <thead><tr><th scope="col">Date</th><th scope="col">Estimate</th><th scope="col">Cards priced</th></tr></thead>
+              <tbody id="value-history-rows"></tbody>
+            </table>
+          </div>
+        </details>
       </section>
       <section id="stats" class="panel" aria-labelledby="stats-heading">
         <div class="section-head">
@@ -222,6 +249,7 @@
           Player
           <input id="card-player" name="player" type="text" required maxlength="120" placeholder="Player name">
         </label>
+        <p class="hint span-2">For automatic sold comps, enter the year, set, and printed card number. Include any parallel, serial numbering, autograph, relic, or grade so the vault can match your version.</p>
         <label>
           Year
           <input id="card-year" name="year" type="text" inputmode="numeric" maxlength="4" placeholder="2020">

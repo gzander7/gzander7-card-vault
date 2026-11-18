@@ -1,97 +1,6 @@
-// Work on a small copy for detection. A candidate needs a long, straight
-// boundary on all four sides before it can replace the original framing.
-function fitEdge(points, tolerance) {
-  if (points.length < 12) return null;
-  let best = [];
-  const stride = Math.max(1, Math.floor(points.length / 24));
-  for (let i = 0; i < points.length; i += stride) {
-    for (let j = i + 5; j < points.length; j += stride) {
-      const [x, y] = points[i];
-      const slope = (points[j][1] - y) / (points[j][0] - x);
-      if (Math.abs(slope) > .9) continue;
-      const intercept = y - slope * x;
-      const hits = points.filter(([a, b]) => Math.abs(b - slope * a - intercept) <= tolerance);
-      if (hits.length > best.length) best = hits;
-    }
-  }
-  if (best.length < 12 || best.length < points.length * .48) return null;
-  const meanX = best.reduce((sum, p) => sum + p[0], 0) / best.length;
-  const meanY = best.reduce((sum, p) => sum + p[1], 0) / best.length;
-  let covariance = 0, variance = 0;
-  for (const [x, y] of best) {
-    covariance += (x - meanX) * (y - meanY);
-    variance += (x - meanX) ** 2;
-  }
-  const slope = covariance / variance;
-  return { slope, intercept: meanY - slope * meanX, hits: best };
-}
+import { detectCard } from './outline.mjs';
 
-export function detectCard({ data, width, height }) {
-  if (Math.min(width, height) < 48) return null;
-  function trace(vertical, reverse) {
-    const across = vertical ? width : height;
-    const depth = vertical ? height : width;
-    const points = [];
-    for (let a = 1; a < across - 1; a += 2) {
-      const index = d => {
-        const b = reverse ? depth - 1 - d : d;
-        return 4 * (vertical ? b * width + a : a * width + b);
-      };
-      const background = [0, 0, 0];
-      for (let d = 1; d <= 4; d++) {
-        const p = index(d);
-        for (let c = 0; c < 3; c++) background[c] += data[p+c] / 4;
-      }
-      let consecutive = 0;
-      for (let d = 5; d < depth - 4; d++) {
-        const p = index(d);
-        const difference = Math.max(
-          Math.abs(background[0] - data[p]),
-          Math.abs(background[1] - data[p + 1]),
-          Math.abs(background[2] - data[p + 2]),
-        );
-        consecutive = difference > 31 ? consecutive + 1 : 0;
-        if (consecutive === 3) {
-          const edge = d - 2;
-          points.push([a, reverse ? depth - 1 - edge : edge]);
-          break;
-        }
-      }
-    }
-    return fitEdge(points, Math.max(1.7, depth * .008));
-  }
-  const top = trace(true, false), bottom = trace(true, true);
-  const left = trace(false, false), right = trace(false, true);
-  if (!top || !bottom || !left || !right) return null;
-  function crossing(horizontal, vertical) {
-    const x = (vertical.slope * horizontal.intercept + vertical.intercept) /
-      (1 - vertical.slope * horizontal.slope);
-    return { x, y: horizontal.slope * x + horizontal.intercept };
-  }
-  const corners = [crossing(top,left), crossing(top,right), crossing(bottom,right), crossing(bottom,left)];
-  if (corners.some(p => p.x < 3 || p.y < 3 || p.x >= width-3 || p.y >= height-3)) return null;
-  const [tl,tr,br,bl] = corners;
-  const supported = (line, start, end) => end > start && line.hits.filter(([a]) =>
-    a >= start - 2 && a <= end + 2).length * 2 > (end - start) * .72;
-  if (!supported(top,tl.x,tr.x) || !supported(bottom,bl.x,br.x) ||
-      !supported(left,tl.y,bl.y) || !supported(right,tr.y,br.y)) return null;
-  const lengths = corners.map((p,i) => Math.hypot(p.x-corners[(i+1)%4].x, p.y-corners[(i+1)%4].y));
-  const [w,h,w2,h2] = lengths;
-  const ratio = (w+w2)/(h+h2);
-  if (Math.min(ratio,1/ratio) < .47 || Math.min(ratio,1/ratio) > .89 ||
-      Math.min(w,w2)/Math.max(w,w2) < .63 || Math.min(h,h2)/Math.max(h,h2) < .63) return null;
-  const area = corners.reduce((sum,p,i) => {
-    const next = corners[(i+1)%4];
-    return sum + p.x*next.y - p.y*next.x;
-  }, 0) / (2*width*height);
-  if (area < .12 || area > .86) return null;
-  // A sliver of background protects rounded corners and the outermost border.
-  const center = { x: (tl.x+tr.x+br.x+bl.x)/4, y: (tl.y+tr.y+br.y+bl.y)/4 };
-  return corners.map(p => ({
-    x: Math.min(1,Math.max(0,(center.x+(p.x-center.x)*1.018)/(width-1))),
-    y: Math.min(1,Math.max(0,(center.y+(p.y-center.y)*1.018)/(height-1))),
-  }));
-}
+export { detectCard };
 
 // Project each output pixel back into the photographed plane and interpolate
 // its color. This straightens converging sides without changing their order.
@@ -130,10 +39,11 @@ export function rectify(source, target, corners) {
 export function croppedCanvas(image, maxEdge) {
   const canvas = document.createElement('canvas');
   try {
-    const scale = Math.min(1, 260 / Math.max(image.naturalWidth, image.naturalHeight));
+    const scale = Math.min(1, 320 / Math.max(image.naturalWidth, image.naturalHeight));
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     const quad = detectCard(ctx.getImageData(0, 0, canvas.width, canvas.height));
     if (!quad) return null;

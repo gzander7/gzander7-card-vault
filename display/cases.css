@@ -1,0 +1,270 @@
+/* Owner's case list and card picker */
+.case-manager {
+  width: min(42rem, calc(100% - 1.25rem));
+  background: #2d191f;
+  overscroll-behavior: contain;
+}
+
+.case-manager-head,
+.case-list-intro,
+.case-list-title,
+.case-controls,
+.case-row-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .4rem 1rem;
+}
+
+.case-manager-head {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  border-bottom: 3px double #856a48;
+  margin: 0 clamp(1rem, 4vw, 1.6rem);
+  padding: .7rem 0;
+}
+
+.case-manager-head h2 {
+  color: #f6edda;
+  font: 500 clamp(1.65rem, 4vw, 2.15rem)/1.12 Georgia, serif;
+}
+
+.case-panel { padding: 1rem clamp(1rem, 4vw, 1.6rem); }
+.case-list-intro { align-items: flex-start; justify-content: space-between; }
+.case-list-intro p { flex: 1 1 13rem; padding-top: .25rem; }
+.case-manager .gold-btn { min-height: 44px; padding: .55rem .9rem; }
+.case-list-empty { margin: 1rem 0 .3rem; color: #f3e5cd; }
+.case-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+.case-list > li { padding: .85rem 0 .4rem; border-top: 1px solid #896f55; }
+.case-list-title { justify-content: space-between; gap: .1rem .75rem; }
+.case-list-title h3 { font: 500 1.35rem/1.25 Georgia, serif; }
+.case-row-actions { column-gap: 1rem; }
+.case-row-actions a { display: inline-flex; align-items: center; }
+.case-controls { margin-top: .85rem; }
+.case-manager .link-button { font-size: .87rem; }
+.case-manager .link-button:disabled { opacity: .65; cursor: wait; }
+.case-confirm-copy { overflow-wrap: anywhere; }
+.case-stop {
+  min-height: 44px;
+  border: 1px solid #e3a1a7;
+  border-radius: 2px;
+  padding: .45rem .85rem;
+  background: #632e3a;
+  color: #fff3ec;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.case-hint, .case-manager-status, .case-warning {
+  color: #dfcbb6;
+  line-height: 1.45;
+  font-size: .9rem;
+}
+.case-warning { margin-bottom: .65rem; color: #f4d597; }
+.case-manager-status { padding: 0 clamp(1rem, 4vw, 1.6rem) 1rem; color: #f3d5a0; }
+.case-manager-status:empty { padding: 0; }
+.case-manager .case-editor { display: block; padding: 0; }
+.case-fields, .case-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.case-field { display: grid; gap: .3rem; color: #f4e5ce; font-size: .9rem; font-weight: 600; }
+.case-field input { background: #201419; font-weight: 400; }
+.case-manual-link { margin: .35rem 0 .75rem; }
+.case-picker { margin-top: .95rem; }
+.case-picker legend { padding: 0; font: 500 1.25rem/1.4 Georgia, serif; }
+.case-picker .case-hint { margin-top: .15rem; }
+.case-search { margin: .8rem 0 .5rem; }
+.case-count {
+  color: #e8c791;
+  font: 600 .75rem/1.45 "Courier New", monospace;
+  letter-spacing: .025em;
+}
+.case-choices {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: .35rem;
+  max-height: min(36vh, 20rem);
+  max-height: min(36dvh, 20rem);
+  overflow-y: auto;
+  scrollbar-color: #997a58 #29191f;
+  overscroll-behavior-y: contain;
+  margin: .4rem 0 0;
+  padding: .2rem;
+  list-style: none;
+}
+.case-option {
+  display: flex;
+  height: 100%;
+  min-height: 3.8rem;
+  align-items: center;
+  gap: .55rem;
+  padding: .35rem .55rem;
+  border: 1px solid #715a50;
+  border-radius: 2px;
+  background: #322027;
+  cursor: pointer;
+}
+.case-option:has(input:checked) { border-color: #c99e63; background: #422a30; }
+.case-option:focus-within { outline: 2px solid #ebc98f; outline-offset: -2px; }
+.case-option input { flex: none; }
+.case-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.9rem;
+  overflow: hidden;
+  background: #211419;
+}
+.case-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.case-thumb .case-photo-fallback { font-size: .52rem; line-height: 1.05; text-align: center; color: #decab1; }
+.case-option-text { display: grid; gap: .08rem; min-width: 0; line-height: 1.3; overflow-wrap: anywhere; }
+.case-option-text strong { color: #f6edda; font-size: .87rem; }
+.case-option-text > span { color: #dbc8b5; font-size: .74rem; }
+.case-rank {
+  margin-left: auto;
+  min-width: 1.35rem;
+  padding: .08rem .15rem;
+  color: #2c1920;
+  background: #ddbd85;
+  text-align: center;
+  font: bold .72rem/1.35 "Courier New", monospace;
+}
+.case-picker-message:not(:empty) { padding-top: .5rem; }
+@media (min-width: 39rem) {
+  .case-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Unlisted public catalogue */
+.case-page {
+  width: min(72rem, calc(100% - clamp(1.4rem, 6vw, 5rem)));
+  margin-inline: auto;
+  padding-bottom: 3rem;
+}
+.case-brand {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  min-height: 4.15rem;
+  color: #eedec4;
+  font: 500 clamp(1.1rem, 2vw, 1.35rem)/1.3 Georgia, serif;
+  letter-spacing: -.025em;
+}
+.case-brand img { width: 1.8rem; height: 1.8rem; }
+.case-public main { display: block; margin: 0; }
+.case-cover {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-items: center;
+  min-height: clamp(9.75rem, 17vw, 13.8rem);
+  overflow: hidden;
+  padding: clamp(1.2rem, 3.7vw, 3rem);
+  border: 1px solid #9b784d;
+  border-top: 4px double #cda568;
+  background: repeating-linear-gradient(107deg, transparent 0 5px, #e3bd8908 5px 6px), #441c27;
+  box-shadow: inset 0 0 0 5px #441c27, inset 0 0 0 6px #a783524d;
+}
+.case-cover::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: clamp(-1.4rem, 2vw, 2.3rem);
+  top: 50%;
+  width: clamp(5.6rem, 18vw, 14.5rem);
+  aspect-ratio: 5/7;
+  background: url("../vault-back.svg") center / contain no-repeat;
+  opacity: .76;
+  transform: translateY(-46%) rotate(13deg);
+  pointer-events: none;
+}
+.case-cover-copy { padding-right: clamp(4rem, 20vw, 17rem); min-width: 0; }
+.case-kicker, .case-size, .case-card-meta, .case-view-label, .case-card-tags {
+  font-family: "Courier New", Courier, monospace;
+}
+.case-kicker {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  color: #e5bf82;
+  font-size: .72rem;
+  line-height: 1.5;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.case-kicker::before { content: ""; width: 1.6rem; height: 4px; border-block: 1px solid currentColor; }
+.case-cover h1 {
+  margin: .4rem 0;
+  color: #fbefdb;
+  font: 500 clamp(2.2rem, 6.5vw, 4.7rem)/1.02 Baskerville, "Iowan Old Style", Georgia, serif;
+  letter-spacing: -.045em;
+}
+.case-size { color: #e7c99f; font-size: .85rem; }
+.case-public-status:not(:empty) { margin-top: 1.15rem; color: #edddc4; }
+#case-retry { margin-top: .8rem; }
+.case-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16.5rem), 1fr));
+  align-items: start;
+  gap: clamp(.9rem, 2vw, 1.5rem);
+  margin: clamp(1.2rem, 3vw, 2.4rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.case-tile {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #ab8a61;
+  background: #f3e9d6;
+  color: #352026;
+  box-shadow: 0 5px 16px #160d114d;
+}
+.case-card-photo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1.2;
+  padding: .9rem;
+  border: 0;
+  border-bottom: 3px double #b29572;
+  border-radius: 0;
+  background: radial-gradient(ellipse at 50% 42%, #57343a, #302027 80%);
+  color: #f4dec3;
+}
+button.case-card-photo { cursor: zoom-in; }
+button.case-card-photo:focus-visible { outline-offset: -4px; }
+.case-card-photo img {
+  position: absolute;
+  inset: .8rem;
+  width: calc(100% - 1.6rem);
+  height: calc(100% - 1.6rem);
+  object-fit: contain;
+  filter: drop-shadow(0 3px 5px #14090bc4);
+}
+.case-view-label {
+  position: absolute;
+  left: .55rem;
+  bottom: .5rem;
+  padding: .22rem .45rem;
+  border: 1px solid #bc996f;
+  background: #301d23;
+  color: #f4debd;
+  font-size: .66rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.case-card-photo:is(:hover, :focus-visible) .case-view-label { background: #edd9b3; color: #371e26; }
+.case-card-copy { padding: .95rem clamp(.95rem, 2vw, 1.2rem) 1.05rem; overflow-wrap: anywhere; }
+.case-card-meta { margin-bottom: .17rem; color: #743441; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.case-card-copy h2 { color: #372027; font: 500 clamp(1.4rem, 3vw, 1.9rem)/1.08 Georgia, serif; letter-spacing: -.035em; }
+.case-card-detail { margin-top: .32rem; color: #624d40; font-size: .9rem; }
+.case-card-tags { display: flex; flex-wrap: wrap; gap: .3rem .65rem; margin: .65rem 0 0; padding: 0; list-style: none; }
+.case-card-tags li { padding: .12rem 0; border-block: 1px solid #bea588; color: #6b2936; font-size: .7rem; }
+@media (max-width: 29rem) {
+  .case-cover::after { right: -1.1rem; opacity: .55; }
+  .case-cover-copy { padding-right: 3.7rem; }
+  .case-gallery { grid-template-columns: minmax(0, 1fr); }
+}

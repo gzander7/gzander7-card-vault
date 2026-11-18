@@ -1,42 +1,95 @@
-// Both choices are prepared before the preview appears. Toggling never
-// reopens the camera or requires decoding a large phone photo again.
-export function createCropPreview(side, apply) {
-  const button = document.getElementById(side + '-crop-toggle');
-  const note = document.getElementById(side + '-crop-note');
-  let full = null;
-  let crop = null;
-  let useCrop = false;
+// Each side owns its selected upload and the full source used to adjust it.
+// A paused batch keeps only the normalized manual corners and the selected view.
+export function createCropPreview(side, apply, editor) {
+  const control = name => document.getElementById(side + '-crop-' + name);
+  const toggle = control('toggle'), adjust = control('adjust'), note = control('note');
+  let state = null;
 
-  function show() {
-    button.hidden = !crop;
-    button.textContent = useCrop ? 'Use full photo' : 'Use auto-crop';
-    if (crop) {
-      note.textContent = useCrop ? 'Auto-cropped and straightened.' : 'Full photo selected.';
+  function render() {
+    adjust.hidden = !state;
+    toggle.hidden = !state?.crop;
+    if (!state) { note.textContent = ''; return; }
+    if (state.crop) {
+      const cropChoice = state.manual ? 'Use adjusted crop' : 'Use auto-crop';
+      const cropStatus = state.manual ? 'Corners adjusted and straightened.' : 'Auto-cropped and straightened.';
+      toggle.textContent = state.useCrop ? 'Use full photo' : cropChoice;
+      note.textContent = state.useCrop ? cropStatus : 'Full photo selected.';
+    } else if (state.saved) {
+      note.textContent = 'Adjust the corners of the saved photo.';
     } else {
-      note.textContent = full.cropUnavailable
+      note.textContent = state.full.cropUnavailable
         ? 'This device couldn’t finish the crop. Full photo kept.'
         : 'No clear card outline found. Full photo kept.';
     }
-    apply(useCrop ? crop : full);
   }
-  button.addEventListener('click', () => {
-    if (!crop) return;
-    useCrop = !useCrop;
-    show();
+
+  function select() {
+    render();
+    if (state.useCrop) apply(state.crop);
+    else if (state.saved) state.restore();
+    else apply(state.full);
+  }
+
+  function setPreparing(preparing) {
+    if (preparing) editor.close(side);
+    toggle.disabled = adjust.disabled = preparing;
+  }
+
+  function clear() {
+    editor.close(side);
+    state = null;
+    setPreparing(false);
+    render();
+  }
+
+  toggle.addEventListener('click', () => {
+    if (!state?.crop || toggle.disabled) return;
+    state.useCrop = !state.useCrop;
+    select();
   });
+
+  adjust.addEventListener('click', () => {
+    const photo = state;
+    if (!photo || adjust.disabled) return;
+    editor.open({
+      side,
+      corners: photo.corners,
+      original: photo.full?.source,
+      loadPreview: async signal => {
+        if (photo.full) return photo.full.blob;
+        if (!photo.cached) {
+          const saved = await photo.load(signal);
+          signal?.throwIfAborted();
+          photo.cached = saved;
+        }
+        return photo.cached;
+      },
+      onApply(crop, corners) {
+        if (state !== photo) return;
+        Object.assign(photo, { crop, corners, useCrop: true, manual: true });
+        select();
+      },
+    });
+  });
+
   return {
-    set(prepared, preferCrop = true) {
-      full = prepared;
-      crop = prepared.crop || null;
-      useCrop = Boolean(crop) && preferCrop;
-      show();
+    set(full, draft) {
+      clear();
+      state = {
+        full, crop: full.crop, corners: full.corners, manual: Boolean(draft?.corners),
+        useCrop: Boolean(full.crop) && !draft?.full,
+      };
+      select();
     },
-    fullSelected() { return Boolean(crop) && !useCrop; },
-    clear() {
-      full = crop = null;
-      useCrop = false;
-      button.hidden = true;
-      note.textContent = '';
+    setSaved(load, restore) {
+      clear();
+      state = { saved: true, load, restore, corners: null };
+      render();
     },
+    snapshot() {
+      if (!state) return null;
+      return { corners: state.manual ? state.corners : null, full: Boolean(state.crop) && !state.useCrop };
+    },
+    setPreparing, clear,
   };
 }

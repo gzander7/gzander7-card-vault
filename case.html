@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#30151b">
+  <meta name="description" content="A shared trading card display case from Gage’s Card Vault.">
+  <title>Display case · Gage’s Card Vault</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="card-viewer.css">
+  <link rel="stylesheet" href="display/cases.css">
+</head>
+<body class="case-public">
+  <div class="case-page">
+    <a class="skip-link" href="#case-content">Skip to display case</a>
+    <header class="case-brand">
+      <img src="favicon.svg" width="32" height="32" alt="">
+      <span>Gage’s Card Vault</span>
+    </header>
+    <main id="case-content" tabindex="-1">
+      <div class="case-cover">
+        <div class="case-cover-copy">
+          <p class="case-kicker">Shared display case</p>
+          <h1 id="case-title">Display case</h1>
+          <p id="case-size" class="case-size" hidden></p>
+        </div>
+      </div>
+      <p id="case-public-status" class="case-public-status" role="status" aria-live="polite" aria-atomic="true"></p>
+      <button type="button" id="case-retry" class="gold-btn" hidden>Try again</button>
+      <noscript><p class="case-public-status">Enable JavaScript to open this display case.</p></noscript>
+      <ul id="case-gallery" class="case-gallery" aria-label="Cards on display" hidden></ul>
+    </main>
+  </div>
+  <script type="module" src="display/public.mjs"></script>
+</body>
+</html>

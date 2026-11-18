@@ -67,6 +67,60 @@
   box-shadow: none;
 }
 #card-dialog .scan-preview .slab-inner { border-radius: 1px; }
+.crop-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .65rem; }
+.crop-actions button { font-size: .82rem; }
+
+#crop-dialog { width: min(46rem, calc(100% - 1rem)); overscroll-behavior: contain; }
+.crop-sheet { display: grid; gap: .7rem; padding: clamp(.8rem, 3vw, 1.5rem); }
+.crop-workbench {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 23px;
+  min-height: 5rem;
+  background: #130d0f;
+  border: 1px solid #66503d;
+}
+#crop-surface {
+  position: relative;
+  width: min(100%, calc(var(--crop-ratio, 1) * min(55dvh, 38rem)));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: crosshair;
+}
+#crop-image { display: block; width: 100%; height: auto; pointer-events: none; }
+#crop-surface svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#crop-shade { fill: rgb(14 6 9 / 58%); }
+#crop-outline { fill: none; stroke: #ffe0a4; stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.crop-handle {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  border-radius: 50%;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+.crop-handle::after {
+  content: '';
+  width: 17px;
+  height: 17px;
+  border: 3px solid #fff8ea;
+  border-radius: 50%;
+  background: #362528;
+  box-shadow: 0 0 0 1px #332019, 0 1px 5px #130a0b;
+}
+.crop-handle[aria-pressed="true"]::after { background: #d59b4a; box-shadow: 0 0 0 2px #35241d; }
+.crop-handle:active { cursor: grabbing; }
+.crop-handle:focus-visible { outline: 2px dashed #fff; outline-offset: -7px; }
+#crop-status:empty { display: none; }
 #card-dialog #scan-hint { margin-top: .7rem; }
 .scan-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem 1rem; }
 #scan-read:disabled { color: #baaa97; text-decoration: none; cursor: default; }

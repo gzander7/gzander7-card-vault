@@ -1,6 +1,6 @@
 # Card Vault
 
-Gage's trading card collection. One static page reads and writes cards in Supabase and is hosted on GitHub Pages.
+Gage's trading card collection. GitHub Pages hosts the vault and its shared display cases. Supabase stores the cards, photos and case selections.
 
 Live site, after Pages is enabled: https://gzander7.github.io/gzander7-card-vault/
 
@@ -55,6 +55,8 @@ Fields: player, year, set, card number, parallel, serial (for example `82/100`),
 
 Keep all four corners of the printed card in the frame. On phones and computers, the editor looks for the card edges, including inside a clear holder, and straightens the photo when it finds them. If it can’t find a clear outline, it keeps the full photo and tells you under the preview. Choose **Use full photo** to undo a crop before saving. The selected preview is used for scanning, the gallery, and the flip viewer.
 
+Choose **Adjust corners** under either photo to fine-tune the crop. Drag each handle to a printed corner of the card, or select a handle and tap its destination. You can also focus a handle and move it with the arrow keys. Choose **Apply crop** to preview the straightened image, then save the card. When editing a saved photo, the available area is the image currently in the vault. Choose the original photo again if you need detail beyond its saved edges.
+
 ### Scan the front and back
 
 In **Add card**, choose or take a photo under **Card front** and **Card back**. Once both are ready, the editor reads the printed text and fills the fields it recognizes. With one photo, choose **Read front** or **Read back** to start. When editing an existing card, adding its back can pair it with the saved front.
@@ -72,6 +74,12 @@ Choose **Review cards**. The vault crops and reads one card at a time, including
 ### Flip a card
 
 Select a card photo in the gallery or Hall of Fame to open the viewer. For a card with both photos, drag left or right to turn it over, or use the flip button. The gallery always shows the front. Cards saved before back photos were supported open with their front only. To add a back, choose **Edit**, select its back photo, then choose **Save changes**.
+
+## Share a display case
+
+Sign in and open **Display cases**, then choose **New display case**. Name the case and select up to 60 cards in the order you want visitors to see them. Choose **Create case**, then **Copy link**. Visitors can open the link without signing in, inspect each card, and flip any card that has a saved back. The case page shows the selected photos and printed card details. Purchase amounts, sellers, valuations and notes are omitted.
+
+You can edit the case name and selection on the same link. **Stop sharing** retires that link. For a new Supabase installation, run [supabase/display-cases.sql](supabase/display-cases.sql) after [supabase/schema.sql](supabase/schema.sql).
 
 ## Vault Value and sold comps
 

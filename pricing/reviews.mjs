@@ -121,7 +121,9 @@ export function reviewedQuote(card, automatic, entries, now) {
     const flag = entry.flag?.identity === identity ? entry.flag : null;
     if (!manual && !flag) continue;
     const row = receipts.get(url) || { ...(manual || flag.receipt), url, automatic: false };
-    receipts.set(url, { ...row, manual, flag: flag?.reason || '' });
+    // Apply corrections for this card before ordering and filtering the receipts.
+    const correction = manual?.identity === identity ? manual : null;
+    receipts.set(url, { ...row, ...correction, url, manual, flag: flag?.reason || '' });
   }
   if (!receipts.size) return base;
   const cutoff = new Date(+now - 90 * DAY).toISOString().slice(0, 10);

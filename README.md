@@ -89,6 +89,8 @@ In **Sold comps**, choose **Add sold comp** to save a completed sale’s link, d
 
 The estimate is the median of the latest two to five distinct matching sales within 90 days, including owner-confirmed sales and automatic CardPricer matches. A single sale stays visible as a reference. Older receipts stay in the list, and a sale found by both sources counts once. Changing the card’s identity requires reconfirming a manual match. For supported vaulted physical cards, USD Coin (USDC) sales count at $1 per USDC. Opening the vault rechecks automatic estimates at least seven days old. **Check for updates** requests a fresh lookup. The vault takes a daily snapshot on days you use it. [CardPricer public API](https://cardpricer.co/docs/api)
 
+Open **Vault Value → Value history** to chart your saved daily estimates over 30 days, 90 days, one year or all time. Tap or hover over the chart, or focus it and use the arrow keys, to see a date’s estimate and how many cards were priced. A single priced date shows one point. The table below lists every recorded date.
+
 Sold comps, exclusions, values and history are visible to the signed-in owner. They save in the current browser by default. To sync between devices, run the current [supabase/valuations.sql](supabase/valuations.sql) in this project's SQL Editor. If you enabled valuation sync before manual comps were added, run the updated SQL once. The next signed-in visit on the original device syncs its saved records. Clearing browser data before that sync removes its local copy.
 
 Run the pricing checks with `node --test pricing/*.test.mjs`.

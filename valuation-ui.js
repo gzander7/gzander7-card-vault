@@ -3,6 +3,7 @@ import { identityKey } from './pricing/identity.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
 import { readCloudPurchases } from './pricing/cloud-store.mjs';
 import { createPurchaseLedger, purchaseTotals } from './pricing/purchases.mjs';
+import { createHistoryChart } from './pricing/history-chart.mjs';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', signDisplay:'exceptZero' });
@@ -147,6 +148,7 @@ export function createVaultValue(openPurchase) {
   const refresh = document.getElementById('value-refresh');
   const historyDetails = document.getElementById('value-history');
   const historyRows = document.getElementById('value-history-rows');
+  const historyChart = createHistoryChart(historyDetails.querySelector('.history-chart'), { money, dateText, changeText });
   const spent = document.getElementById('purchase-spent');
   const gain = document.getElementById('purchase-gain');
   const costCoverage = document.getElementById('purchase-cost-coverage');
@@ -290,7 +292,9 @@ export function createVaultValue(openPurchase) {
         element('td', record.priced + ' / ' + record.total));
       return row;
     }));
-    historyDetails.hidden = !owner || !rows.length;
+    historyRows.closest('.table-wrap').hidden = !rows.length;
+    historyDetails.hidden = !owner || (!loaded && !rows.length);
+    historyChart.update(history);
     for (const details of document.querySelectorAll('.value-card')) {
       const card = byId.get(details.dataset.cardId);
       if (card) {
@@ -325,6 +329,7 @@ export function createVaultValue(openPurchase) {
       queue = Promise.resolve();
       loaded = loading = failed = false;
       historyDetails.open = false;
+      historyChart.update(history, true);
       feedback.clear();
       editor.close();
     }

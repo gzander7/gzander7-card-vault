@@ -1,4 +1,5 @@
 import { readCardPhotos } from './ocr.mjs';
+import { createCropPreview } from '../photos/crop-preview.mjs';
 import { parseCardScan } from './parser.mjs';
 
 export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, onSourceChange = () => {} }) {
@@ -147,7 +148,18 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     onBackPreparing(false);
   }
 
+  const backCrop = createCropPreview('back', prepared => {
+    if (backUrl) URL.revokeObjectURL(backUrl);
+    backChange = prepared.blob;
+    backUrl = URL.createObjectURL(backChange);
+    back = prepared.scanBlob;
+    backImage.src = backUrl;
+    backPreview.hidden = false;
+    sourceChanged();
+  });
+
   function clearBack() {
+    backCrop.clear();
     back = null;
     savedBack = null;
     backPreview.hidden = true;
@@ -187,12 +199,7 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
       }
       discardPendingBack();
       clearBack();
-      backChange = prepared.blob;
-      backUrl = URL.createObjectURL(backChange);
-      back = prepared.scanBlob;
-      backImage.src = backUrl;
-      backPreview.hidden = false;
-      sourceChanged();
+      backCrop.set(prepared);
     } catch (error) {
       if (pendingBack !== token) return;
       discardPendingBack();

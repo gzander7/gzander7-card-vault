@@ -84,6 +84,7 @@ let authBanner = '';
 let editingId = null;
 let pendingBlob = null;
 let previewUrl = '';
+let photoGeneration = 0;
 let busy = false;
 let statusTimer = 0;
 
@@ -643,6 +644,8 @@ async function compressCardImage(file) {
 }
 
 function openEditor(card) {
+  if (busy) return;
+  photoGeneration += 1;
   editingId = card?.id || null;
   ui.cardForm.reset();
   clearPreview();
@@ -710,7 +713,9 @@ async function saveCard(event) {
     ui.cardError.textContent = 'Player name is required.';
     return;
   }
-  if (!editingId && !pendingBlob) {
+  const targetId = editingId;
+  const photo = pendingBlob;
+  if (!targetId && !photo) {
     ui.cardError.textContent = 'Add a photo of the card.';
     return;
   }
@@ -718,16 +723,16 @@ async function saveCard(event) {
   busy = true;
   ui.cardSave.disabled = true;
   ui.cardSave.textContent = 'Saving…';
-  const previous = editingId ? cards.find((card) => card.id === editingId) : null;
+  const previous = targetId ? cards.find((card) => card.id === targetId) : null;
   let uploadedPath = '';
   try {
     let imagePath = previous?.image_path || '';
-    if (pendingBlob) {
+    if (photo) {
       const fileId = crypto.randomUUID();
-      const ext = pendingBlob.type === 'image/webp' ? 'webp' : 'jpg';
+      const ext = photo.type === 'image/webp' ? 'webp' : 'jpg';
       uploadedPath = `${session.user.id}/${fileId}.${ext}`;
-      const { error } = await supabase.storage.from('card-images').upload(uploadedPath, pendingBlob, {
-        contentType: pendingBlob.type || 'image/jpeg',
+      const { error } = await supabase.storage.from('card-images').upload(uploadedPath, photo, {
+        contentType: photo.type || 'image/jpeg',
         upsert: false,
       });
       if (error) throw error;
@@ -741,8 +746,8 @@ async function saveCard(event) {
       owner: session.user.id,
     };
     let result;
-    if (editingId) {
-      result = await supabase.from('cards').update(row).eq('id', editingId).select().single();
+    if (targetId) {
+      result = await supabase.from('cards').update(row).eq('id', targetId).select().single();
     } else {
       row.id = crypto.randomUUID();
       result = await supabase.from('cards').insert(row).select().single();
@@ -754,12 +759,12 @@ async function saveCard(event) {
     }
     upsertCard(saved);
     ui.cardDialog.close();
-    announce(editingId ? `Updated ${saved.player}.` : `Added ${saved.player}.`);
+    announce(targetId ? `Updated ${saved.player}.` : `Added ${saved.player}.`);
   } catch (error) {
     if (uploadedPath) await supabase.storage.from('card-images').remove([uploadedPath]);
     ui.cardError.textContent = friendlyError(error);
     ui.cardSave.disabled = false;
-    ui.cardSave.textContent = editingId ? 'Save changes' : 'Save card';
+    ui.cardSave.textContent = targetId ? 'Save changes' : 'Save card';
   } finally {
     busy = false;
   }
@@ -1009,22 +1014,26 @@ ui.grid.addEventListener('click', (event) => {
   }
 });
 ui.cardImage.addEventListener('change', async () => {
+  const generation = ++photoGeneration;
   const file = ui.cardImage.files?.[0];
   ui.cardError.textContent = '';
   pendingBlob = null;
   if (!file) {
+    if (generation !== photoGeneration) return;
     if (!editingId) clearPreview();
     return;
   }
   ui.photoNote.textContent = 'Preparing photo…';
   try {
     const prepared = await compressCardImage(file);
+    if (generation !== photoGeneration) return;
     pendingBlob = prepared.blob;
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(prepared.blob);
     const kb = Math.max(1, Math.round(prepared.blob.size / 1024));
     showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
   } catch (error) {
+    if (generation !== photoGeneration) return;
     pendingBlob = null;
     ui.cardError.textContent = error.message;
     ui.photoNote.textContent = '';
@@ -1033,6 +1042,7 @@ ui.cardImage.addEventListener('change', async () => {
 ui.cardForm.addEventListener('submit', saveCard);
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
 ui.cardDialog.addEventListener('close', () => {
+  photoGeneration += 1;
   clearPreview();
   ui.cardImage.value = '';
 });

@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="collection.css">
   <link rel="stylesheet" href="valuation.css">
   <link rel="stylesheet" href="scanner.css">
+  <link rel="stylesheet" href="card-viewer.css">
 </head>
 <body>
   <canvas id="backdrop" aria-hidden="true"></canvas>
@@ -225,7 +226,7 @@
   <dialog id="card-dialog" aria-labelledby="card-dialog-title">
     <form id="card-form" autocomplete="off">
       <div class="dialog-head">
-        <h2 id="card-dialog-title">Add card</h2>
+        <h2 id="card-dialog-title" tabindex="-1">Add card</h2>
         <button type="button" class="link-button" id="card-cancel">Close</button>
       </div>
       <div class="form-grid">
@@ -235,11 +236,13 @@
             <fieldset class="scan-side" aria-describedby="photo-note">
               <legend>Card front</legend>
               <div class="dialog-actions scan-pickers">
-                <button type="button" class="gold-btn" id="choose-photo">Choose photo</button>
-                <button type="button" class="link-button" id="take-photo">Take photo</button>
+                <label class="photo-picker gold-btn" for="card-image">Choose photo
+                  <input id="card-image" type="file" accept="image/*">
+                </label>
+                <label class="photo-picker link-button" for="card-camera">Take photo
+                  <input id="card-camera" type="file" accept="image/*" capture="environment">
+                </label>
               </div>
-              <input id="card-image" type="file" accept="image/*" hidden>
-              <input id="card-camera" type="file" accept="image/*" capture="environment" hidden>
               <div id="photo-preview" class="preview scan-preview" hidden>
                 <div class="slab">
                   <div class="slab-inner"><img id="photo-preview-img" alt="Selected card front"></div>
@@ -250,11 +253,13 @@
             <fieldset class="scan-side">
               <legend>Card back <span>Optional</span></legend>
               <div class="dialog-actions scan-pickers">
-                <button type="button" class="gold-btn" id="choose-back-photo" aria-label="Choose back photo">Choose photo</button>
-                <button type="button" class="link-button" id="take-back-photo" aria-label="Take back photo">Take photo</button>
+                <label class="photo-picker gold-btn" for="card-back-image">Choose photo
+                  <input id="card-back-image" type="file" accept="image/*" aria-label="Choose back photo">
+                </label>
+                <label class="photo-picker link-button" for="card-back-camera">Take photo
+                  <input id="card-back-camera" type="file" accept="image/*" capture="environment" aria-label="Take back photo">
+                </label>
               </div>
-              <input id="card-back-image" type="file" accept="image/*" hidden>
-              <input id="card-back-camera" type="file" accept="image/*" capture="environment" hidden>
               <div id="back-preview" class="preview scan-preview" hidden>
                 <div class="slab">
                   <div class="slab-inner"><img id="back-preview-img" alt="Selected card back"></div>
@@ -263,7 +268,7 @@
               </div>
             </fieldset>
           </div>
-          <p id="scan-hint" class="hint">Add both sides to read the printed details automatically. The back photo stays on this device.</p>
+          <p id="scan-hint" class="hint">Add both sides to read the printed details automatically. Saving a card with a back photo lets visitors flip it over.</p>
           <div class="scan-actions">
             <button type="button" id="scan-read" class="link-button" disabled>Read photos</button>
             <button type="button" id="scan-stop" class="link-button" hidden>Cancel scan</button>

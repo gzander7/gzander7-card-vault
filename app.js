@@ -1,8 +1,10 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
+import { openCardViewer } from './card-viewer.mjs';
 import { createScanEditor } from './scanning/editor.mjs';
 import { createScanFields } from './scanning/fields.mjs';
+import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
 
 const SPOTLIGHT_MS = 5000;
 const MAX_EDGE = 1400;
@@ -95,7 +97,10 @@ let cards = null;
 let loadError = '';
 let authBanner = '';
 let editingId = null;
+let editorRowId = null;
 let pendingBlob = null;
+let preparingFront = false;
+let preparingBack = false;
 let previewUrl = '';
 let photoGeneration = 0;
 let busy = false;
@@ -115,10 +120,19 @@ const scanFields = createScanFields({
 });
 
 const scanner = createScanEditor({
+  prepareImage: compressCardImage,
+  onBackPreparing: preparing => {
+    preparingBack = preparing;
+    updateSaveAvailability();
+  },
   getCardHints: () => cards || [],
   onSourceChange: () => scanFields.clearSuggestions(),
   onSuggestions: suggestions => ui.cardDialog.open && !busy ? scanFields.apply(suggestions) : 0,
 });
+
+function updateSaveAvailability() {
+  ui.cardSave.disabled = busy || preparingFront || preparingBack;
+}
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -272,6 +286,25 @@ function figureFor(card, options = {}) {
   inner.appendChild(img);
   slab.appendChild(inner);
   if (options.badge) slab.appendChild(el('p', 'badge', 'Hall of Fame'));
+  if (src) {
+    const backUrl = imageUrl(backPhotoPath(card.image_path));
+    const label = backUrl ? 'View in 3D' : 'View card';
+    const trigger = el('button', 'inspect-photo');
+    trigger.type = 'button';
+    trigger.setAttribute('aria-label', `${label} — ${altText(card)}`);
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.appendChild(el('span', 'inspect-label', label));
+    trigger.addEventListener('click', () => {
+      const dialog = openCardViewer({
+        title: card.player || 'Trading card',
+        detail: [metaLine(card), detailLine(card)].filter(Boolean).join(' · '),
+        frontUrl: src,
+        backUrl,
+      }, trigger);
+      spotlight.pauseForViewer(dialog);
+    });
+    slab.appendChild(trigger);
+  }
   return slab;
 }
 
@@ -509,6 +542,7 @@ function createSpotlight() {
   let index = 0;
   let timer = 0;
   let hovered = false;
+  let viewerOpen = false;
   const root = ui.spotlight;
 
   function focusedInside() {
@@ -561,7 +595,7 @@ function createSpotlight() {
 
   function play() {
     stop();
-    if (!motionOk() || items.length < 2 || hovered || focusedInside() || document.hidden) return;
+    if (viewerOpen || !motionOk() || items.length < 2 || hovered || focusedInside() || document.hidden) return;
     timer = window.setInterval(() => step(1, false), SPOTLIGHT_MS);
   }
 
@@ -591,6 +625,14 @@ function createSpotlight() {
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', play);
 
   return {
+    pauseForViewer(dialog) {
+      viewerOpen = true;
+      stop();
+      dialog.addEventListener('close', () => {
+        viewerOpen = false;
+        play();
+      }, { once: true });
+    },
     sync() {
       const next = loadError ? [] : spotlightPool();
       const currentId = items[index]?.id;
@@ -648,7 +690,7 @@ function showPreview(src, note) {
   ui.photoNote.textContent = note || '';
 }
 
-async function fetchSavedFront(src, signal) {
+async function fetchSavedPhoto(src, signal) {
   const controller = new AbortController();
   const cancel = () => controller.abort();
   signal.addEventListener('abort', cancel, { once: true });
@@ -656,7 +698,7 @@ async function fetchSavedFront(src, signal) {
   try {
     signal.throwIfAborted();
     const response = await fetch(src, { signal: controller.signal, credentials: 'omit' });
-    if (!response.ok) throw new Error('The saved front photo could not be loaded.');
+    if (!response.ok) throw new Error('The saved photo could not be loaded.');
     return await response.blob();
   } finally {
     window.clearTimeout(timer);
@@ -666,19 +708,21 @@ async function fetchSavedFront(src, signal) {
 
 async function compressCardImage(file) {
   const type = file.type || '';
-  if (type && !type.startsWith('image/')) throw new Error('Choose an image file.');
+  if (type && type !== 'application/octet-stream' && !type.startsWith('image/')) throw new Error('Choose an image file.');
   const source = URL.createObjectURL(file);
   const image = new Image();
+  let canvas;
   try {
     image.src = source;
     await image.decode().catch(() => {
       throw new Error('This device could not read that photo. Try a JPEG or PNG.');
     });
     const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error('This device could not read that photo. Try a JPEG or PNG.');
     const scale = Math.min(1, MAX_EDGE / longEdge);
     const width = Math.max(1, Math.round(image.naturalWidth * scale));
     const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const canvas = document.createElement('canvas');
+    canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -697,9 +741,12 @@ async function compressCardImage(file) {
       if (!webp) throw new Error('This browser could not prepare the photo.');
       return webp;
     });
-    return { blob, width, height, type: blob.type || 'image/jpeg' };
+    const scanBlob = file.size <= 32 * 1024 * 1024 && type.startsWith('image/') ? file : blob;
+    return { blob, scanBlob, width, height, type: blob.type || 'image/jpeg' };
   } finally {
     URL.revokeObjectURL(source);
+    image.removeAttribute?.('src');
+    if (canvas) canvas.width = canvas.height = 1;
   }
 }
 
@@ -707,12 +754,14 @@ function openEditor(card) {
   if (busy) return;
   photoGeneration += 1;
   editingId = card?.id || null;
+  editorRowId = editingId || crypto.randomUUID();
+  preparingFront = false;
   ui.cardForm.reset();
   scanner.reset();
   scanFields.reset();
   clearPreview();
   ui.cardError.textContent = '';
-  ui.cardSave.disabled = false;
+  updateSaveAvailability();
   ui.cardSave.textContent = card ? 'Save changes' : 'Save card';
   ui.cardTitle.textContent = card ? 'Edit card' : 'Add card';
   ui.photoField.disabled = false;
@@ -735,11 +784,14 @@ function openEditor(card) {
     const src = imageUrl(card.image_path);
     if (src) {
       showPreview(src, ui.photoNote.textContent);
-      scanner.setSavedFront(signal => fetchSavedFront(src, signal));
+      scanner.setSavedFront(signal => fetchSavedPhoto(src, signal));
     }
+    const backSrc = imageUrl(backPhotoPath(card.image_path));
+    if (backSrc) scanner.setSavedBack(backSrc, signal => fetchSavedPhoto(backSrc, signal));
   }
   if (!ui.cardDialog.open) ui.cardDialog.showModal();
-  ui.cardPlayer.focus();
+  const firstField = window.matchMedia('(pointer: coarse)').matches ? ui.cardTitle : ui.cardPlayer;
+  firstField.focus();
 }
 
 function formPayload() {
@@ -779,10 +831,13 @@ async function saveCard(event) {
     return;
   }
   const targetId = editingId;
+  const owner = session.user.id;
+  const id = editorRowId;
   const photo = pendingBlob;
+  const back = scanner.getBackChange();
   if (!targetId && !photo) {
     ui.cardError.textContent = 'Add a photo of the card.';
-    $('choose-photo').focus();
+    ui.cardImage.focus();
     return;
   }
 
@@ -792,50 +847,22 @@ async function saveCard(event) {
   ui.cardSave.disabled = true;
   ui.cardSave.textContent = 'Saving…';
   const previous = targetId ? cards.find((card) => card.id === targetId) : null;
-  let uploadedPath = '';
   try {
-    let imagePath = previous?.image_path || '';
-    if (photo) {
-      const fileId = crypto.randomUUID();
-      const ext = photo.type === 'image/webp' ? 'webp' : 'jpg';
-      uploadedPath = `${session.user.id}/${fileId}.${ext}`;
-      const { error } = await supabase.storage.from('card-images').upload(uploadedPath, photo, {
-        contentType: photo.type || 'image/jpeg',
-        upsert: false,
-      });
-      if (error) throw error;
-      imagePath = uploadedPath;
-    }
-    if (!imagePath) throw new Error('A photo is required.');
-
-    const row = {
-      ...payload,
-      image_path: imagePath,
-      owner: session.user.id,
-    };
-    let result;
-    if (targetId) {
-      result = await supabase.from('cards').update(row).eq('id', targetId).select().single();
-    } else {
-      row.id = crypto.randomUUID();
-      result = await supabase.from('cards').insert(row).select().single();
-    }
-    if (result.error) throw result.error;
-    const saved = result.data || { ...row, created_at: new Date().toISOString() };
-    if (previous?.image_path && uploadedPath && previous.image_path !== uploadedPath) {
-      await supabase.storage.from('card-images').remove([previous.image_path]);
-    }
+    if (targetId && !previous) throw new Error('This card is no longer in the vault. Reload to check it.');
+    const { saved, cleaned } = await savePhotoRevision(supabase, {
+      id, owner, previousFront: previous?.image_path, fields: payload, front: photo, back,
+    });
     upsertCard(saved);
     ui.cardDialog.close();
-    announce(targetId ? `Updated ${saved.player}.` : `Added ${saved.player}.`);
+    const message = targetId ? `Updated ${saved.player}.` : `Added ${saved.player}.`;
+    announce(cleaned ? message : message + ' An older photo could not be removed from storage.');
   } catch (error) {
-    if (uploadedPath) await supabase.storage.from('card-images').remove([uploadedPath]);
     ui.cardError.textContent = friendlyError(error);
-    ui.cardSave.disabled = false;
     ui.cardSave.textContent = targetId ? 'Save changes' : 'Save card';
   } finally {
     ui.photoField.disabled = false;
     busy = false;
+    updateSaveAvailability();
     if (ui.cardDialog.open) scanner.resume();
   }
 }
@@ -844,17 +871,13 @@ async function deleteCard(card) {
   if (busy || !owns(card)) return;
   busy = true;
   try {
-    const { data, error } = await supabase.from('cards').delete().eq('id', card.id).select();
+    const { data, error } = await supabase.from('cards').delete().eq('id', card.id).eq('image_path', card.image_path).select();
     if (error) throw error;
-    if (!data?.length) throw new Error('That card could not be deleted.');
-    let photoNote = '';
-    if (card.image_path) {
-      const removed = await supabase.storage.from('card-images').remove([card.image_path]);
-      if (removed.error) photoNote = ' The photo file could not be removed.';
-    }
+    if (!data?.length) throw new Error('That card changed. Reload the vault before deleting it.');
+    const cleaned = await removeStoredCard(supabase.storage.from('card-images'), data[0].image_path);
     cards = cards.filter((item) => item.id !== card.id);
     render();
-    announce(`Deleted ${card.player}.${photoNote}`);
+    announce(`Deleted ${card.player}.` + (cleaned ? '' : ' A photo could not be removed from storage.'));
   } catch (error) {
     announce(friendlyError(error));
   } finally {
@@ -1134,7 +1157,8 @@ async function prepareCardPhoto(event) {
   const generation = ++photoGeneration;
   scanner.pause();
   ui.cardError.textContent = '';
-  ui.cardSave.disabled = true;
+  preparingFront = true;
+  updateSaveAvailability();
   ui.photoNote.textContent = 'Preparing photo…';
   try {
     const prepared = await compressCardImage(file);
@@ -1144,7 +1168,7 @@ async function prepareCardPhoto(event) {
     previewUrl = URL.createObjectURL(prepared.blob);
     const kb = Math.max(1, Math.round(prepared.blob.size / 1024));
     showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
-    scanner.setFront(file);
+    scanner.setFront(prepared.scanBlob);
   } catch (error) {
     if (generation !== photoGeneration) return;
     scanner.resume();
@@ -1153,17 +1177,19 @@ async function prepareCardPhoto(event) {
       ? 'The previous photo is still selected.'
       : 'Choose another photo to continue.';
   } finally {
-    if (generation === photoGeneration) ui.cardSave.disabled = false;
+    if (generation === photoGeneration) {
+      preparingFront = false;
+      updateSaveAvailability();
+    }
   }
 }
-$('choose-photo').addEventListener('click', () => ui.cardImage.click());
-$('take-photo').addEventListener('click', () => ui.cardCamera.click());
 ui.cardImage.addEventListener('change', prepareCardPhoto);
 ui.cardCamera.addEventListener('change', prepareCardPhoto);
 ui.cardForm.addEventListener('submit', saveCard);
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
 ui.cardDialog.addEventListener('close', () => {
   photoGeneration += 1;
+  preparingFront = false;
   scanner.reset();
   scanFields.reset();
   clearPreview();

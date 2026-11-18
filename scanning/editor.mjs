@@ -1,7 +1,7 @@
 import { readCardPhotos } from './ocr.mjs';
 import { parseCardScan } from './parser.mjs';
 
-export function createScanEditor({ getCardHints, onSuggestions, onSourceChange = () => {} }) {
+export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, onSourceChange = () => {} }) {
   const byId = id => document.getElementById(id);
   const dialog = byId('card-dialog');
   const photoField = byId('photo-field');
@@ -16,6 +16,8 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
   let front = null;
   let savedFront = null;
   let back = null;
+  let savedBack = null;
+  let backChange;
   let backUrl = '';
   let pendingBack = null;
   let paused = false;
@@ -27,8 +29,9 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
 
   function updateControls() {
     const hasFront = Boolean(front || savedFront);
-    read.disabled = Boolean(scan || pendingBack || paused || (!hasFront && !back));
-    read.textContent = hasFront && !back ? 'Read front' : back && !hasFront ? 'Read back' : 'Read photos';
+    const hasBack = Boolean(back || savedBack);
+    read.disabled = Boolean(scan || pendingBack || paused || (!hasFront && !hasBack));
+    read.textContent = hasFront && !hasBack ? 'Read front' : hasBack && !hasFront ? 'Read back' : 'Read photos';
     stop.hidden = !scan;
     meter.hidden = !scan;
   }
@@ -72,8 +75,21 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
           front = photo;
         } catch {
           if (scan !== controller) return;
-          if (!back) throw new Error('The saved front could not be read. Choose a front photo to scan.');
+          if (!back && !savedBack) throw new Error('The saved front could not be read. Choose a front photo to scan.');
           prefix = 'The saved front was unavailable. Only the back was read. ';
+        }
+      }
+      if (!back && savedBack) {
+        setStatus('Opening the saved back photo…');
+        try {
+          const photo = await savedBack(controller.signal);
+          if (scan !== controller) return;
+          if (!photo?.size) throw new Error('Empty image');
+          back = photo;
+        } catch {
+          if (scan !== controller) return;
+          if (!front) throw new Error('The saved photos could not be read. Choose a new photo to scan.');
+          prefix = 'The saved back was unavailable. Only the front was read. ';
         }
       }
       const result = await readCardPhotos({ front, back }, {
@@ -106,7 +122,7 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
     cancelScan();
     onSourceChange();
     setStatus('');
-    if ((front || savedFront) && back && !paused && !pendingBack) void start();
+    if ((front || savedFront) && (back || savedBack) && !paused && !pendingBack) void start();
   }
 
   function setFront(blob) {
@@ -127,16 +143,26 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
   }
 
   function discardPendingBack() {
-    if (pendingBack) URL.revokeObjectURL(pendingBack);
     pendingBack = null;
+    onBackPreparing(false);
   }
 
   function clearBack() {
     back = null;
+    savedBack = null;
     backPreview.hidden = true;
     backImage.removeAttribute('src');
     if (backUrl) URL.revokeObjectURL(backUrl);
     backUrl = '';
+  }
+
+  function setSavedBack(url, loadBlob) {
+    clearBack();
+    backChange = undefined;
+    savedBack = loadBlob;
+    backImage.src = url;
+    backPreview.hidden = false;
+    updateControls();
   }
 
   async function chooseBack(event) {
@@ -146,35 +172,31 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
     input.value = '';
     discardPendingBack();
     cancelScan();
-    if (photo.type && !photo.type.startsWith('image/')) {
-      setStatus('Choose an image file for the card back.');
-      return;
-    }
-    const url = URL.createObjectURL(photo);
-    pendingBack = url;
-    const image = new Image();
-    image.src = url;
+    const token = {};
+    pendingBack = token;
+    onBackPreparing(true);
     updateControls();
     setStatus('Preparing the back photo…');
     try {
-      await image.decode();
-      if (pendingBack !== url) return;
+      const prepared = await prepareImage(photo);
+      if (pendingBack !== token) return;
       if (!dialog.open || photoField.disabled) {
         discardPendingBack();
         updateControls();
         return;
       }
-      pendingBack = null;
+      discardPendingBack();
       clearBack();
-      backUrl = url;
-      back = photo;
-      backImage.src = url;
+      backChange = prepared.blob;
+      backUrl = URL.createObjectURL(backChange);
+      back = prepared.scanBlob;
+      backImage.src = backUrl;
       backPreview.hidden = false;
       sourceChanged();
-    } catch {
-      if (pendingBack !== url) return;
+    } catch (error) {
+      if (pendingBack !== token) return;
       discardPendingBack();
-      setStatus('Could not open the back photo. Choose a JPEG or PNG, or take another photo.');
+      setStatus('Could not open the back photo. ' + (error?.message || 'Choose a JPEG or PNG, or take another photo.'));
       updateControls();
     }
   }
@@ -182,12 +204,14 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
   function removeBack() {
     discardPendingBack();
     clearBack();
+    backChange = null;
     sourceChanged();
   }
 
   function reset() {
     discardPendingBack();
     clearBack();
+    backChange = undefined;
     front = null;
     savedFront = null;
     paused = false;
@@ -207,12 +231,10 @@ export function createScanEditor({ getCardHints, onSuggestions, onSourceChange =
     updateControls();
   }
 
-  byId('choose-back-photo').addEventListener('click', () => backFile.click());
-  byId('take-back-photo').addEventListener('click', () => backCamera.click());
   byId('remove-back-photo').addEventListener('click', removeBack);
   backFile.addEventListener('change', chooseBack);
   backCamera.addEventListener('change', chooseBack);
   read.addEventListener('click', start);
   stop.addEventListener('click', cancel);
-  return { setFront, setSavedFront, reset, cancel, pause, resume };
+  return { setFront, setSavedFront, setSavedBack, getBackChange: () => backChange, reset, cancel, pause, resume };
 }

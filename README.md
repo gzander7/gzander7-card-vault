@@ -12,7 +12,7 @@ The publishable key in `config.js` is public on purpose. Visitors can read the v
 2. Paste the entire file `supabase/schema.sql`.
 3. Run it. Running it again is safe; it does not delete cards.
 
-That creates `public.cards` and a public `card-images` bucket. Anonymous visitors can read. An authenticated user can insert, update, and delete only their own rows, and can upload, replace, or delete photos only inside a folder named with their user id (`card-images/<uid>/<uuid>.jpg`).
+That creates `public.cards` and a public `card-images` bucket. Anonymous visitors can read. Signed-in users can add, edit, and delete their own rows and write photos inside their own `card-images/<uid>/` folder. A two-sided card stores both photos together in a versioned subfolder.
 
 Until this step is done, the site shows **Database not set up yet** instead of a broken grid.
 
@@ -59,7 +59,11 @@ In **Add card**, choose or take a photo under **Card front** and **Card back**. 
 
 Review the highlighted fields and choose **Save card**. A clear photo of the full card, including the edges or slab label, helps the reader find small print. Check foil lettering, serial numbers and the exact parallel against the card. Autograph and relic suggestions rely on printed wording.
 
-Text recognition runs on your device. The first scan downloads the English reader. The front is the gallery photo, and the back is used only in the open editor. Scanning needs no API key or database migration. [Tesseract.js](https://github.com/naptha/tesseract.js)
+Text recognition runs on your device. The first scan downloads the English reader. Saving uploads the front and any selected back to the public collection. Scanning and two-sided viewing work with the existing photo bucket and table. [Tesseract.js](https://github.com/naptha/tesseract.js)
+
+### Flip a card
+
+Select a card photo in the gallery or Hall of Fame to open the viewer. For a card with both photos, drag left or right to turn it over, or use the flip button. The gallery always shows the front. Cards saved before back photos were supported open with their front only. To add a back, choose **Edit**, select its back photo, then choose **Save changes**.
 
 ## Vault Value and sold comps
 

@@ -79,8 +79,7 @@ on conflict (id) do update
 set name = excluded.name,
     "public" = excluded."public";
 
-alter table storage.objects enable row level security;
-
+-- Hosted Supabase already enables RLS on storage.objects, and the SQL editor role doesn't own that table.
 grant execute on function storage.foldername(text) to anon, authenticated;
 
 drop policy if exists "card_images_public_read" on storage.objects;

@@ -15,6 +15,7 @@ function vault(initialFront) {
     if (backPhotoPath(initialFront)) files.set(backPhotoPath(initialFront), back);
   }
   const faults = {};
+  let privateRecord;
   const bucket = {
     async upload(path, blob, options) {
       assert.equal(options.contentType, blob.type);
@@ -38,7 +39,21 @@ function vault(initialFront) {
   };
   const db = {
     storage: { from: () => bucket },
-    from() {
+    rpc(name, {card_data, previous_card, purchase}) {
+      assert.equal(name, 'vault_save_card_purchase');
+      assert.ok(!('amount_cents' in card_data));
+      if (row) assert.equal(previous_card.image_path, row.image_path);
+      return { async single() {
+        if (faults.conflict) return {status:409, error:{code:'PT409',message:'Purchase changed.'}};
+        if (!faults.skipCommit) {
+          row = {...row, ...card_data};
+          privateRecord = {revision:purchase.revision};
+        }
+        if (faults.ambiguous) throw Error('Connection lost');
+        return {data:row};
+      }};
+    },
+    from(table) {
       const filters = {};
       let data;
       let edit;
@@ -58,6 +73,7 @@ function vault(initialFront) {
         },
         async maybeSingle() {
           if (faults.offline) throw Error('Network disconnected');
+          if (table === 'vault_card_purchases') return { data:privateRecord || null };
           return { data: filters.id === row?.id ? row : null };
         },
       };
@@ -68,7 +84,7 @@ function vault(initialFront) {
       id: 'card', owner: 'owner', previousFront: row?.image_path, fields: { player: 'Player' }, ...changes,
     });
   }
-  return { files, bucket, save, faults, row: () => row };
+  return { files, bucket, save, faults, row: () => row, purchase: () => privateRecord };
 }
 
 test('a single-photo card stays compatible with legacy readers and needs no back lookup', async () => {
@@ -157,4 +173,20 @@ test('failure to clean up obsolete images never rolls back a committed card', as
   assert.equal(cleaned, false);
   assert.equal(store.files.get(saved.image_path), front);
   assert.equal(store.files.get(backPhotoPath(saved.image_path)), back);
+});
+
+test('purchases commit with the card and lost responses require a matching private revision', async () => {
+  const store = vault();
+  const purchase = {revision:'r1', expected_revision:null, amount_cents:0, purchased_on:null, source:null};
+  const { saved } = await store.save({front, purchase});
+  assert.equal(store.purchase()?.revision, 'r1');
+  assert.ok(!('amount_cents' in saved));
+  store.faults.ambiguous = true;
+  await store.save({purchase:{...purchase,revision:'r2',expected_revision:'r1'}});
+  assert.equal(store.purchase().revision, 'r2');
+  store.faults.skipCommit = true;
+  await assert.rejects(store.save({purchase:{...purchase,revision:'r3',expected_revision:'r2'}}), /Could not confirm/);
+  store.faults.conflict = true;
+  await assert.rejects(store.save({back, purchase}), error => error.code === 'PT409');
+  assert.deepEqual([...store.files.keys()], [saved.image_path]);
 });

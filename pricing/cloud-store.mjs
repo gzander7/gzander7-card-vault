@@ -44,6 +44,14 @@ export async function readCloud(session, fetchImpl = fetch) {
   return data;
 }
 
+export async function readCloudPurchases(session, fetchImpl = fetch) {
+  const result = await callVaultRpc(session, 'vault_purchases_read', {}, fetchImpl);
+  if (!result?.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
+    throw new Error('Purchase records could not be loaded.');
+  }
+  return result.data;
+}
+
 export async function writeCloud(session, updates, entries, fetchImpl = fetch) {
   if (!Object.keys(updates).length && !entries.length) return true;
   return callVaultRpc(session, 'vault_prices_write', { updates, entries }, fetchImpl);

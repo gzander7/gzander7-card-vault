@@ -117,6 +117,12 @@
             <button type="button" id="value-refresh" class="link-button">Check for updates</button>
           </div>
         </div>
+        <div class="purchase-overview" aria-label="Purchase tracking">
+          <dl class="purchase-totals">
+            <div><dt>Total spent</dt><dd id="purchase-spent">—</dd><dd id="purchase-cost-coverage" class="purchase-caption"></dd></div>
+            <div><dt>Estimated gain / loss</dt><dd id="purchase-gain">—</dd><dd id="purchase-gain-coverage" class="purchase-caption"></dd></div>
+          </dl>
+        </div>
         <p id="value-status" role="status"></p>
         <p id="value-storage"></p>
         <details id="value-history" hidden>
@@ -364,6 +370,25 @@
           Notes
           <textarea id="card-notes" name="notes" rows="3" maxlength="2000" placeholder="Centering, patch, where it came from"></textarea>
         </label>
+        <details id="card-purchase" class="purchase-editor span-2">
+          <summary>Purchase details <span>Private</span></summary>
+          <fieldset id="purchase-fields" class="form-grid">
+            <legend class="visually-hidden">Private purchase details</legend>
+            <label>Total paid (USD)
+              <input id="purchase-amount" type="text" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="0.00" aria-describedby="purchase-hint">
+            </label>
+            <label>Purchase date <span class="visually-hidden">(optional)</span>
+              <input id="purchase-date" type="date">
+            </label>
+            <label class="span-2">Purchased from <span class="visually-hidden">(optional)</span>
+              <input id="purchase-source" type="text" maxlength="160" autocomplete="off" placeholder="Shop, seller or card show">
+            </label>
+            <p id="purchase-hint" class="hint span-2">Include tax, shipping and fees in the total. Enter 0 for a gift. Date and source are optional.</p>
+            <button type="button" id="purchase-clear" class="link-button" hidden>Clear purchase details</button>
+          </fieldset>
+          <p id="purchase-form-status" class="hint" role="status"></p>
+          <button type="button" id="purchase-retry" class="link-button" hidden>Retry loading purchase</button>
+        </details>
       </div>
       <p id="card-form-error" class="form-error" role="alert"></p>
       <div class="dialog-actions">

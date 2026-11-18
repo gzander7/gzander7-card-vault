@@ -1,6 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
+import { createPurchaseEditor } from './pricing/purchase-editor.mjs';
 import { forgetCardReviews } from './pricing-client.js';
 import { croppedCanvas } from './photos/crop.mjs';
 import { createCropPreview } from './photos/crop-preview.mjs';
@@ -101,6 +102,7 @@ let loadError = '';
 let authBanner = '';
 let editingId = null;
 let editorRowId = null;
+let editorOriginal = null;
 let pendingBlob = null;
 let preparingFront = false;
 let preparingBack = false;
@@ -525,7 +527,7 @@ function renderGrid() {
     const body = el('div', 'card-body');
     body.appendChild(figureFor(card, { badge: Boolean(card.featured) }));
     body.appendChild(copyBlock(card, 'h3', false));
-    if (owns(card)) body.append(vaultValue.cardDetails(card), cardActions(card));
+    if (owns(card)) body.append(vaultValue.cardDetails(card), vaultValue.cardPurchase(card), cardActions(card));
     article.append(glare, body);
     bindTilt(article);
     slot.appendChild(article);
@@ -649,7 +651,8 @@ function createSpotlight() {
 }
 
 const spotlight = createSpotlight();
-const vaultValue = createVaultValue();
+const vaultValue = createVaultValue(card => openEditor(card, true));
+const purchaseEditor = createPurchaseEditor(vaultValue.purchases);
 
 function syncVaultValue() {
   const owned = Array.isArray(cards) && !loadError ? cards.filter(owns) : null;
@@ -776,10 +779,11 @@ async function compressCardImage(file) {
   }
 }
 
-function openEditor(card) {
+function openEditor(card, focusPurchase = false) {
   if (busy) return;
   photoGeneration += 1;
   editingId = card?.id || null;
+  editorOriginal = card;
   editorRowId = editingId || crypto.randomUUID();
   preparingFront = false;
   ui.cardForm.reset();
@@ -816,8 +820,11 @@ function openEditor(card) {
     if (backSrc) scanner.setSavedBack(backSrc, signal => fetchSavedPhoto(backSrc, signal));
   }
   if (!ui.cardDialog.open) ui.cardDialog.showModal();
-  const firstField = window.matchMedia('(pointer: coarse)').matches ? ui.cardTitle : ui.cardPlayer;
-  firstField.focus();
+  purchaseEditor.open(card, focusPurchase);
+  if (!focusPurchase) {
+    const firstField = window.matchMedia('(pointer: coarse)').matches ? ui.cardTitle : ui.cardPlayer;
+    firstField.focus();
+  }
 }
 
 function formPayload() {
@@ -845,9 +852,10 @@ async function saveCard(event) {
     ui.cardError.textContent = 'Sign in before saving a card.';
     return;
   }
-  let payload;
+  let payload, purchase;
   try {
     payload = formPayload();
+    purchase = purchaseEditor.change();
   } catch (error) {
     ui.cardError.textContent = error.message;
     return;
@@ -875,9 +883,15 @@ async function saveCard(event) {
   const previous = targetId ? cards.find((card) => card.id === targetId) : null;
   try {
     if (targetId && !previous) throw new Error('This card is no longer in the vault. Reload to check it.');
+    // Compare the public fields the editor opened, excluding timestamp formatting.
+    const originalFields = editorOriginal && Object.fromEntries(
+      [...Object.keys(payload), 'image_path'].map(key => [key, editorOriginal[key]]));
     const { saved, cleaned } = await savePhotoRevision(supabase, {
-      id, owner, previousFront: previous?.image_path, fields: payload, front: photo, back,
+      id, owner, previousFront: editorOriginal?.image_path, previousCard: originalFields,
+      fields: payload, front: photo, back, purchase,
     });
+    if (session?.user?.id !== owner) return;
+    if (purchase) vaultValue.purchases.accept(owner, id, purchase);
     upsertCard(saved);
     ui.cardDialog.close();
     const message = targetId ? `Updated ${saved.player}.` : `Added ${saved.player}.`;
@@ -1210,6 +1224,9 @@ ui.cardCamera.addEventListener('change', prepareCardPhoto);
 ui.cardForm.addEventListener('submit', saveCard);
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
 ui.cardDialog.addEventListener('close', () => {
+  if (ui.cardDialog.open) return;
+  purchaseEditor.close();
+  editorOriginal = null;
   photoGeneration += 1;
   preparingFront = false;
   scanner.reset();

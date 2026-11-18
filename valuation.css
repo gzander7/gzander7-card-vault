@@ -50,6 +50,27 @@
 #value-history td { font-variant-numeric: tabular-nums; }
 #value-history thead th:not(:first-child), #value-history td { text-align: right; }
 
+.purchase-overview { margin-top: 1.25rem; border-block: 1px solid #816448; }
+.purchase-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.purchase-totals > div { min-width: 0; padding: .85rem clamp(.55rem, 2vw, 1.25rem) .85rem 0; }
+.purchase-totals > div + div { padding-left: clamp(.7rem, 2vw, 1.5rem); border-left: 1px solid #816448; }
+.purchase-totals dt { color: #d7bb8d; font: 700 .72rem/1.45 "Courier New", monospace; letter-spacing: .05em; text-transform: uppercase; }
+.purchase-totals dd { margin: .2rem 0 0; font: 500 clamp(1.25rem, 2.6vw, 2rem)/1.2 Georgia, serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.purchase-totals .purchase-caption { color: #dac6ab; font-family: inherit; font-size: .83rem; font-weight: 400; line-height: 1.4; }
+#purchase-gain[data-direction="1"] { color: #c6ddb2; }
+#purchase-gain[data-direction="-1"] { color: #f4b7b2; }
+.card-purchase { margin-inline: clamp(.9rem, 1.6vw, 1.2rem); border-top: 1px solid #c6b395; color: #554237; }
+.card-purchase p { margin: .65rem 0 0; font: 600 .86rem/1.4 Georgia, serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card-purchase .link-button { min-height: 44px; color: #652536; font-size: .85rem; }
+#collection .card-purchase :focus-visible { outline: 2px solid #6b2737; outline-offset: 1px; }
+#collection .card-purchase + .card-actions { margin-top: 0; }
+.purchase-editor { min-width: 0; border-block: 1px solid #856a48; }
+.purchase-editor summary { padding-block: .8rem; cursor: pointer; font: 600 1.05rem Georgia, serif; }
+.purchase-editor summary span { margin-left: .45rem; color: #d5b987; font: .75rem "Courier New", monospace; }
+.purchase-editor fieldset { min-width: 0; margin: 0; padding: .2rem 0 .85rem; border: 0; }
+.purchase-editor .link-button { min-height: 44px; justify-self: start; }
+#purchase-form-status:not(:empty) { margin: 0 0 .65rem; }
+
 .value-card {
   margin: auto clamp(.9rem, 1.6vw, 1.2rem) 0;
   border-top: 1px solid #c6b395;

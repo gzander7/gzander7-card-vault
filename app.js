@@ -1,6 +1,8 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
+import { createScanEditor } from './scanning/editor.mjs';
+import { createScanFields } from './scanning/fields.mjs';
 
 const SPOTLIGHT_MS = 5000;
 const MAX_EDGE = 1400;
@@ -98,6 +100,25 @@ let previewUrl = '';
 let photoGeneration = 0;
 let busy = false;
 let statusTimer = 0;
+
+const scanFields = createScanFields({
+  player: ui.cardPlayer,
+  year: ui.cardYear,
+  set_name: ui.cardSet,
+  card_number: ui.cardNumber,
+  parallel: ui.cardParallel,
+  serial: ui.cardSerial,
+  grader: ui.cardGrader,
+  grade: ui.cardGrade,
+  is_auto: ui.cardAuto,
+  is_relic: ui.cardRelic,
+});
+
+const scanner = createScanEditor({
+  getCardHints: () => cards || [],
+  onSourceChange: () => scanFields.clearSuggestions(),
+  onSuggestions: suggestions => ui.cardDialog.open && !busy ? scanFields.apply(suggestions) : 0,
+});
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -627,6 +648,22 @@ function showPreview(src, note) {
   ui.photoNote.textContent = note || '';
 }
 
+async function fetchSavedFront(src, signal) {
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal.addEventListener('abort', cancel, { once: true });
+  const timer = window.setTimeout(cancel, 12000);
+  try {
+    signal.throwIfAborted();
+    const response = await fetch(src, { signal: controller.signal, credentials: 'omit' });
+    if (!response.ok) throw new Error('The saved front photo could not be loaded.');
+    return await response.blob();
+  } finally {
+    window.clearTimeout(timer);
+    signal.removeEventListener('abort', cancel);
+  }
+}
+
 async function compressCardImage(file) {
   const type = file.type || '';
   if (type && !type.startsWith('image/')) throw new Error('Choose an image file.');
@@ -671,6 +708,8 @@ function openEditor(card) {
   photoGeneration += 1;
   editingId = card?.id || null;
   ui.cardForm.reset();
+  scanner.reset();
+  scanFields.reset();
   clearPreview();
   ui.cardError.textContent = '';
   ui.cardSave.disabled = false;
@@ -694,7 +733,10 @@ function openEditor(card) {
     ui.cardNotes.value = card.notes || '';
     ui.cardFeatured.checked = Boolean(card.featured);
     const src = imageUrl(card.image_path);
-    if (src) showPreview(src, ui.photoNote.textContent);
+    if (src) {
+      showPreview(src, ui.photoNote.textContent);
+      scanner.setSavedFront(signal => fetchSavedFront(src, signal));
+    }
   }
   if (!ui.cardDialog.open) ui.cardDialog.showModal();
   ui.cardPlayer.focus();
@@ -745,6 +787,7 @@ async function saveCard(event) {
   }
 
   busy = true;
+  scanner.pause();
   ui.photoField.disabled = true;
   ui.cardSave.disabled = true;
   ui.cardSave.textContent = 'Saving…';
@@ -793,6 +836,7 @@ async function saveCard(event) {
   } finally {
     ui.photoField.disabled = false;
     busy = false;
+    if (ui.cardDialog.open) scanner.resume();
   }
 }
 
@@ -1088,6 +1132,7 @@ async function prepareCardPhoto(event) {
   if (!file || busy) return;
   input.value = '';
   const generation = ++photoGeneration;
+  scanner.pause();
   ui.cardError.textContent = '';
   ui.cardSave.disabled = true;
   ui.photoNote.textContent = 'Preparing photo…';
@@ -1099,8 +1144,10 @@ async function prepareCardPhoto(event) {
     previewUrl = URL.createObjectURL(prepared.blob);
     const kb = Math.max(1, Math.round(prepared.blob.size / 1024));
     showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
+    scanner.setFront(file);
   } catch (error) {
     if (generation !== photoGeneration) return;
+    scanner.resume();
     ui.cardError.textContent = error.message;
     ui.photoNote.textContent = pendingBlob || editingId
       ? 'The previous photo is still selected.'
@@ -1117,6 +1164,8 @@ ui.cardForm.addEventListener('submit', saveCard);
 ui.cardCancel.addEventListener('click', () => ui.cardDialog.close());
 ui.cardDialog.addEventListener('close', () => {
   photoGeneration += 1;
+  scanner.reset();
+  scanFields.reset();
   clearPreview();
   ui.cardImage.value = '';
   ui.cardCamera.value = '';
@@ -1134,6 +1183,7 @@ function setSession(next) {
   const current = session?.user?.id || '';
   if (current && ui.authDialog.open) ui.authDialog.close();
   if (previous !== current && ui.passwordDialog.open) ui.passwordDialog.close();
+  if (previous !== current && ui.cardDialog.open) ui.cardDialog.close();
   syncVaultValue();
   if (previous !== current || !ui.authBar.childElementCount) {
     renderAuth();

@@ -381,7 +381,13 @@
   #spotlight .placeholder::before { width: min(100%, 7.5rem); }
   #spotlight .empty-copy h3 { font-size: clamp(1.4rem, 6vw, 2.25rem); }
   #spotlight .empty-copy p { font-size: .875rem; }
-  #spotlight .section-note { font-size: .625rem; }
+  #spotlight .section-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-bottom: 3px double var(--hairline);
+    padding-bottom: .5rem;
+  }
+  #spotlight .section-head::before { display: none; }
+  #spotlight .section-note { grid-area: 1 / 2; font-size: .625rem; }
 }
 
 @media (max-width: 27rem) {

@@ -128,6 +128,35 @@
         <p id="value-storage"></p>
         <details id="value-history" hidden>
           <summary>Value history</summary>
+          <figure class="history-chart" aria-label="Vault value over time">
+            <div class="history-chart-head">
+              <div class="history-readout" hidden>
+                <p class="history-date"></p>
+                <p><strong class="history-amount"></strong><span class="history-coverage"></span></p>
+              </div>
+              <div class="history-ranges" role="group" aria-label="Chart time range">
+                <button type="button" data-range="30" aria-label="Last 30 days" aria-pressed="false">30D</button>
+                <button type="button" data-range="90" aria-label="Last 90 days" aria-pressed="false">90D</button>
+                <button type="button" data-range="365" aria-label="Last 365 days" aria-pressed="false">1Y</button>
+                <button type="button" data-range="all" aria-label="All time" aria-pressed="true">All</button>
+              </div>
+            </div>
+            <div class="history-plot" role="slider" tabindex="0" aria-label="Recorded vault estimate" aria-describedby="history-help" hidden>
+              <svg aria-hidden="true" focusable="false">
+                <defs>
+                  <linearGradient id="history-gold" x2="0" y2="1">
+                    <stop stop-color="#dfb477" stop-opacity=".27"/>
+                    <stop offset="1" stop-color="#dfb477" stop-opacity=".025"/>
+                  </linearGradient>
+                </defs>
+                <g class="history-drawing"></g>
+              </svg>
+            </div>
+            <figcaption>
+              <span class="history-change" hidden>Period change <strong></strong></span>
+              <span id="history-help"></span>
+            </figcaption>
+          </figure>
           <div class="table-wrap">
             <table aria-label="Daily Vault Value history">
               <thead><tr><th scope="col">Date</th><th scope="col">Estimate</th><th scope="col">Cards priced</th></tr></thead>

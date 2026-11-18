@@ -1,0 +1,66 @@
+#card-dialog .scan-editor {
+  padding-bottom: 1rem;
+  border-bottom: 3px double #856a48;
+}
+
+.scan-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .85rem;
+}
+
+.scan-side {
+  min-width: 0;
+  margin: 0;
+  padding: .55rem .65rem .7rem;
+  border: 1px solid #795b45;
+}
+
+.scan-side legend {
+  padding-inline: .3rem;
+  color: var(--paper);
+  font: 1.12rem/1.25 Georgia, serif;
+}
+
+.scan-side legend span {
+  margin-left: .15rem;
+  color: #cdb79c;
+  font: .73rem/1.3 system-ui, sans-serif;
+}
+
+.scan-pickers { gap: 0 .6rem; }
+.scan-pickers .gold-btn {
+  min-height: 44px;
+  padding: .48rem .72rem;
+  font-size: .85rem;
+}
+.scan-pickers .link-button, #remove-back-photo { font-size: .82rem; }
+#card-dialog .scan-side .hint { margin-top: .45rem; font-size: .77rem; }
+#card-dialog .scan-preview { margin-top: .6rem; }
+#card-dialog .scan-preview .slab {
+  width: min(100%, 7rem);
+  border: 1px solid #a08668;
+  border-radius: 3px;
+  padding: .18rem;
+  background: #77654f;
+  box-shadow: none;
+}
+#card-dialog .scan-preview .slab-inner { border-radius: 1px; }
+#card-dialog #scan-hint { margin-top: .7rem; }
+.scan-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem 1rem; }
+#scan-read:disabled { color: #baaa97; text-decoration: none; cursor: default; }
+#scan-progress { width: 6rem; height: .45rem; accent-color: var(--gold); }
+#scan-status { color: #efd5ad; font-size: .88rem; }
+#scan-status:empty { display: none; }
+#card-dialog [data-scan-filled] {
+  border-color: #c89e60;
+  box-shadow: inset 3px 0 0 #c89e60;
+}
+#card-dialog input[type="checkbox"][data-scan-filled] { outline: 1px solid #c89e60; outline-offset: 2px; }
+#card-dialog input[type="checkbox"][data-scan-filled]:focus-visible { outline: 3px solid var(--gold); }
+
+@media (max-width: 25rem) {
+  .scan-photos { gap: .4rem; }
+  .scan-side { padding-inline: .4rem; }
+  .scan-side legend span { display: block; margin-left: 0; }
+}

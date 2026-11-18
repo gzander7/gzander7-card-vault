@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="showcase.css">
   <link rel="stylesheet" href="collection.css">
   <link rel="stylesheet" href="valuation.css">
+  <link rel="stylesheet" href="scanner.css">
 </head>
 <body>
   <canvas id="backdrop" aria-hidden="true"></canvas>
@@ -228,23 +229,48 @@
         <button type="button" class="link-button" id="card-cancel">Close</button>
       </div>
       <div class="form-grid">
-        <fieldset class="photo-field span-2" id="photo-field" aria-describedby="photo-note">
-          <legend>Card photo</legend>
-          <div class="dialog-actions">
-            <button type="button" class="gold-btn" id="choose-photo">Choose photo</button>
-            <button type="button" class="link-button" id="take-photo">Take photo</button>
+        <fieldset class="photo-field scan-editor span-2" id="photo-field" aria-describedby="scan-hint">
+          <legend class="visually-hidden">Card photos</legend>
+          <div class="scan-photos">
+            <fieldset class="scan-side" aria-describedby="photo-note">
+              <legend>Card front</legend>
+              <div class="dialog-actions scan-pickers">
+                <button type="button" class="gold-btn" id="choose-photo">Choose photo</button>
+                <button type="button" class="link-button" id="take-photo">Take photo</button>
+              </div>
+              <input id="card-image" type="file" accept="image/*" hidden>
+              <input id="card-camera" type="file" accept="image/*" capture="environment" hidden>
+              <div id="photo-preview" class="preview scan-preview" hidden>
+                <div class="slab">
+                  <div class="slab-inner"><img id="photo-preview-img" alt="Selected card front"></div>
+                </div>
+              </div>
+              <p id="photo-note" class="hint" role="status"></p>
+            </fieldset>
+            <fieldset class="scan-side">
+              <legend>Card back <span>Optional</span></legend>
+              <div class="dialog-actions scan-pickers">
+                <button type="button" class="gold-btn" id="choose-back-photo" aria-label="Choose back photo">Choose photo</button>
+                <button type="button" class="link-button" id="take-back-photo" aria-label="Take back photo">Take photo</button>
+              </div>
+              <input id="card-back-image" type="file" accept="image/*" hidden>
+              <input id="card-back-camera" type="file" accept="image/*" capture="environment" hidden>
+              <div id="back-preview" class="preview scan-preview" hidden>
+                <div class="slab">
+                  <div class="slab-inner"><img id="back-preview-img" alt="Selected card back"></div>
+                </div>
+                <button type="button" id="remove-back-photo" class="link-button">Remove back</button>
+              </div>
+            </fieldset>
           </div>
-          <input id="card-image" type="file" accept="image/*" hidden>
-          <input id="card-camera" type="file" accept="image/*" capture="environment" hidden>
+          <p id="scan-hint" class="hint">Add both sides to read the printed details automatically. The back photo stays on this device.</p>
+          <div class="scan-actions">
+            <button type="button" id="scan-read" class="link-button" disabled>Read photos</button>
+            <button type="button" id="scan-stop" class="link-button" hidden>Cancel scan</button>
+            <progress id="scan-progress" max="1" aria-label="Card scan progress" hidden></progress>
+          </div>
+          <p id="scan-status" role="status" aria-live="polite" aria-atomic="true"></p>
         </fieldset>
-        <p id="photo-note" class="hint span-2" role="status"></p>
-        <div id="photo-preview" class="preview span-2" hidden>
-          <div class="slab">
-            <div class="slab-inner">
-              <img id="photo-preview-img" alt="Preview of the card photo">
-            </div>
-          </div>
-        </div>
         <label class="span-2">
           Player
           <input id="card-player" name="player" type="text" required maxlength="120" placeholder="Player name">

@@ -53,6 +53,14 @@ Sign in, then choose **Add card**. Use **Choose photo** for a picture already in
 
 Fields: player, year, set, card number, parallel, serial (for example `82/100`), autograph, relic, grader, grade, notes, and Hall of Fame. Featured cards rotate in the spotlight. If none are featured, the spotlight shows the newest card.
 
+### Scan the front and back
+
+In **Add card**, choose or take a photo under **Card front** and **Card back**. Once both are ready, the editor reads the printed text and fills the fields it recognizes. With one photo, choose **Read front** or **Read back** to start. When editing an existing card, adding its back can pair it with the saved front.
+
+Review the highlighted fields and choose **Save card**. A clear photo of the full card, including the edges or slab label, helps the reader find small print. Check foil lettering, serial numbers and the exact parallel against the card. Autograph and relic suggestions rely on printed wording.
+
+Text recognition runs on your device. The first scan downloads the English reader. The front is the gallery photo, and the back is used only in the open editor. Scanning needs no API key or database migration. [Tesseract.js](https://github.com/naptha/tesseract.js)
+
 ## Vault Value and sold comps
 
 Sign in to see **Vault Value** in the navigation. Saving a new card or changing its identifying details starts a sold-comps lookup. Include the card number printed on the back, the parallel and print run when applicable, and the grading company and grade for a slab. Open **Sold comps** beneath a card to see individual sale dates, prices and links, or why an estimate is unavailable.

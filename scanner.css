@@ -59,7 +59,7 @@
 #card-dialog .scan-side .hint { margin-top: .45rem; font-size: .77rem; }
 #card-dialog .scan-preview { margin-top: .6rem; }
 #card-dialog .scan-preview .slab {
-  width: min(100%, 7rem);
+  width: min(100%, 10rem);
   border: 1px solid #a08668;
   border-radius: 3px;
   padding: .18rem;

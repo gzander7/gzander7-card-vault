@@ -1,6 +1,8 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
+import { croppedCanvas } from './photos/crop.mjs';
+import { createCropPreview } from './photos/crop-preview.mjs';
 import { openCardViewer } from './card-viewer.mjs';
 import { createScanEditor } from './scanning/editor.mjs';
 import { createScanFields } from './scanning/fields.mjs';
@@ -676,7 +678,17 @@ function upsertCard(card) {
   render();
 }
 
+const frontCrop = createCropPreview('front', prepared => {
+  pendingBlob = prepared.blob;
+  if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(prepared.blob);
+  const kb = Math.max(1, Math.round(prepared.blob.size / 1024));
+  showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
+  scanner.setFront(prepared.scanBlob);
+});
+
 function clearPreview() {
+  frontCrop.clear();
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   previewUrl = '';
   pendingBlob = null;
@@ -706,6 +718,13 @@ async function fetchSavedPhoto(src, signal) {
   }
 }
 
+async function encodePhoto(canvas) {
+  const encode = type => new Promise(resolve => canvas.toBlob(resolve, type, .88));
+  const blob = await encode('image/jpeg') || await encode('image/webp');
+  if (!blob) throw new Error('This browser could not prepare the photo.');
+  return blob;
+}
+
 async function compressCardImage(file) {
   const type = file.type || '';
   if (type && type !== 'application/octet-stream' && !type.startsWith('image/')) throw new Error('Choose an image file.');
@@ -731,18 +750,23 @@ async function compressCardImage(file) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(image, 0, 0, width, height);
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) resolve(result);
-        else reject(new Error('jpeg-failed'));
-      }, 'image/jpeg', 0.82);
-    }).catch(async () => {
-      const webp = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.82));
-      if (!webp) throw new Error('This browser could not prepare the photo.');
-      return webp;
-    });
+    const blob = await encodePhoto(canvas);
+    canvas.width = canvas.height = 1;
+    let crop = null;
+    let cropped;
+    try {
+      cropped = croppedCanvas(image, MAX_EDGE);
+      if (cropped) {
+        const croppedBlob = await encodePhoto(cropped);
+        crop = { blob: croppedBlob, scanBlob: croppedBlob, width: cropped.width, height: cropped.height, type: croppedBlob.type };
+      }
+    } catch {
+      // Keep the prepared full photo if the device cannot process a crop.
+    } finally {
+      if (cropped) cropped.width = cropped.height = 1;
+    }
     const scanBlob = file.size <= 32 * 1024 * 1024 && type.startsWith('image/') ? file : blob;
-    return { blob, scanBlob, width, height, type: blob.type || 'image/jpeg' };
+    return { blob, scanBlob, crop, width, height, type: blob.type || 'image/jpeg' };
   } finally {
     URL.revokeObjectURL(source);
     image.removeAttribute?.('src');
@@ -1163,12 +1187,7 @@ async function prepareCardPhoto(event) {
   try {
     const prepared = await compressCardImage(file);
     if (generation !== photoGeneration) return;
-    pendingBlob = prepared.blob;
-    if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
-    previewUrl = URL.createObjectURL(prepared.blob);
-    const kb = Math.max(1, Math.round(prepared.blob.size / 1024));
-    showPreview(previewUrl, `Prepared ${prepared.width}×${prepared.height} ${prepared.type === 'image/webp' ? 'WebP' : 'JPEG'} · ${kb} KB`);
-    scanner.setFront(prepared.scanBlob);
+    frontCrop.set(prepared);
   } catch (error) {
     if (generation !== photoGeneration) return;
     scanner.resume();

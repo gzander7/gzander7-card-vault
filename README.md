@@ -53,6 +53,8 @@ Sign in, then choose **Add card**. Use **Choose photo** for a picture already in
 
 Fields: player, year, set, card number, parallel, serial (for example `82/100`), autograph, relic, grader, grade, notes, and Hall of Fame. Featured cards rotate in the spotlight. If none are featured, the spotlight shows the newest card.
 
+Place the card on a contrasting surface with all four corners visible. Camera and library photos are automatically cropped and straightened when their outline is clear. Choose **Use full photo** under either preview to undo the crop before saving. The preview you select is used for scanning, the gallery, and the flip viewer.
+
 ### Scan the front and back
 
 In **Add card**, choose or take a photo under **Card front** and **Card back**. Once both are ready, the editor reads the printed text and fills the fields it recognizes. With one photo, choose **Read front** or **Read back** to start. When editing an existing card, adding its back can pair it with the saved front.

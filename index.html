@@ -247,6 +247,8 @@
                 <div class="slab">
                   <div class="slab-inner"><img id="photo-preview-img" alt="Selected card front"></div>
                 </div>
+                <p id="front-crop-note" class="hint" role="status"></p>
+                <button type="button" id="front-crop-toggle" class="link-button" hidden>Use full photo</button>
               </div>
               <p id="photo-note" class="hint" role="status"></p>
             </fieldset>
@@ -264,11 +266,13 @@
                 <div class="slab">
                   <div class="slab-inner"><img id="back-preview-img" alt="Selected card back"></div>
                 </div>
+                <p id="back-crop-note" class="hint" role="status"></p>
+                <button type="button" id="back-crop-toggle" class="link-button" hidden>Use full photo</button>
                 <button type="button" id="remove-back-photo" class="link-button">Remove back</button>
               </div>
             </fieldset>
           </div>
-          <p id="scan-hint" class="hint">Add both sides to read the printed details automatically. Saving a card with a back photo lets visitors flip it over.</p>
+          <p id="scan-hint" class="hint">Leave space around all four corners for auto-crop. Add both sides to read the printed details automatically. Saving a card with a back photo lets visitors flip it over.</p>
           <div class="scan-actions">
             <button type="button" id="scan-read" class="link-button" disabled>Read photos</button>
             <button type="button" id="scan-stop" class="link-button" hidden>Cancel scan</button>

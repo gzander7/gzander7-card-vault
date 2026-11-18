@@ -1,8 +1,12 @@
 import { loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
 import { identityKey } from './pricing/identity.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
+import { readCloudPurchases } from './pricing/cloud-store.mjs';
+import { createPurchaseLedger, purchaseTotals } from './pricing/purchases.mjs';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', signDisplay:'exceptZero' });
+const percent = new Intl.NumberFormat('en-US', { style:'percent', maximumFractionDigits:1, signDisplay:'exceptZero' });
 const calendarDate = new Intl.DateTimeFormat('en-US', {
   month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
 });
@@ -26,6 +30,12 @@ function dateText(isoDate) {
 
 function money(cents) {
   return Number.isSafeInteger(cents) && cents >= 0 ? usd.format(cents / 100) : '—';
+}
+
+function changeText(result) {
+  if (result.change === null) return '—';
+  const amount = signedUsd.format(result.change / 100);
+  return result.percent === null ? amount : amount + ' (' + percent.format(result.percent / 100) + ')';
 }
 
 function saleLink(sale) {
@@ -127,7 +137,7 @@ function drawCardDetails(details, card, quote, loading, failed, onAction) {
   body.replaceChildren(...contents);
 }
 
-export function createVaultValue() {
+export function createVaultValue(openPurchase) {
   const section = document.getElementById('vault-value');
   const nav = document.getElementById('value-nav');
   const total = document.getElementById('value-total');
@@ -137,6 +147,10 @@ export function createVaultValue() {
   const refresh = document.getElementById('value-refresh');
   const historyDetails = document.getElementById('value-history');
   const historyRows = document.getElementById('value-history-rows');
+  const spent = document.getElementById('purchase-spent');
+  const gain = document.getElementById('purchase-gain');
+  const costCoverage = document.getElementById('purchase-cost-coverage');
+  const gainCoverage = document.getElementById('purchase-gain-coverage');
   let owner = '';
   let activeSession = null;
   let cards = null;
@@ -155,6 +169,7 @@ export function createVaultValue() {
   let failed = false;
   const feedback = new Map();
   const editor = createReviewDialog(commitReview);
+  const purchases = createPurchaseLedger(readCloudPurchases, paint);
 
   async function commitReview(card, command) {
     const session = activeSession;
@@ -197,12 +212,62 @@ export function createVaultValue() {
     return details;
   }
 
+  function estimatedCents(card) {
+    const quote = quoteFor(card);
+    return hasValue(quote) ? quote.valueCents : null;
+  }
+
+  function drawPurchase(row, card) {
+    const record = purchases.records[card.id];
+    const hasCost = record?.amount_cents != null;
+    const label = row.querySelector('button');
+    label.textContent = hasCost ? 'Edit purchase' : purchases.status === 'ready' ? 'Record purchase' : 'Purchase details';
+    const note = row.querySelector('p');
+    note.hidden = !hasCost;
+    if (!hasCost) { note.textContent = ''; return; }
+    const result = purchaseTotals([card], purchases.records, estimatedCents);
+    note.textContent = 'Paid ' + money(record.amount_cents) + ' · ' +
+      (result.change === null ? 'Awaiting estimate' : changeText(result) + ' vs. cost');
+  }
+
+  function cardPurchase(card) {
+    const row = element('div');
+    row.className = 'card-purchase';
+    row.dataset.cardId = card.id;
+    row.append(element('p'), actionButton('Purchase details', () => openPurchase(card)));
+    drawPurchase(row, card);
+    return row;
+  }
+
+  function paintPurchases() {
+    const ready = owner && cards && purchases.hasSnapshot;
+    const totals = purchaseTotals(cards || [], purchases.records, estimatedCents);
+    spent.textContent = ready && totals.tracked ? money(totals.spent) : '—';
+    gain.textContent = ready ? changeText(totals) : '—';
+    gain.dataset.direction = ready && totals.change !== null ? String(Math.sign(totals.change)) : '';
+    if (ready) {
+      costCoverage.textContent = totals.tracked + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' with a recorded cost';
+      if (purchases.status === 'error') costCoverage.textContent += ' · Showing the last loaded costs.';
+      gainCoverage.textContent = totals.compared
+        ? 'Based on ' + totals.compared + (totals.compared === 1 ? ' card' : ' cards') + ' with both cost and estimate.'
+        : 'Needs a card with both a cost and an estimate.';
+    } else {
+      costCoverage.textContent = !owner ? '' : purchases.status === 'error' ? 'Purchases unavailable. Check for updates to retry.' : 'Loading purchase records…';
+      gainCoverage.textContent = '';
+    }
+    for (const row of document.querySelectorAll('.card-purchase')) {
+      const card = byId.get(row.dataset.cardId);
+      if (card) drawPurchase(row, card);
+      else row.remove();
+    }
+  }
+
   function paint() {
     section.hidden = nav.hidden = !owner;
     refresh.disabled = !owner || !cards?.length || loading;
     const matches = (cards || []).map(quoteFor).filter(hasValue);
     total.textContent = matches.length ? money(matches.reduce((sum, quote) => sum + quote.valueCents, 0)) : '—';
-    coverage.textContent = cards ? matches.length + ' of ' + cards.length + ' cards priced' : '';
+    coverage.textContent = cards ? matches.length + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' priced' : '';
     if (!owner) status.textContent = '';
     else if (!cards) status.textContent = 'Waiting for your collection.';
     else if (failed) status.textContent = 'Sale data is temporarily unavailable. Existing estimates keep their last checked date.';
@@ -214,6 +279,7 @@ export function createVaultValue() {
       : storage === 'device' || storage === 'device-offline' ? 'Sold comps and history are saved on this device.'
       : storage === 'cloud' && reviewStorage === 'device' ? 'History syncs across devices. Manual sold comps are saved on this device.' : '';
     storageNote.textContent = owner ? [persistence, notice].filter(Boolean).join(' ') : '';
+    paintPurchases();
 
     const rows = [...history].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     historyRows.replaceChildren(...rows.map(record => {
@@ -246,6 +312,7 @@ export function createVaultValue() {
 
   function sync(session, ownerCards, force = false) {
     activeSession = session;
+    purchases.setSession(session);
     const nextOwner = session?.user?.id || '';
     if (nextOwner !== owner) {
       controller?.abort();
@@ -275,6 +342,7 @@ export function createVaultValue() {
       return;
     }
     if (!force && signature === nextSignature) return;
+    void purchases.load(force).catch(() => {});
     controller?.abort();
     controller = new AbortController();
     const { signal } = controller;
@@ -326,9 +394,11 @@ export function createVaultValue() {
     if (!refresh.disabled) sync(activeSession, cards, true);
   });
   function resume() {
-    if (!owner || !cards || loading) return;
+    if (!owner || !cards) return;
+    void purchases.load(true).catch(() => {});
+    if (loading) return;
     signature = undefined;
     sync(activeSession, cards);
   }
-  return { sync, resume, cardDetails };
+  return { sync, resume, cardDetails, cardPurchase, purchases };
 }

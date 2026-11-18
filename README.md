@@ -79,6 +79,14 @@ Sold comps, exclusions, values and history are visible to the signed-in owner. T
 
 Run the pricing checks with `node --test pricing/*.test.mjs`.
 
+## Private purchase tracking
+
+In **Add card** or **Edit**, open **Purchase details** and enter the total you paid in USD, including any tax, shipping and fees. Date and source are optional. A zero records a gift or free card. Existing cards also have a **Record purchase** or **Edit purchase** shortcut beneath their sold comps. To remove a cost, choose **Clear purchase details** and save the card.
+
+**Vault Value** shows total spent across cards with a recorded cost. Estimated gain or loss compares current sold-comp estimates with cost for the same cards. The percentage uses their combined cost, and is omitted when that cost is zero. Cards awaiting an estimate still count toward total spent. Purchase changes sync to the signed-in owner’s devices and are saved with the card in one transaction.
+
+For a new Supabase installation, run [supabase/purchases.sql](supabase/purchases.sql) after [supabase/schema.sql](supabase/schema.sql). This creates a separate owner-only table. Cards already in the gallery have no recorded cost until the owner enters one.
+
 ## Local preview
 
 From the project folder:

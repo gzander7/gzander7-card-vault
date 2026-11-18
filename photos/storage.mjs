@@ -60,17 +60,23 @@ async function stageCardPhotos(bucket, { owner, previousFront = '', front, back 
 // Only retire the old objects after the row points to the staged revision.
 // An ambiguous commit can still reference the new objects after a network
 // failure. Check the row before deciding what is safe to remove.
-export async function savePhotoRevision(client, { id, owner, previousFront, fields, front, back }) {
+export async function savePhotoRevision(client, { id, owner, previousFront, previousCard, fields, front, back, purchase }) {
   const bucket = client.storage.from('card-images');
   const change = await stageCardPhotos(bucket, { owner, previousFront, front, back });
   const row = { ...fields, owner, image_path: change.frontPath };
   let response;
   try {
-    const table = client.from('cards');
-    const write = previousFront
-      ? table.update(row).eq('id', id).eq('image_path', previousFront)
-      : table.insert({ ...row, id });
-    response = await write.select().single();
+    if (purchase) {
+      response = await client.rpc('vault_save_card_purchase', {
+        card_data: {...row, id}, previous_card: previousCard || (previousFront ? {image_path:previousFront} : null), purchase,
+      }).single();
+    } else {
+      const table = client.from('cards');
+      const write = previousFront
+        ? table.update(row).eq('id', id).eq('image_path', previousFront)
+        : table.insert({ ...row, id });
+      response = await write.select().single();
+    }
   } catch { /* A transport failure leaves the outcome unknown. */ }
   if (response?.error && response.status >= 400 && response.status < 500) {
     await removeCardPhotos(bucket, change.created);
@@ -84,7 +90,12 @@ export async function savePhotoRevision(client, { id, owner, previousFront, fiel
     try {
       const result = await client.from('cards').select('*').eq('id', id).maybeSingle();
       if (!result.error && result.data && Object.entries(row).every(([key, value]) => result.data[key] === value)) {
-        saved = result.data;
+        if (purchase) {
+          const receipt = await client.from('vault_card_purchases').select('revision').eq('card_id', id).maybeSingle();
+          if (!receipt.error && receipt.data?.revision === purchase.revision) saved = result.data;
+        } else {
+          saved = result.data;
+        }
       }
     } catch { /* Keep staged objects if the connection is still down. */ }
     if (!saved) throw new Error('Could not confirm the save. Reconnect and reload the vault to check the card before trying again.');

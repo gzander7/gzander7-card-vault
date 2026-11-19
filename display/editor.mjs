@@ -1,7 +1,7 @@
 import { caseFields, MAX_CARDS, MAX_TITLE, presentCard } from './cards.mjs';
 import { element, photo } from './dom.mjs';
 
-export function editCase(panel, { cards, original, onCancel, onSave, onReload, tell }) {
+export function editCase(panel, { cards, original, initialCardId, onCancel, onSave, onReload, tell }) {
   panel.innerHTML = `
     <form class="case-editor">
       <fieldset class="case-fields">
@@ -37,7 +37,7 @@ export function editCase(panel, { cards, original, onCancel, onSave, onReload, t
   const cancel = find('.case-cancel');
   const reload = find('.case-reload');
   const available = new Set(cards.map(card => card.id));
-  const savedIds = original?.card_ids || [];
+  const savedIds = original?.card_ids ?? (initialCardId ? [initialCardId] : []);
   const selected = new Set(savedIds.filter(id => available.has(id)));
   const options = [];
   const id = original?.id || crypto.randomUUID();

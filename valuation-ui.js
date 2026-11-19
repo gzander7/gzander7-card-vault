@@ -6,13 +6,15 @@ import { createPurchaseLedger, hasPurchaseDetails, purchaseTotals } from './pric
 import { createHistoryChart } from './pricing/history-chart.mjs';
 import { createHistoryComparison } from './pricing/history-changes-ui.mjs';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', signDisplay:'exceptZero' });
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', trailingZeroDisplay: 'stripIfInteger' });
+const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', trailingZeroDisplay:'stripIfInteger', signDisplay:'exceptZero' });
 const percent = new Intl.NumberFormat('en-US', { style:'percent', maximumFractionDigits:1, signDisplay:'exceptZero' });
 const calendarDate = new Intl.DateTimeFormat('en-US', {
   month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
 });
-const renderedDetails = new WeakMap();
+const monthDay = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const renderedSales = new WeakMap();
+const sparkKeys = new WeakMap();
 const salesHosts = [
   'ebay.com', 'ebay.ca', 'ebay.co.uk', 'ebay.com.au', 'ebay.de', 'ebay.fr', 'ebay.it',
   'cardpricer.co', 'collectorcrypt.com', 'magiceden.io', 'fanaticscollect.com', 'polygonscan.com', 'solscan.io',
@@ -84,65 +86,123 @@ function actionButton(text, onClick) {
   return button;
 }
 
-function drawCardDetails(details, card, quote, loading, failed, onAction) {
-  // A background lookup for a different card must not replace a focused sale link.
-  const pending = !quote && loading;
-  const unavailable = !quote && failed;
-  const previous = renderedDetails.get(details);
-  if (previous && previous.quote === quote && previous.pending === pending && previous.unavailable === unavailable) return;
-  const content = JSON.stringify(quote);
-  renderedDetails.set(details, { quote, content, pending, unavailable });
-  if (previous && previous.content === content && previous.pending === pending && previous.unavailable === unavailable) return;
-  const summary = details.querySelector('summary');
-  const body = details.querySelector('.comp-evidence');
-  const sales = Array.isArray(quote?.sales) ? quote.sales : [];
-  const evidence = quote?.evidence || sales;
-  const quoteAmount = hasValue(quote) ? money(quote.valueCents) : 'Unpriced';
-  summary.textContent = 'Sold comps · ' + quoteAmount;
-  const contents = [];
-  if (hasValue(quote)) {
-    contents.push(element('p', 'Estimated from ' + sales.length + ' matching sales.'));
-    if (quote.refreshFailed) contents.push(element('p', 'The latest lookup is unavailable. Showing the previous estimate.'));
-  } else {
-    const waitingText = failed ? 'Sale data could not be loaded. Use Check for updates to try again.'
-      : loading ? 'Checking for matching sales…' : 'No estimate is available yet.';
-    const reason = quote?.status === 'needs_details' ? 'Edit this card to complete its matching details.'
-      : quote?.status === 'insufficient' ? 'Too few matching sales for an estimate.' : waitingText;
-    contents.push(element('p', quote?.message || reason));
+function shortDate(isoDate) {
+  const date = new Date(isoDate || NaN);
+  if (!Number.isFinite(+date)) return '';
+  return date.getUTCFullYear() === new Date().getUTCFullYear() ? monthDay.format(date) : calendarDate.format(date);
+}
+
+// Missing prices break the line. A single priced observation has no trend.
+function drawSpark(host, records) {
+  const recent = records.slice(-30);
+  const key = JSON.stringify(recent.map(({ date, valueCents }) => [date, valueCents]));
+  if (sparkKeys.get(host) === key) return;
+  sparkKeys.set(host, key);
+  const times = recent.map(day => Date.parse(day.date + 'T00:00:00Z'));
+  const values = recent.map(day => day.valueCents).filter(Number.isSafeInteger);
+  host.replaceChildren();
+  host.hidden = values.length < 2;
+  if (host.hidden) return;
+  const low = Math.min(...values), high = Math.max(...values);
+  const width = 152, height = 42;
+  function svg(tag, attrs) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    return node;
   }
-  if (evidence.length) {
-    const list = element('ul');
-    for (const sale of evidence) {
-      const row = element('li');
-      const actions = element('div');
-      actions.className = 'comp-row-actions';
-      if (sale.manual) actions.append(actionButton('Edit sale', () => onAction('save', card, sale)));
-      if (sale.flag) actions.append(actionButton('Restore sale', button => onAction('restore', card, sale, button)));
-      else if (!sale.reason || sale.automatic) actions.append(actionButton('Flag wrong match', () => onAction('exclude', card, sale)));
-      const state = element('small');
-      const source = sale.automatic && sale.manual ? 'CardPricer and your entry' : sale.automatic ? 'CardPricer' : sale.manual ? 'Entered by you' : 'Flagged sale';
-      const use = sale.flag ? 'Excluded · ' + sale.flag : sale.reason || (hasValue(quote) ? 'Used in estimate' : 'Matching sale');
-      state.textContent = source + ' · ' + use;
-      state.className = 'comp-source';
-      row.append(saleLink(sale), element('span', dateText(sale.soldAt)), element('strong', money(sale.priceCents)), state);
-      if (actions.childElementCount) row.append(actions);
-      list.appendChild(row);
+  const chart = svg('svg', { viewBox: '0 0 152 42', 'aria-hidden': 'true', focusable: 'false' });
+  let penDown = false, path = '', last;
+  for (const [index, day] of recent.entries()) {
+    if (!Number.isSafeInteger(day.valueCents)) { penDown = false; continue; }
+    const x = 3 + (width - 6) * (times[index] - times[0]) / (times.at(-1) - times[0] || 1);
+    const y = high === low ? height / 2 : 3 + (height - 6) * (high - day.valueCents) / (high - low);
+    path += (penDown ? ' L' : ' M') + x.toFixed(2) + ' ' + y.toFixed(2);
+    if (!penDown) chart.append(svg('circle', { cx:x, cy:y, r:1.2, fill:'currentColor' }));
+    penDown = true;
+    last = { cx:x, cy:y };
+  }
+  chart.append(svg('path', { d:path, fill:'none', stroke:'currentColor', 'stroke-width':2, 'stroke-linejoin':'round' }),
+    svg('circle', {...last, r:2.5, fill:'currentColor' }));
+  host.append(chart);
+}
+
+function saleRow(sale, card, onAction) {
+  const row = element('tr');
+  const date = element('td', shortDate(sale.soldAt));
+  date.className = 'comp-date';
+  date.title = dateText(sale.soldAt);
+  const listing = element('td');
+  const match = element('td');
+  const title = sale.flag ? 'Excluded' : sale.reason === 'Reference only' ? 'Reference' : sale.reason ? 'Unused' : 'Exact';
+  const badge = element('span', title);
+  badge.className = 'comp-badge';
+  badge.dataset.exact = String(!sale.flag && !sale.reason);
+  badge.title = sale.reason || 'Matching sale';
+  match.className = 'comp-match';
+  match.append(badge);
+  const price = element('td', money(sale.priceCents));
+  price.className = 'comp-price';
+  const source = sale.manual ? (sale.automatic ? 'CardPricer and your entry' : 'Entered by you') : 'CardPricer';
+  const mobileMeta = element('span', [shortDate(sale.soldAt), title === 'Exact' ? 'Exact match' : title].filter(Boolean).join(' · '));
+  mobileMeta.className = 'comp-mobile-meta';
+  listing.append(saleLink(sale), mobileMeta);
+  const review = element('details');
+  review.className = 'comp-review';
+  const toggle = element('summary', '•••');
+  toggle.setAttribute('aria-label', 'Sale information and actions for ' + sale.title);
+  toggle.title = 'Sale information and actions';
+  const actions = element('div');
+  actions.className = 'comp-row-actions';
+  actions.append(element('small', [source, sale.flag ? 'Excluded · ' + sale.flag : sale.reason].filter(Boolean).join(' · ')));
+  if (sale.manual) actions.append(actionButton('Edit sale', () => onAction('save', card, sale)));
+  if (sale.flag) actions.append(actionButton('Restore sale', button => onAction('restore', card, sale, button)));
+  else if (!sale.reason || sale.automatic) actions.append(actionButton('Flag wrong match', () => onAction('exclude', card, sale)));
+  review.append(toggle, actions);
+  listing.append(review);
+  row.append(date, listing, match, price);
+  return row;
+}
+
+function drawSales(body, card, quote, loading, onAction) {
+  const sales = quote?.evidence || quote?.sales || [];
+  const showSearch = !hasValue(quote) && !loading && Boolean(card.player);
+  const key = JSON.stringify([sales, showSearch, identityKey(card)]);
+  if (renderedSales.get(body) === key) return;
+  renderedSales.set(body, key);
+  const contents = [];
+  if (sales.length) {
+    const table = element('table');
+    table.setAttribute('aria-label', 'Recent sold listings');
+    const head = element('thead');
+    const header = element('tr');
+    head.append(header);
+    for (const name of ['Sold', 'Listing', 'Match', 'Price']) {
+      const cell = element('th', name);
+      cell.scope = 'col';
+      header.append(cell);
     }
-    contents.push(list);
+    const rows = element('tbody');
+    table.append(head, rows);
+    for (const sale of sales) rows.append(saleRow(sale, card, onAction));
+    contents.push(table);
     if (sales.some(sale => /^https:\/\/(?:polygonscan\.com|solscan\.io)\/tx\//.test(sale.url))) {
       contents.push(element('small', 'Vaulted-card sales settled in USDC are counted at $1 per USDC.'));
     }
+  } else {
+    contents.push(element('p', loading && !quote ? 'Checking sold listings…' : 'No sales recorded.'));
   }
-  if (!hasValue(quote) && !loading && card.player) contents.push(soldSearch(card));
-  const checked = dateText(quote?.checkedAt);
-  if (checked) contents.push(element('small', 'Automatic lookup checked ' + checked));
+  if (showSearch) contents.push(soldSearch(card));
   body.replaceChildren(...contents);
 }
 
 export function createVaultValue(openPurchase, reloadInventory) {
   const section = document.getElementById('vault-value');
-  const nav = document.getElementById('value-nav');
   const total = document.getElementById('value-total');
+  const dayChange = document.getElementById('value-change');
+  const spark = section.querySelector('.value-spark');
+  const mobileCoverage = section.querySelector('.value-mobile-coverage');
+  const coverageBar = section.querySelector('.value-track span');
+  const expandedCost = document.getElementById('value-expanded-cost');
   const coverage = document.getElementById('value-coverage');
   const status = document.getElementById('value-status');
   const storageNote = document.getElementById('value-storage');
@@ -179,7 +239,17 @@ export function createVaultValue(openPurchase, reloadInventory) {
   let inventoryFailed = false;
   const feedback = new Map();
   const editor = createReviewDialog(commitReview);
-  const purchases = createPurchaseLedger(readCloudPurchases, paint);
+  const listeners = new Set();
+  let scheduled = false;
+  function notify() {
+    if (!listeners.size || scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      for (const listener of listeners) listener();
+    });
+  }
+  const purchases = createPurchaseLedger(readCloudPurchases, () => { paint(); notify(); });
 
   async function commitReview(card, command) {
     const session = activeSession;
@@ -203,25 +273,22 @@ export function createVaultValue(openPurchase, reloadInventory) {
     finally { button.disabled = false; }
   }
 
+  function owns(card) {
+    return Boolean(owner && card?.owner === owner && byId.has(card.id));
+  }
+
   function quoteFor(card) {
+    if (!owns(card)) return undefined;
     const quote = quotes[card.id];
     return quote && quote.identity === identityKey(card) ? quote : undefined;
   }
 
-  function cardDetails(card) {
-    const details = element('details');
-    details.className = 'value-card';
-    details.dataset.cardId = card.id;
-    const body = element('div');
-    body.className = 'comp-evidence';
-    const add = actionButton('Add sold comp', () => editor.show('save', card));
-    add.classList.add('comp-add');
-    const message = element('p', feedback.get(card.id) || '');
-    message.className = 'comp-feedback';
-    message.setAttribute('role', 'status');
-    details.append(element('summary'), body, add, message);
-    drawCardDetails(details, card, quoteFor(card), loading, failed, handleAction);
-    return details;
+  function historyFor(card) {
+    if (!owns(card)) return [];
+    return history.flatMap(day => {
+      const entry = day.cards?.find(item => item.id === card.id);
+      return entry ? [{ date:day.date, valueCents:entry.valueCents }] : [];
+    }).sort((a, b) => a.date.localeCompare(b.date));
   }
 
   function estimatedCents(card) {
@@ -229,24 +296,91 @@ export function createVaultValue(openPurchase, reloadInventory) {
     return hasValue(quote) ? quote.valueCents : null;
   }
 
-  function drawPurchase(row, card) {
-    const record = purchases.records[card.id];
-    const hasCost = record?.amount_cents != null;
-    const label = row.querySelector('button');
-    label.textContent = hasPurchaseDetails(record) ? 'Edit purchase details' : purchases.status === 'ready' ? 'Record purchase' : 'Purchase details';
-    const note = row.querySelector('p');
-    note.hidden = !hasCost;
-    if (!hasCost) { note.textContent = ''; return; }
-    const result = purchaseTotals([card], purchases.records, estimatedCents);
-    note.textContent = 'Paid ' + money(record.amount_cents) + ' · ' +
-      (result.change === null ? 'Awaiting estimate' : changeText(result) + ' vs. cost');
+  function drawCardDetails(section, card) {
+    const quote = quoteFor(card);
+    const sales = quote?.sales || [];
+    const isPriced = hasValue(quote);
+    const amount = section.querySelector('.estimate-amount');
+    amount.textContent = isPriced ? money(quote.valueCents) : 'Unpriced';
+    const checked = shortDate(quote?.checkedAt);
+    const method = isPriced ? 'Median of ' + sales.length + ' matching sales in 90 days'
+      : quote?.message || (failed ? 'Sale data is temporarily unavailable.' : loading ? 'Checking for matching sales…' : 'Two matching sales in 90 days are needed for an estimate.');
+    section.querySelector('.estimate-method').textContent = [method, checked && 'checked ' + checked,
+      quote?.refreshFailed && 'Latest lookup unavailable'].filter(Boolean).join(' · ');
+    const gain = section.querySelector('.estimate-gain');
+    const totals = purchaseTotals([card], purchases.records, estimatedCents);
+    gain.hidden = totals.change === null;
+    gain.textContent = gain.hidden ? '' : signedUsd.format(totals.change / 100) + ' vs. cost';
+    gain.dataset.direction = gain.hidden ? '' : String(Math.sign(totals.change));
+    drawSpark(section.querySelector('.estimate-spark'), historyFor(card));
+    drawSales(section.querySelector('.comp-evidence'), card, quote, loading, handleAction);
+    section.querySelector('.comp-feedback').textContent = feedback.get(card.id) || '';
   }
 
-  function cardPurchase(card) {
-    const row = element('div');
+  function cardDetails(card) {
+    const details = element('section');
+    if (!owns(card)) { details.hidden = true; return details; }
+    details.className = 'value-card';
+    details.dataset.cardId = card.id;
+    const estimate = element('div');
+    estimate.className = 'value-estimate';
+    const title = element('h3', 'Estimated value');
+    title.className = 'finance-label';
+    const amount = element('strong'); amount.className = 'estimate-amount';
+    const method = element('p'); method.className = 'estimate-method';
+    const gain = element('span'); gain.className = 'estimate-gain';
+    const spark = element('span'); spark.className = 'estimate-spark';
+    spark.setAttribute('aria-hidden', 'true');
+    estimate.append(title, amount, method, spark, gain);
+    const salesHead = element('div');
+    salesHead.className = 'comp-head';
+    const add = actionButton('Add a sale', () => editor.show('save', card));
+    add.classList.add('comp-add');
+    salesHead.append(element('h3', 'Recent sales'), add);
+    const body = element('div'); body.className = 'comp-evidence';
+    const message = element('p');
+    message.className = 'comp-feedback';
+    message.setAttribute('role', 'status');
+    details.append(estimate, salesHead, body, message);
+    drawCardDetails(details, card);
+    return details;
+  }
+
+  function drawPurchase(row, card) {
+    const record = purchases.records[card.id];
+    const recorded = hasPurchaseDetails(record);
+    const pulled = record?.acquisition_type === 'pulled';
+    const result = purchaseTotals([card], purchases.records, estimatedCents);
+    const amount = Number.isSafeInteger(record?.amount_cents) ? money(record.amount_cents) : '';
+    const source = [pulled && record.box_name, record?.source].filter(Boolean).join(' · ');
+    row.querySelector('.finance-label').textContent = pulled ? 'Your pull · Private' : 'Your purchase · Private';
+    const headline = record && [amount, source].filter(Boolean).join(' · ');
+    const waiting = purchases.status === 'error' ? 'Purchase records unavailable' : 'Loading purchase…';
+    row.querySelector('.purchase-record').textContent = headline || (recorded ? 'Pulled card' : purchases.hasSnapshot ? 'No purchase recorded' : waiting);
+    const date = dateText(record?.purchased_on);
+    const gain = row.querySelector('.card-purchase-gain');
+    const timing = row.querySelector('.card-purchase-date');
+    timing.textContent = date ? (pulled ? 'Pulled ' : 'Bought ') + date + (result.change !== null ? ' · ' : '') : '';
+    gain.textContent = result.change !== null ? changeText(result) + ' vs. cost' : '';
+    gain.dataset.direction = result.change !== null ? String(Math.sign(result.change)) : '';
+    row.querySelector('.purchase-record-note').hidden = !timing.textContent && !gain.textContent;
+    const label = row.querySelector('button');
+    label.textContent = recorded ? 'Edit' : 'Record purchase';
+    label.setAttribute('aria-label', recorded ? 'Edit purchase details' : 'Record purchase');
+  }
+
+  function cardPurchase(card, onEdit = openPurchase) {
+    const row = element('section');
+    if (!owns(card)) { row.hidden = true; return row; }
     row.className = 'card-purchase';
     row.dataset.cardId = card.id;
-    row.append(element('p'), actionButton('Purchase details', () => openPurchase(card)));
+    const label = element('h3'); label.className = 'finance-label';
+    const summary = element('p'); summary.className = 'purchase-record';
+    const note = element('p'); note.className = 'purchase-record-note';
+    const date = element('span'); date.className = 'card-purchase-date';
+    const gain = element('strong'); gain.className = 'card-purchase-gain';
+    note.append(date, gain);
+    row.append(label, summary, note, actionButton('Edit', () => onEdit(card)));
     drawPurchase(row, card);
     return row;
   }
@@ -255,17 +389,21 @@ export function createVaultValue(openPurchase, reloadInventory) {
     const ready = owner && cards && purchases.hasSnapshot;
     const totals = purchaseTotals(cards || [], purchases.records, estimatedCents);
     spent.textContent = ready && totals.tracked ? money(totals.spent) : '—';
-    gain.textContent = ready ? changeText(totals) : '—';
+    gain.textContent = ready && totals.change !== null ? signedUsd.format(totals.change / 100) : '—';
     gain.dataset.direction = ready && totals.change !== null ? String(Math.sign(totals.change)) : '';
     if (ready) {
       costCoverage.textContent = totals.tracked + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' with a recorded cost';
       if (purchases.status === 'error') costCoverage.textContent += ' · Showing the last loaded costs.';
-      gainCoverage.textContent = totals.compared
-        ? 'Based on ' + totals.compared + (totals.compared === 1 ? ' card' : ' cards') + ' with both cost and estimate.'
-        : 'Needs a card with both a cost and an estimate.';
+      const comparisonCount = totals.compared + (totals.compared === 1 ? ' card' : ' cards');
+      const rate = totals.percent === null ? '' : percent.format(totals.percent / 100) + ' on ';
+      gainCoverage.textContent = totals.compared ? rate + comparisonCount + ' with a cost and an estimate'
+        : totals.tracked ? 'Awaiting a matching estimate' : 'No costs recorded';
+      expandedCost.textContent = [totals.tracked && 'Spent ' + money(totals.spent),
+        totals.change !== null && 'Gain / loss ' + changeText(totals) + ' across ' + comparisonCount].filter(Boolean).join(' · ');
     } else {
       costCoverage.textContent = !owner ? '' : purchases.status === 'error' ? 'Purchases unavailable. Check for updates to retry.' : 'Loading purchase records…';
-      gainCoverage.textContent = '';
+      gainCoverage.textContent = purchases.status === 'error' ? 'Purchase records unavailable' : 'Loading purchase records…';
+      expandedCost.textContent = '';
     }
     for (const row of document.querySelectorAll('.card-purchase')) {
       const card = byId.get(row.dataset.cardId);
@@ -275,11 +413,35 @@ export function createVaultValue(openPurchase, reloadInventory) {
   }
 
   function paint() {
-    section.hidden = nav.hidden = !owner;
+    section.hidden = !owner;
     refresh.disabled = !owner || Boolean(inventoryRequest) || loading;
     const matches = (cards || []).map(quoteFor).filter(hasValue);
-    total.textContent = matches.length ? money(matches.reduce((sum, quote) => sum + quote.valueCents, 0)) : '—';
-    coverage.textContent = cards ? matches.length + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' priced' : '';
+    const totalCents = matches.reduce((sum, quote) => sum + quote.valueCents, 0);
+    total.textContent = matches.length ? money(totalCents) : '—';
+    coverage.textContent = cards ? matches.length + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') : '—';
+    mobileCoverage.textContent = cards ? coverage.textContent + ' priced' : 'Loading collection…';
+    coverageBar.style.width = (cards?.length ? 100 * matches.length / cards.length : 0) + '%';
+    const today = new Date().toISOString().slice(0, 10);
+    const prior = history.filter(day => day.date < today).at(-1);
+    const comparable = matches.length && prior?.priced > 0 && Number.isSafeInteger(prior.valueCents);
+    const difference = comparable ? totalCents - prior.valueCents : null;
+    dayChange.replaceChildren();
+    dayChange.dataset.direction = difference === null ? '' : String(Math.sign(difference));
+    if (difference !== null) {
+      const yesterday = Date.parse(today) - Date.parse(prior.date) === 86400000;
+      const amount = signedUsd.format(difference / 100);
+      const suffix = yesterday ? 'yesterday' : shortDate(prior.date);
+      const full = element('span', amount + ' since ' + suffix);
+      full.className = 'value-change-full';
+      const brief = element('span', amount + (yesterday ? ' today' : ' since ' + suffix));
+      brief.className = 'value-change-brief';
+      dayChange.append(full, brief);
+    } else if (cards && !matches.length) {
+      const hint = element('span', loading ? 'Checking estimates…' : 'No priced cards yet');
+      hint.className = 'value-change-full';
+      dayChange.append(hint);
+    }
+    drawSpark(spark, history);
     if (!owner) status.textContent = '';
     else if (inventoryRequest) status.textContent = 'Refreshing your collection…';
     else if (inventoryFailed) status.textContent = 'Could not refresh your collection. Check for updates to retry.';
@@ -287,7 +449,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
     else if (failed) status.textContent = 'Sale data is temporarily unavailable. Existing estimates keep their last checked date.';
     else if (loading && cards.length) status.textContent = 'Checking sold comps…';
     else if (!cards.length) status.textContent = 'Add a card to start tracking your vault.';
-    else if (!matches.length) status.textContent = 'Open a card’s sold comps to see what it needs for an estimate.';
+    else if (!matches.length) status.textContent = 'Open a card to see its matching details and recent sales.';
     else status.textContent = '';
     const persistence = storage === 'session' ? 'Sold comps and history are available for this session only.'
       : storage === 'device' || storage === 'device-offline' ? 'Sold comps and history are saved on this device.'
@@ -305,14 +467,10 @@ export function createVaultValue(openPurchase, reloadInventory) {
       return row;
     }));
     historyRows.closest('.table-wrap').hidden = !rows.length;
-    historyDetails.hidden = !owner || (!loaded && !rows.length);
     historyChart.update(history);
     for (const details of document.querySelectorAll('.value-card')) {
       const card = byId.get(details.dataset.cardId);
-      if (card) {
-        drawCardDetails(details, card, quoteFor(card), loading, failed, handleAction);
-        details.querySelector('.comp-feedback').textContent = feedback.get(card.id) || '';
-      }
+      if (card) drawCardDetails(details, card);
       else details.remove();
     }
   }
@@ -324,6 +482,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
     storage = snapshot.storage || '';
     reviewStorage = snapshot.reviewStorage || '';
     notice = snapshot.notice || '';
+    notify();
   }
 
   function sync(session, ownerCards, force = false) {
@@ -334,6 +493,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
       controller?.abort();
       ++revision;
       owner = nextOwner;
+      notify();
       quotes = {};
       history = [];
       storage = reviewStorage = notice = '';
@@ -347,7 +507,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
       feedback.clear();
       editor.close();
     }
-    cards = owner ? ownerCards : null;
+    cards = owner && Array.isArray(ownerCards) ? ownerCards.filter(card => card.owner === owner) : null;
     byId = new Map((cards || []).map(card => [card.id, card]));
     if (!owner || !cards) {
       controller?.abort();
@@ -368,6 +528,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
     controller = new AbortController();
     const { signal } = controller;
     signature = nextSignature;
+    notify();
     const ticket = ++revision;
     loading = true;
     failed = false;
@@ -436,5 +597,19 @@ export function createVaultValue(openPurchase, reloadInventory) {
   refresh.addEventListener('click', () => {
     if (!refresh.disabled) void refreshFromInventory(true);
   });
-  return { sync, resume: () => refreshFromInventory(false), cardDetails, cardPurchase, purchases };
+  function openHistory() {
+    if (!owner) return;
+    historyDetails.open = true;
+    const toggle = historyDetails.querySelector('summary');
+    toggle.focus({ preventScroll:true });
+    section.scrollIntoView({ block:'start' });
+  }
+
+  return {
+    sync, resume: () => refreshFromInventory(false), openHistory, quoteFor, historyFor, cardDetails, cardPurchase, purchases,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }

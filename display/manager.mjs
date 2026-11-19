@@ -1,4 +1,4 @@
-import { caseLink, cardCount } from './cards.mjs';
+import { caseLink, cardCount, MAX_CARDS, presentCard } from './cards.mjs';
 import { element, button } from './dom.mjs';
 import { editCase } from './editor.mjs';
 import { listCases, listPickerCards, saveCase, stopSharing, CaseConflict } from './store.mjs';
@@ -9,16 +9,17 @@ export function createDisplayCases({ client, getOwner }) {
     manager?.close();
     manager = null;
   }
-  function open(trigger) {
+  function open(trigger, card = null) {
     const owner = getOwner();
+    if (card && (!card.id || !owner || String(card.owner).toLowerCase() !== owner.toLowerCase())) return;
     if (manager?.dialog.open && manager.owner === owner) return;
     close();
-    if (owner) manager = openManager({ client, owner, getOwner }, trigger || document.activeElement);
+    if (owner) manager = openManager({ client, owner, getOwner }, trigger || document.activeElement, card);
   }
   return { open, close };
 }
 
-function openManager({ client, owner, getOwner }, trigger) {
+function openManager({ client, owner, getOwner }, trigger, card) {
   const dialog = element('dialog', 'case-manager');
   dialog.setAttribute('aria-labelledby', 'case-manager-title');
   dialog.innerHTML = `
@@ -49,7 +50,8 @@ function openManager({ client, owner, getOwner }, trigger) {
   dialog.addEventListener('close', () => {
     pending?.abort();
     dialog.remove();
-    if (getOwner() === owner && trigger?.isConnected && !document.querySelector('dialog[open]')) {
+    if (getOwner() === owner && trigger?.isConnected &&
+        (trigger.closest('dialog[open]') || !document.querySelector('dialog[open]'))) {
       trigger.focus({ preventScroll: true });
     }
   }, { once: true });
@@ -85,7 +87,7 @@ function openManager({ client, owner, getOwner }, trigger) {
   }
 
   async function load() {
-    screen('Display cases');
+    screen(card ? 'Add to case' : 'Display cases');
     tell('Loading your display cases…');
     const result = await request(signal => listCases(client, owner, signal));
     if (!result) return;
@@ -99,7 +101,71 @@ function openManager({ client, owner, getOwner }, trigger) {
       return;
     }
     cases = result.data;
-    showList();
+    showHome();
+  }
+
+  function showHome(notice = '', focusRow = null) {
+    if (card) showPicker(notice);
+    else showList(notice, focusRow);
+  }
+
+  function showPicker(notice) {
+    screen('Add to case');
+    const picker = element('fieldset', 'case-fields');
+    picker.setAttribute('aria-label', 'Choose a display case');
+    const top = element('div', 'case-list-intro');
+    const create = button('New display case', 'gold-btn', () => edit(null));
+    top.append(element('p', 'case-hint', presentCard(card).label), create);
+    picker.append(top, element('p', 'case-hint case-sharing-hint', 'Anyone with the case link can view its cards.'));
+    let firstAvailable;
+    if (!cases.length) picker.append(element('p', 'case-list-empty', 'You haven’t created a display case yet.'));
+    const list = element('ul', 'case-list case-destinations');
+    for (const row of cases) {
+      const item = element('li');
+      const copy = element('div', 'case-destination-name');
+      copy.append(element('h3', '', row.title), element('span', 'case-count', cardCount(row.card_ids.length)));
+      item.append(copy);
+      const included = row.card_ids.includes(card.id);
+      if (included || row.card_ids.length >= MAX_CARDS) {
+        item.append(element('span', 'case-availability', included ? 'Already included' : 'Case full'));
+      } else {
+        let change;
+        const add = button('Add card', 'link-button', async () => {
+          change ??= {
+            id: row.id, title: row.title, card_ids: [...row.card_ids, card.id],
+            expectedRevision: row.revision, revision: crypto.randomUUID(),
+          };
+          picker.disabled = true;
+          tell('Adding card…');
+          const result = await request(signal => saveCase(client, owner, change, signal), true);
+          if (!result) return;
+          picker.disabled = false;
+          if (result.error) {
+            if (result.error instanceof CaseConflict || result.error.code === '23514') {
+              const reload = button('Reload cases', 'link-button', load);
+              add.replaceWith(reload);
+              tell(result.error instanceof CaseConflict ? result.error.message
+                : 'A card in this selection is unavailable. Check the saved selection in Display cases.');
+              reload.focus();
+            } else {
+              tell('Could not add the card. Check your connection and try again.');
+              add.focus();
+            }
+            return;
+          }
+          cases = cases.map(existing => existing.id === row.id ? result.data : existing);
+          showPicker('Card added to “' + row.title + '”.');
+        });
+        add.setAttribute('aria-label', 'Add card to ' + row.title);
+        firstAvailable ??= add;
+        item.append(add);
+      }
+      list.append(item);
+    }
+    if (cases.length) picker.append(list);
+    panel.append(picker);
+    tell(notice);
+    (notice ? closeButton : firstAvailable || create).focus({ preventScroll: true });
   }
 
   function showList(notice = '', focusRow = null) {
@@ -169,17 +235,23 @@ function openManager({ client, owner, getOwner }, trigger) {
     if (catalogue.error) {
       const actions = element('div', 'case-controls');
       const retry = button('Try again', 'gold-btn', () => edit(original));
-      const back = button('Back to display cases', 'link-button', () => showList('', original?.id));
+      const back = button('Back to display cases', 'link-button', () => showHome('', original?.id));
       actions.append(retry, back);
       panel.append(actions);
       tell('Your vault cards could not be loaded. Check your connection and try again.');
       retry.focus();
       return;
     }
+    if (card && !catalogue.data.some(item => item.id === card.id)) {
+      screen('Add to case');
+      tell('This card is no longer in your vault. Close this window and refresh the collection.');
+      closeButton.focus();
+      return;
+    }
     tell('');
     editCase(panel, {
-      cards: catalogue.data, original, tell, onReload: load,
-      onCancel: () => showList('', original?.id),
+      cards: catalogue.data, original, initialCardId: card?.id, tell, onReload: load,
+      onCancel: () => showHome('', original?.id),
       async onSave(change) {
         const result = await request(signal => saveCase(client, owner, change, signal), true);
         if (!result) return null;
@@ -193,7 +265,7 @@ function openManager({ client, owner, getOwner }, trigger) {
         const saved = result.data;
         cases = [...cases.filter(item => item.id !== saved.id), saved]
           .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
-        showList(original ? 'Changes saved to the same share link.' : '“' + saved.title + '” is ready to share.', saved.id);
+        showHome(original ? 'Changes saved to the same share link.' : '“' + saved.title + '” is ready to share.', saved.id);
         return null;
       },
     });

@@ -41,7 +41,7 @@ There is no build step. Do not point Pages at a GitHub Actions workflow.
 
 Use the same account that owns your cards.
 
-1. If you're signed in, choose **Set password** beside **Add card**. If you're signed out, choose **Sign in**, enter your existing email, and select **Forgot password?**. Open the reset link to reach **Set password**.
+1. If you're signed in, choose **Account → Set password**. If you're signed out, choose **Sign in**, enter your existing email, and select **Forgot password?**. Open the reset link to reach **Set password**.
 2. Enter and confirm the new password and select **Save password**.
 3. For future visits, choose **Sign in** and enter your email and password. **Email me a sign-in link** remains available as a backup.
 
@@ -49,7 +49,7 @@ For a fresh installation, create the owner account in **Supabase → Authenticat
 
 ## Add a card
 
-Sign in, then choose **Add card**. Use **Choose photo** for a picture already in your library or files, or **Take photo** to open the camera on a supported phone. The browser resizes the picture to at most 1400 pixels on the long edge, previews it, and uploads it when you save. The same controls let you replace a photo in **Edit**. Saving other edits keeps the current photo. **Edit** and **Delete** are on cards you own.
+Sign in, then choose **Add card**. Use **Choose photo** for a picture already in your library or files, or **Take photo** to open the camera on a supported phone. The browser resizes the picture to at most 1400 pixels on the long edge, previews it, and uploads it when you save. The same controls let you replace a photo in **Edit**. Saving other edits keeps the current photo. Open a card to edit it or add it to a display case. **More → Delete** gives you ten seconds to undo before the card and its photos are removed.
 
 Fields: player, year, set, card number, parallel, serial (for example `82/100`), autograph, relic, grader, grade, notes, and Hall of Fame. Featured cards rotate in the spotlight. If none are featured, the spotlight shows the newest card.
 
@@ -69,13 +69,13 @@ Text recognition runs on your device. The first scan downloads the English reade
 
 ### Batch scan
 
-Sign in and choose **Batch scan**. For a stack of front photos, leave **Fronts only** selected. For two-sided cards, select **Alternating fronts and backs**, then choose the photos in front/back order. Each file selection starts with a front and an odd final photo becomes a front-only card. **Take a front photo** adds a camera shot to the queue. Expand a queued card to check its images, swap the sides, or take a missing back.
+Sign in and choose **Batch scan** on desktop or **Account → Batch scan** on your phone. For a stack of front photos, leave **Fronts only** selected. For two-sided cards, select **Alternating fronts and backs**, then choose the photos in front/back order. Each file selection starts with a front and an odd final photo becomes a front-only card. **Take a front photo** adds a camera shot to the queue. Expand a queued card to check its images, swap the sides, or take a missing back.
 
 Choose **Review cards**. The vault crops and reads one card at a time, including front-only cards. Check the highlighted details, replace a photo or add its back, and optionally enter a private purchase. **Save & next** adds the card to your collection and starts the next scan. **Skip card** advances without saving. **Back to batch** keeps the current draft, including your corrections, while the tab stays open. Reopen it with **Resume batch**. Reloading the page or signing out clears unfinished drafts. Confirmed cards are already in the vault.
 
 ### Flip a card
 
-Select a card photo in the gallery or Hall of Fame to open the viewer. For a card with both photos, drag left or right to turn it over, or use the flip button. The gallery always shows the front. Cards saved before back photos were supported open with their front only. To add a back, choose **Edit**, select its back photo, then choose **Save changes**.
+Select a card in the gallery or Hall of Fame to open its details. The photo viewer has front and back controls for paired scans. For a card with both photos, drag left or right to turn it over, or use the flip button. The gallery always shows the front. Cards saved before back photos were supported open with their front only. To add a back, choose **Edit**, select its back photo, then choose **Save changes**.
 
 ## Share a display case
 
@@ -85,13 +85,13 @@ You can edit the case name and selection on the same link. **Stop sharing** reti
 
 ## Vault Value and sold comps
 
-Sign in to see **Vault Value** in the navigation. Saving a new card or changing its identifying details starts a sold-comps lookup. Include the card number printed on the back, the parallel and print run when applicable, and the grading company and grade for a slab. Open **Sold comps** beneath a card to see individual sale dates, prices and links, or why an estimate is unavailable.
+Sign in to see **Vault Value** in the navigation. Saving a new card or changing its identifying details starts a sold-comps lookup. Include the card number printed on the back, the parallel and print run when applicable, and the grading company and grade for a slab. Open the card to see its estimate, recent sales and source links, or why an estimate is unavailable.
 
-In **Sold comps**, choose **Add sold comp** to save a completed sale’s link, date, USD price and parallel. Select **Count as an exact match** after checking the version, autograph, print run and grade. Leave it unchecked to keep a reference. **Edit sale** lets you correct or remove an entry. **Flag wrong match** excludes a sale from the estimate and **Restore sale** reverses a flag.
+In the card’s **Recent sales** section, choose **Add a sale** to save a completed sale’s link, date, USD price and parallel. Select **Count as an exact match** after checking the version, autograph, print run and grade. Leave it unchecked to keep a reference. **Edit sale** lets you correct or remove an entry. **Flag wrong match** excludes a sale from the estimate and **Restore sale** reverses a flag.
 
 The estimate is the median of the latest two to five distinct matching sales within 90 days, including owner-confirmed sales and automatic CardPricer matches. A single sale stays visible as a reference. Older receipts stay in the list, and a sale found by both sources counts once. Changing the card’s identity requires reconfirming a manual match. For supported vaulted physical cards, USD Coin (USDC) sales count at $1 per USDC. Opening the vault rechecks automatic estimates at least seven days old. **Check for updates** requests a fresh lookup. The vault takes a daily snapshot on days you use it. [CardPricer public API](https://cardpricer.co/docs/api)
 
-Open **Vault Value → Value history** to chart your saved daily estimates over 30 days, 90 days, one year or all time. Tap or hover over the chart, or focus it and use the arrow keys, to see a date’s estimate and how many cards were priced. A single priced date shows one point. The table below lists every recorded date.
+Choose **Value history** in the summary above the gallery or **Value** in the phone navigation to chart your saved daily estimates over 30 days, 90 days, one year or all time. Tap or hover over the chart, or focus it and use the arrow keys, to see a date’s estimate and how many cards were priced. A single priced date shows one point. The table below lists every recorded date.
 
 **What changed?** compares the selected date with the preceding recorded date. Pick a point on the graph or choose a **Recorded date** to see which cards were added, removed, repriced, or gained or lost an estimate. Their contributions add up to the change in priced value. A signed-in visit starts card-level tracking, and the next recorded day supplies the first comparison. Earlier dates show the totals saved at the time.
 
@@ -101,7 +101,7 @@ Run the pricing checks with `node --test pricing/*.test.mjs`.
 
 ## Private purchase tracking
 
-In **Add card** or **Edit**, open **Purchase details**. For a purchase, enter the total paid in USD, including tax, shipping and fees. Date and source are optional. For a card you pulled, choose **Pulled** and optionally enter **From box**, such as “2024 Prizm blaster, box 2.” Leave the cost blank if you haven’t assigned one to that card. Entering $0 records a known zero cost. The box name is private. Any cost you enter applies only to this card. You can reopen that entry with **Edit purchase details** beneath the card’s sold comps. Choose **Clear purchase details** and save to remove the private entry.
+In **Add card** or **Edit**, open **Purchase details**. For a purchase, enter the total paid in USD, including tax, shipping and fees. Date and source are optional. For a card you pulled, choose **Pulled** and optionally enter **From box**, such as “2024 Prizm blaster, box 2.” Leave the cost blank if you haven’t assigned one to that card. Entering $0 records a known zero cost. The box name is private. Any cost you enter applies only to this card. You can reopen that entry in the purchase section of the card details. Choose **Clear purchase details** and save to remove the private entry.
 
 **Vault Value** shows total spent across cards with a recorded cost. Estimated gain or loss compares current sold-comp estimates with cost for the same cards. The percentage uses their combined cost, and is omitted when that cost is zero. Cards awaiting an estimate still count toward total spent. Purchase changes sync to the signed-in owner’s devices and are saved with the card in one transaction.
 

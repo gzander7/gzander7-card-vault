@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="gallery" viewBox="0 0 24 24">
+    <g stroke="currentColor" stroke-width="1.8" fill="none">
+      <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.2"/>
+      <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.2"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.2"/>
+    </g>
+  </symbol>
+  <symbol id="value" viewBox="0 0 24 24">
+    <path d="M3 19.5h18M4 15l5-5 4 3.5 7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="plus" viewBox="0 0 24 24">
+    <path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="case" viewBox="0 0 24 24">
+    <g stroke="currentColor" stroke-width="1.8" fill="none">
+      <rect x="2.5" y="6.5" width="19" height="14" rx="2.2"/><path d="M8 6.5v-1A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5v1"/>
+    </g>
+  </symbol>
+  <symbol id="account" viewBox="0 0 24 24">
+    <g stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round">
+      <circle cx="12" cy="7.2" r="4"/><path d="M3.5 21c1.2-4.3 4.1-6.5 8.5-6.5s7.3 2.2 8.5 6.5"/>
+    </g>
+  </symbol>
+  <symbol id="search" viewBox="0 0 24 24">
+    <g stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round">
+      <circle cx="10.6" cy="10.6" r="6.7"/><path d="m15.6 15.6 4.8 4.8"/>
+    </g>
+  </symbol>
+  <symbol id="chevron" viewBox="0 0 24 24">
+    <path d="m5 9 7 7 7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="batch" viewBox="0 0 24 24">
+    <g stroke="currentColor" stroke-width="1.65" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="5.5" width="12" height="15" rx="1.7"/><path d="M8 3h10.5A1.5 1.5 0 0 1 20 4.5v13"/>
+    </g>
+  </symbol>
+  <symbol id="close" viewBox="0 0 24 24">
+    <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="edit" viewBox="0 0 24 24">
+    <path d="m14.8 5.2 4 4M4 20l4.7-1.1L20 7.6a2.8 2.8 0 0 0-4-4L4.9 14.9z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="flip" viewBox="0 0 24 24">
+    <path d="M4 9a9 9 0 0 1 15-4l2 2M21 2v5h-5M20 15a9 9 0 0 1-15 4l-2-2M3 22v-5h5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="more" viewBox="0 0 24 24">
+    <g fill="currentColor"><circle cx="4.5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19.5" cy="12" r="2"/></g>
+  </symbol>
+</svg>

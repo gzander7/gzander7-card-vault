@@ -25,11 +25,10 @@ function vault(initialFront) {
       files.set(path, blob);
       return {};
     },
-    async copy(source, path) {
+    async download(source) {
+      if (source === faults.unreadable) return { error: new Error('Photo could not be read') };
       assert.ok(files.has(source));
-      assert.ok(!files.has(path));
-      files.set(path, files.get(source));
-      return {};
+      return { data: files.get(source), error: null };
     },
     async remove(paths) {
       if (faults.cleanup) throw Error('Storage unavailable');
@@ -143,6 +142,16 @@ test('partial uploads and rejected row writes clean the staged revision and pres
   await assert.rejects(store.save({ back }), /No write access/);
   assert.equal(store.row().image_path, legacy);
   assert.deepEqual([...store.files.keys()], [legacy]);
+});
+
+test('a failed read of the retained back leaves the original pair intact', async () => {
+  const store = vault();
+  const { saved } = await store.save({ front, back });
+  const oldBack = backPhotoPath(saved.image_path);
+  store.faults.unreadable = oldBack;
+  await assert.rejects(store.save({ front }), /Photo could not be read/);
+  assert.equal(store.row().image_path, saved.image_path);
+  assert.deepEqual([...store.files.entries()], [[saved.image_path, front], [oldBack, back]]);
 });
 
 test('a stale photo edit cannot overwrite the winner or delete its images', async () => {

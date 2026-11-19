@@ -41,10 +41,14 @@ async function stageCardPhotos(bucket, { owner, previousFront = '', front, back 
   const frontPath = owner + '/' + filename + '.' + frontExtension(front, previousFront);
   const created = [];
   async function write(path, blob, source) {
-    const response = blob
-      ? await bucket.upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false })
-      : await bucket.copy(source, path);
-    if (response.error) throw response.error;
+    if (!blob) {
+      // Preserve the saved side byte-for-byte using the same owner-scoped upload as a new photo.
+      const { data, error } = await bucket.download(source);
+      if (error) throw error;
+      blob = data;
+    }
+    const { error } = await bucket.upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
+    if (error) throw error;
     created.push(path);
   }
   try {

@@ -142,11 +142,14 @@ function fillEstimate(tile, quote, isOwner) {
 
 // Keep already displayed buttons connected when prices arrive or another card is edited.
 function reconcile(parent, nodes) {
+  const active = document.activeElement;
+  const restoreFocus = active && parent.contains(active);
   const wanted = new Set(nodes);
   for (const old of [...parent.children]) if (!wanted.has(old)) old.remove();
   nodes.forEach((node, index) => {
     if (parent.children[index] !== node) parent.insertBefore(node, parent.children[index] || null);
   });
+  if (restoreFocus && active.isConnected && document.activeElement !== active) active.focus({ preventScroll: true });
 }
 
 export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspectCard, placeSpotlight }) {

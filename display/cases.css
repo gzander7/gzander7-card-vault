@@ -38,6 +38,18 @@
 .case-list > li { padding: .85rem 0 .4rem; border-top: 1px solid #896f55; }
 .case-list-title { justify-content: space-between; gap: .1rem .75rem; }
 .case-list-title h3 { font: 500 1.35rem/1.25 Georgia, serif; }
+.case-sharing-hint { margin-top: .45rem; }
+.case-destinations > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+  padding-block: .7rem;
+}
+.case-destination-name { min-width: 0; overflow-wrap: anywhere; }
+.case-destination-name h3 { font: 500 1.22rem/1.25 Georgia, serif; }
+.case-destinations .link-button, .case-availability { flex: none; }
+.case-availability { color: #dfcbb6; font-size: .8rem; }
 .case-row-actions { column-gap: 1rem; }
 .case-row-actions a { display: inline-flex; align-items: center; }
 .case-controls { margin-top: .85rem; }

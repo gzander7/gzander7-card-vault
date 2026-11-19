@@ -8,223 +8,223 @@
   <title>Gage’s Card Vault</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="showcase.css">
+  <link rel="stylesheet" href="vault-shell.css">
   <link rel="stylesheet" href="collection.css">
   <link rel="stylesheet" href="valuation.css">
   <link rel="stylesheet" href="scanner.css">
   <link rel="stylesheet" href="card-viewer.css">
+  <link rel="stylesheet" href="card-detail.css">
   <link rel="stylesheet" href="display/cases.css">
+  <link rel="stylesheet" href="navigation.css">
 </head>
-<body>
-  <canvas id="backdrop" aria-hidden="true"></canvas>
-  <div class="page">
-    <a class="skip-link" href="#collection">Skip to collection</a>
-    <header class="panel site-header" id="vault-top">
-      <div class="header-row">
-        <div class="header-copy">
-          <p class="eyebrow">Gage’s collection</p>
-          <h1>Card Vault</h1>
-          <p class="lede">Autographs, relics, serials &amp; slabs.</p>
-        </div>
-        <div class="auth-bar" id="auth-bar"></div>
+<body class="vault-home">
+  <a class="skip-link" href="#collection">Skip to collection</a>
+  <header class="vault-masthead" id="vault-top">
+    <div class="vault-masthead-inner">
+      <div class="vault-brand">
+        <span class="vault-monogram" aria-hidden="true">CV</span>
+        <div><p>Gage’s collection</p><h1>Card Vault</h1></div>
       </div>
-    </header>
-    <nav class="vault-nav" aria-label="Vault sections">
-      <a href="#spotlight">Hall of Fame</a>
-      <a href="#collection">Gallery</a>
-      <a id="value-nav" href="#vault-value" hidden>Vault Value</a>
-      <a href="#stats">Ledger</a>
-    </nav>
+      <button type="button" class="mast-search" id="mast-search" aria-label="Search the collection">
+        <svg aria-hidden="true"><use href="nav-icons.svg#search"></use></svg>
+      </button>
+      <nav id="auth-bar" class="vault-navigation" aria-label="Main navigation">
+        <a class="nav-section nav-gallery" href="#collection" aria-current="page">
+          <svg aria-hidden="true"><use href="nav-icons.svg#gallery"></use></svg><span>Gallery</span>
+        </a>
+        <button type="button" class="nav-sign-in" data-nav="sign-in" aria-haspopup="dialog"><svg aria-hidden="true"><use href="nav-icons.svg#account"></use></svg><span>Sign in</span></button>
+      </nav>
+      <template id="owner-navigation">
+        <button type="button" class="nav-section nav-value" data-nav="value" id="value-nav"><svg aria-hidden="true"><use href="nav-icons.svg#value"></use></svg><span><span class="nav-wide-label">Vault </span>Value</span></button>
+        <button type="button" class="nav-mobile-add" data-nav="add" aria-label="Add card" aria-haspopup="dialog"><svg aria-hidden="true"><use href="nav-icons.svg#plus"></use></svg></button>
+        <button type="button" class="nav-section nav-cases" data-nav="cases" aria-haspopup="dialog"><svg aria-hidden="true"><use href="nav-icons.svg#case"></use></svg><span><span class="nav-wide-label">Display </span>cases</span></button>
+        <button type="button" class="nav-batch" id="batch-scan-btn" data-nav="batch" aria-haspopup="dialog"><svg aria-hidden="true"><use href="nav-icons.svg#batch"></use></svg><span data-batch-label>Batch scan</span></button>
+        <button type="button" class="nav-add" data-nav="add" id="add-card-btn" aria-haspopup="dialog"><svg aria-hidden="true"><use href="nav-icons.svg#plus"></use></svg><span>Add card</span></button>
+        <button type="button" class="nav-account" data-nav="account" aria-expanded="false" aria-controls="vault-account-menu" aria-label="Account">
+          <span class="nav-avatar" aria-hidden="true"></span>
+          <svg class="nav-chevron" aria-hidden="true"><use href="nav-icons.svg#chevron"></use></svg>
+          <svg class="nav-profile" aria-hidden="true"><use href="nav-icons.svg#account"></use></svg>
+          <span class="nav-mobile-label">Account</span>
+        </button>
+        <div class="vault-account-menu" id="vault-account-menu" hidden>
+          <p class="nav-email"></p>
+          <button type="button" class="nav-mobile-batch" data-nav="batch" aria-haspopup="dialog"><span data-batch-label>Batch scan</span></button>
+          <button type="button" data-nav="password" aria-haspopup="dialog">Set password</button>
+          <button type="button" data-nav="sign-out">Sign out</button>
+        </div>
+      </template>
+    </div>
+  </header>
+  <div class="page">
     <main>
       <p id="load-error" class="error" role="alert" hidden></p>
       <noscript>
         <p class="error">JavaScript is required to open the vault.</p>
       </noscript>
-      <section id="spotlight" class="panel" aria-roledescription="carousel" aria-labelledby="hof-heading">
-        <div class="section-head">
-          <h2 id="hof-heading">Hall of Fame</h2>
-          <p id="spotlight-count" class="section-note"></p>
-        </div>
-        <div class="spotlight-frame">
-          <button type="button" id="spot-prev" class="spot-btn" aria-label="Previous featured card" aria-controls="spotlight-slide" disabled>Previous</button>
-          <div class="spotlight-stage">
-            <article id="spotlight-slide" class="tilt spotlight-card">
-              <div class="glare" aria-hidden="true"></div>
-              <div id="spotlight-body">
-                <div class="placeholder">
-                  <div class="empty-copy"><h3>Opening the case…</h3></div>
+      <section id="vault-value" tabindex="-1" aria-labelledby="value-heading" hidden>
+        <h2 id="value-heading" class="visually-hidden">Vault value</h2>
+        <details id="value-history">
+          <summary class="value-strip" aria-description="View value history and purchase totals">
+            <span class="value-cell value-primary">
+              <span class="value-label">Vault value</span>
+              <span class="value-primary-line"><strong id="value-total">—</strong><span id="value-change"></span></span>
+              <span class="value-mobile-coverage"></span>
+            </span>
+            <span class="value-cell value-priced">
+              <span class="value-label">Priced</span>
+              <strong id="value-coverage">—</strong>
+              <span class="value-track" aria-hidden="true"><span></span></span>
+            </span>
+            <span class="value-cell value-cost">
+              <span class="value-label">Spent · Gain</span>
+              <strong><span id="purchase-spent">—</span><span class="cost-dot"> · </span><span id="purchase-gain">—</span></strong>
+              <span id="purchase-gain-coverage" class="value-caption"></span>
+            </span>
+            <span class="value-cell value-history-action">
+              <span class="value-spark" aria-hidden="true"></span>
+              <span class="value-history-link">Value history <span aria-hidden="true">→</span></span>
+              <svg class="value-chevron" aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="m7.5 5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </summary>
+          <div class="value-expanded">
+            <div class="value-history-head">
+              <h3>Value history</h3>
+              <button type="button" id="value-refresh" class="link-button">Check for updates</button>
+            </div>
+            <p id="value-status" role="status"></p>
+            <p id="value-storage"></p>
+            <p id="purchase-cost-coverage" class="value-caption"></p>
+            <p id="value-expanded-cost" class="value-caption"></p>
+            <figure class="history-chart" aria-label="Vault value over time">
+              <div class="history-chart-head">
+                <div class="history-readout" hidden>
+                  <p class="history-date"></p>
+                  <p><strong class="history-amount"></strong><span class="history-coverage"></span></p>
+                </div>
+                <div class="history-ranges" role="group" aria-label="Chart time range">
+                  <button type="button" data-range="30" aria-label="Last 30 days" aria-pressed="false">30D</button>
+                  <button type="button" data-range="90" aria-label="Last 90 days" aria-pressed="false">90D</button>
+                  <button type="button" data-range="365" aria-label="Last 365 days" aria-pressed="false">1Y</button>
+                  <button type="button" data-range="all" aria-label="All time" aria-pressed="true">All</button>
                 </div>
               </div>
-            </article>
+              <div class="history-plot" role="slider" tabindex="0" aria-label="Recorded vault estimate" aria-describedby="history-help" aria-controls="history-comparison" hidden>
+                <svg aria-hidden="true" focusable="false">
+                  <defs>
+                    <linearGradient id="history-gold" x2="0" y2="1">
+                      <stop stop-color="#dfb477" stop-opacity=".27"/>
+                      <stop offset="1" stop-color="#dfb477" stop-opacity=".025"/>
+                    </linearGradient>
+                  </defs>
+                  <g class="history-drawing"></g>
+                </svg>
+              </div>
+              <figcaption>
+                <span class="history-change" hidden>Change between priced dates <strong></strong></span>
+                <span id="history-help"></span>
+              </figcaption>
+            </figure>
+            <section class="history-changes" aria-labelledby="history-changes-heading">
+              <div class="history-changes-head">
+                <div>
+                  <h3 id="history-changes-heading">What changed?</h3>
+                  <p class="history-comparison-dates"></p>
+                </div>
+                <label class="history-day-control" hidden>
+                  Recorded date
+                  <select id="history-day" aria-controls="history-comparison"></select>
+                </label>
+              </div>
+              <div id="history-comparison">
+                <p class="history-net" hidden><span>Net change in priced value</span><strong></strong></p>
+                <p class="history-comparison-note"></p>
+                <ul class="history-card-changes" aria-label="Changes by card" hidden></ul>
+              </div>
+            </section>
+            <div class="table-wrap">
+              <table aria-label="Daily Vault Value history">
+                <thead><tr><th scope="col">Date</th><th scope="col">Estimate</th><th scope="col">Cards priced</th></tr></thead>
+                <tbody id="value-history-rows"></tbody>
+              </table>
+            </div>
+            <p class="value-method">Estimates use the median of the latest two to five matching sales within 90 days. Automatic sales come from <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">CardPricer</a>.</p>
           </div>
-          <button type="button" id="spot-next" class="spot-btn" aria-label="Next featured card" aria-controls="spotlight-slide" disabled>Next</button>
+        </details>
+      </section>
+      <section id="spotlight" aria-roledescription="carousel" aria-labelledby="hof-heading" hidden>
+        <h2 class="visually-hidden" id="hof-heading">Hall of Fame</h2>
+        <div id="spotlight-body"></div>
+        <div class="hall-controls" hidden>
+          <button type="button" id="spot-prev" aria-label="Previous featured card" aria-controls="spotlight-body">‹</button>
+          <button type="button" id="spot-next" aria-label="Next featured card" aria-controls="spotlight-body">›</button>
         </div>
         <p id="spotlight-status" class="visually-hidden" aria-live="polite"></p>
       </section>
       <section id="collection" class="panel" tabindex="-1" aria-labelledby="collection-heading">
         <div class="section-head">
           <h2 id="collection-heading">The collection</h2>
-          <p id="collection-count" class="section-note"></p>
+          <p class="collection-totals" aria-live="polite"><span id="collection-count"></span><span id="collection-stats"></span></p>
         </div>
         <p id="status" class="status" role="status"></p>
-        <form id="filters" class="filters" hidden>
-          <label class="filter-search">
-            Search
-            <input id="search" type="search" placeholder="Player, set, number, serial…" autocomplete="off" enterkeyhint="search">
-          </label>
-          <div class="filter-row">
-            <label>
-              Player
-              <select id="filter-player">
-                <option value="">All players</option>
-              </select>
+        <form id="filters" class="gallery-controls" role="search" hidden>
+          <div class="gallery-toolbar">
+            <label class="gallery-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/></svg>
+              <span class="visually-hidden">Search the collection</span>
+              <input id="search" type="search" placeholder="Search player, set, number, serial" autocomplete="off" enterkeyhint="search">
             </label>
-            <label>
-              Set
-              <select id="filter-set">
-                <option value="">All sets</option>
-              </select>
-            </label>
-            <label>
-              Year
-              <select id="filter-year">
-                <option value="">All years</option>
-              </select>
-            </label>
+            <label class="gallery-sort">Sort <select id="gallery-sort" aria-label="Sort cards"></select></label>
+            <div class="gallery-view" role="group" aria-label="Gallery layout">
+              <button type="button" data-view="grid" aria-label="Grid view" aria-pressed="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+              </button>
+              <button type="button" data-view="list" aria-label="List view" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h13M8 12h13M8 19h13"/><circle cx="3" cy="5" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="19" r="1"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="filter-toggles">
-            <label class="check"><input id="filter-auto" type="checkbox"> Autos</label>
-            <label class="check"><input id="filter-graded" type="checkbox"> Graded</label>
-            <button type="button" id="clear-filters" class="link-button" hidden>Clear filters</button>
+          <div class="gallery-chips" aria-label="Collection filters">
+            <button type="button" class="filters-trigger" aria-haspopup="dialog" aria-controls="gallery-filters">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M6.5 12h11M10 18h4"/></svg> Filters<span id="active-filter-count"></span>
+            </button>
+            <button type="button" data-quick="all" aria-pressed="true">All</button>
           </div>
         </form>
-        <p id="loading">Opening the vault…</p>
-        <div id="empty-state" class="empty" hidden>
-          <div class="empty-slab" id="empty-slab" aria-hidden="true"><span>Empty case</span></div>
+        <p id="loading" role="status">Opening the vault…</p>
+        <div id="empty-state" hidden>
           <p id="empty-message"></p>
+          <button type="button" class="link-button" id="clear-filters" hidden>Clear filters</button>
         </div>
-        <ul id="card-grid" class="card-grid"></ul>
+        <ul id="card-grid" class="card-grid" aria-label="Collection cards"></ul>
+
+        <dialog id="gallery-filters" aria-labelledby="gallery-filter-title">
+          <form id="gallery-filter-form">
+            <header class="sheet-heading">
+              <h2 id="gallery-filter-title" tabindex="-1">Filter &amp; sort</h2>
+              <button type="button" id="dismiss-filters" aria-label="Close filters">×</button>
+            </header>
+            <div class="sheet-content">
+              <fieldset id="sheet-sort"><legend>Sort by</legend></fieldset>
+              <fieldset id="sheet-types"><legend>Show only</legend><div class="sheet-chips"></div></fieldset>
+              <div id="sheet-facets"></div>
+              <fieldset id="sheet-view"><legend>Layout</legend></fieldset>
+            </div>
+            <footer class="sheet-footer">
+              <button type="button" id="reset-draft">Clear all</button>
+              <button type="submit" id="apply-filters">Show cards</button>
+            </footer>
+          </form>
+        </dialog>
       </section>
-      <section id="vault-value" tabindex="-1" aria-labelledby="value-heading" hidden>
-        <div class="value-overview">
-          <div>
-            <h2 id="value-heading">Vault Value</h2>
-            <p class="value-label">Estimated value · USD</p>
-            <p id="value-total" class="value-amount">—</p>
-            <p id="value-coverage"></p>
-          </div>
-          <div class="value-method">
-            <p>Estimates use the latest two to five matching sales within 90 days. Open a card’s sold comps to add a sale or flag a bad match. <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">Automatic sales from CardPricer</a></p>
-            <button type="button" id="value-refresh" class="link-button">Check for updates</button>
-          </div>
-        </div>
-        <div class="purchase-overview" aria-label="Purchase tracking">
-          <dl class="purchase-totals">
-            <div><dt>Total spent</dt><dd id="purchase-spent">—</dd><dd id="purchase-cost-coverage" class="purchase-caption"></dd></div>
-            <div><dt>Estimated gain / loss</dt><dd id="purchase-gain">—</dd><dd id="purchase-gain-coverage" class="purchase-caption"></dd></div>
-          </dl>
-        </div>
-        <p id="value-status" role="status"></p>
-        <p id="value-storage"></p>
-        <details id="value-history" hidden>
-          <summary>Value history</summary>
-          <figure class="history-chart" aria-label="Vault value over time">
-            <div class="history-chart-head">
-              <div class="history-readout" hidden>
-                <p class="history-date"></p>
-                <p><strong class="history-amount"></strong><span class="history-coverage"></span></p>
-              </div>
-              <div class="history-ranges" role="group" aria-label="Chart time range">
-                <button type="button" data-range="30" aria-label="Last 30 days" aria-pressed="false">30D</button>
-                <button type="button" data-range="90" aria-label="Last 90 days" aria-pressed="false">90D</button>
-                <button type="button" data-range="365" aria-label="Last 365 days" aria-pressed="false">1Y</button>
-                <button type="button" data-range="all" aria-label="All time" aria-pressed="true">All</button>
-              </div>
-            </div>
-            <div class="history-plot" role="slider" tabindex="0" aria-label="Recorded vault estimate" aria-describedby="history-help" aria-controls="history-comparison" hidden>
-              <svg aria-hidden="true" focusable="false">
-                <defs>
-                  <linearGradient id="history-gold" x2="0" y2="1">
-                    <stop stop-color="#dfb477" stop-opacity=".27"/>
-                    <stop offset="1" stop-color="#dfb477" stop-opacity=".025"/>
-                  </linearGradient>
-                </defs>
-                <g class="history-drawing"></g>
-              </svg>
-            </div>
-            <figcaption>
-              <span class="history-change" hidden>Change between priced dates <strong></strong></span>
-              <span id="history-help"></span>
-            </figcaption>
-          </figure>
-          <section class="history-changes" aria-labelledby="history-changes-heading">
-            <div class="history-changes-head">
-              <div>
-                <h3 id="history-changes-heading">What changed?</h3>
-                <p class="history-comparison-dates"></p>
-              </div>
-              <label class="history-day-control" hidden>
-                Recorded date
-                <select id="history-day" aria-controls="history-comparison"></select>
-              </label>
-            </div>
-            <div id="history-comparison">
-              <p class="history-net" hidden><span>Net change in priced value</span><strong></strong></p>
-              <p class="history-comparison-note"></p>
-              <ul class="history-card-changes" aria-label="Changes by card" hidden></ul>
-            </div>
-          </section>
-          <div class="table-wrap">
-            <table aria-label="Daily Vault Value history">
-              <thead><tr><th scope="col">Date</th><th scope="col">Estimate</th><th scope="col">Cards priced</th></tr></thead>
-              <tbody id="value-history-rows"></tbody>
-            </table>
-          </div>
-        </details>
-      </section>
-      <section id="stats" class="panel" aria-labelledby="stats-heading">
-        <div class="section-head">
-          <h2 id="stats-heading">Collection ledger</h2>
-          <p id="stat-count" class="section-note"></p>
-        </div>
-        <p id="stats-waiting" class="desc" hidden>Collection totals are unavailable.</p>
-        <div class="stat-grid" id="stat-grid">
-          <p class="stat">
-            <span>Cards</span>
-            <strong id="stat-cards">—</strong>
-          </p>
-          <p class="stat">
-            <span>Autos</span>
-            <strong id="stat-autos">—</strong>
-          </p>
-          <p class="stat">
-            <span>Graded</span>
-            <strong id="stat-graded">—</strong>
-          </p>
-          <p class="stat">
-            <span>Serial numbered</span>
-            <strong id="stat-serials">—</strong>
-          </p>
-        </div>
-        <h3 id="players-heading">Cards per player</h3>
-        <div class="table-wrap">
-          <table aria-labelledby="players-heading">
-            <thead>
-              <tr>
-                <th scope="col">Player</th>
-                <th scope="col">Cards</th>
-              </tr>
-            </thead>
-            <tbody id="player-counts"></tbody>
-          </table>
-        </div>
-      </section>
+
     </main>
     <footer class="site-footer">
       <span>Gage’s Card Vault</span>
       <a href="#vault-top">Back to top <span aria-hidden="true">↑</span></a>
     </footer>
   </div>
+
+  <div id="delete-notices" aria-label="Pending card deletions"></div>
 
   <dialog id="auth-dialog" aria-labelledby="auth-title">
     <form id="auth-form" method="post">

@@ -2,16 +2,19 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
 import { readCardPages } from './card-catalogue.mjs';
+import { createCollectionGallery } from './collection.mjs';
 import { createPurchaseEditor } from './pricing/purchase-editor.mjs';
 import { forgetCardReviews } from './pricing-client.js';
 import { compressCardImage } from './photos/prepare.mjs';
 import { createCropPreview } from './photos/crop-preview.mjs';
 import { createCornerDialog } from './photos/corner-dialog.mjs';
 import { openCardViewer } from './card-viewer.mjs';
+import { openCardDetail } from './card-detail.mjs';
 import { createScanEditor } from './scanning/editor.mjs';
 import { createScanFields } from './scanning/fields.mjs';
 import { findSimilarCard } from './scanning/duplicates.mjs';
 import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
+import { createNavigation } from './navigation.mjs';
 import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
 
 const SPOTLIGHT_MS = 5000;
@@ -28,37 +31,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 const $ = (id) => document.getElementById(id);
 
 const ui = {
-  authBar: $('auth-bar'),
   loadError: $('load-error'),
-  spotlightCount: $('spotlight-count'),
   spotlightBody: $('spotlight-body'),
   spotlightStatus: $('spotlight-status'),
   spotPrev: $('spot-prev'),
   spotNext: $('spot-next'),
   spotlight: $('spotlight'),
-  statCount: $('stat-count'),
-  statGrid: $('stat-grid'),
-  statsWaiting: $('stats-waiting'),
-  statCards: $('stat-cards'),
-  statAutos: $('stat-autos'),
-  statGraded: $('stat-graded'),
-  statSerials: $('stat-serials'),
-  playerCounts: $('player-counts'),
-  collectionCount: $('collection-count'),
   status: $('status'),
-  filters: $('filters'),
-  search: $('search'),
-  filterPlayer: $('filter-player'),
-  filterSet: $('filter-set'),
-  filterYear: $('filter-year'),
-  filterAuto: $('filter-auto'),
-  filterGraded: $('filter-graded'),
-  clearFilters: $('clear-filters'),
-  loading: $('loading'),
-  emptyState: $('empty-state'),
-  emptySlab: $('empty-slab'),
-  emptyMessage: $('empty-message'),
-  grid: $('card-grid'),
   authDialog: $('auth-dialog'),
   authForm: $('auth-form'),
   authEmail: $('auth-email'),
@@ -121,6 +100,7 @@ let activeBatch = null;
 let displayCases = null;
 let busy = false;
 let statusTimer = 0;
+const pendingCardDeletes = new Map();
 
 const scanFields = createScanFields({
   player: ui.cardPlayer,
@@ -175,10 +155,6 @@ function el(tag, className, text) {
   return node;
 }
 
-function finePointer() {
-  return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-}
-
 function motionOk() {
   return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -213,14 +189,6 @@ function parseYear(value) {
   const year = Number(text);
   if (year < 1860 || year > 2100) throw new Error('Year looks off. Use a four-digit year.');
   return year;
-}
-
-function isGraded(card) {
-  return Boolean(String(card.grader || '').trim() || String(card.grade || '').trim());
-}
-
-function isNumbered(card) {
-  return Boolean(String(card.serial || '').trim());
 }
 
 function owns(card) {
@@ -263,17 +231,6 @@ function gradeLabel(card) {
   return grader || grade;
 }
 
-function altText(card) {
-  const bits = [card.player || 'Trading card'];
-  if (card.year) bits.push(String(card.year));
-  if (card.set_name) bits.push(card.set_name);
-  return bits.join(', ');
-}
-
-function countLabel(count, noun) {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
-
 function announce(message) {
   ui.status.textContent = message;
   window.clearTimeout(statusTimer);
@@ -282,119 +239,34 @@ function announce(message) {
   }, 4000);
 }
 
-function bindTilt(card) {
-  const glare = card.querySelector('.glare');
-  if (!glare || card.dataset.tiltBound === 'true') return;
-  card.dataset.tiltBound = 'true';
-
-  card.addEventListener('pointermove', (event) => {
-    if (!finePointer() || !motionOk() || event.pointerType === 'touch') return;
-    const rect = card.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const px = (event.clientX - rect.left) / rect.width;
-    const py = (event.clientY - rect.top) / rect.height;
-    const rotY = (px - 0.5) * 14;
-    const rotX = (0.5 - py) * 12;
-    card.style.transition = 'none';
-    card.style.transform = `rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
-    glare.style.opacity = '1';
-    glare.style.background = `radial-gradient(circle at ${px * 100}% ${py * 100}%, rgba(255,255,255,0.42), rgba(255,184,28,0.16) 26%, transparent 58%)`;
-  });
-
-  const reset = () => {
-    card.style.transition = '';
-    card.style.transform = '';
-    glare.style.opacity = '0';
-  };
-  card.addEventListener('pointerleave', reset);
-  card.addEventListener('pointercancel', reset);
-}
-
 function inspectCard(card, trigger, extraDetail = '') {
-  const dialog = openCardViewer({
-    title: card.player || 'Trading card',
-    detail: [metaLine(card), detailLine(card), extraDetail].filter(Boolean).join(' · '),
-    frontUrl: imageUrl(card.image_path),
-    backUrl: imageUrl(backPhotoPath(card.image_path)),
-  }, trigger);
+  const photoFor = current => ({
+    title: current.player || 'Trading card',
+    detail: [metaLine(current), detailLine(current), extraDetail].filter(Boolean).join(' · '),
+    frontUrl: imageUrl(current.image_path),
+    backUrl: imageUrl(backPhotoPath(current.image_path)),
+  });
+  const dialog = trigger === ui.similarCardView
+    ? openCardViewer(photoFor(card), trigger)
+    : openCardDetail({
+      card, photoFor, owns, valuation: vaultValue, addToCase: openCaseForCard, deleteCard,
+      getCard: () => cards?.find(item => item.id === card.id),
+      getTrigger: () => $('card-grid').querySelector('[data-card-id="' + CSS.escape(card.id) + '"]')
+        || $('collection'),
+      editCard(current, purchase) {
+        openEditor(current, purchase);
+        return ui.cardDialog;
+      },
+    }, trigger);
   spotlight.pauseForViewer(dialog);
   return dialog;
 }
 
-function figureFor(card, options = {}) {
-  const slab = el('div', 'slab');
-  const inner = el('div', 'slab-inner');
-  const img = document.createElement('img');
-  img.alt = altText(card);
-  img.width = 250;
-  img.height = 350;
-  img.decoding = 'async';
-  img.loading = options.eager ? 'eager' : 'lazy';
-  const src = imageUrl(card.image_path);
-  if (src) img.src = src;
-  img.addEventListener('error', () => {
-    const fallback = el('p', 'image-fallback', 'Image unavailable');
-    img.replaceWith(fallback);
-  });
-  inner.appendChild(img);
-  slab.appendChild(inner);
-  if (options.badge) slab.appendChild(el('p', 'badge', 'Hall of Fame'));
-  if (src) {
-    const backUrl = imageUrl(backPhotoPath(card.image_path));
-    const label = backUrl ? 'View in 3D' : 'View card';
-    const trigger = el('button', 'inspect-photo');
-    trigger.type = 'button';
-    trigger.setAttribute('aria-label', `${label} — ${altText(card)}`);
-    trigger.setAttribute('aria-haspopup', 'dialog');
-    trigger.appendChild(el('span', 'inspect-label', label));
-    trigger.addEventListener('click', () => inspectCard(card, trigger));
-    slab.appendChild(trigger);
-  }
-  return slab;
+function openCaseForCard(card, trigger) {
+  if (owns(card)) return launchDisplayCases(trigger, card);
 }
 
-function badges(card) {
-  const items = [];
-  if (card.is_auto) items.push('Auto');
-  if (card.is_relic) items.push('Relic');
-  if (isNumbered(card)) items.push(String(card.serial).trim());
-  const grade = gradeLabel(card);
-  if (grade) items.push(grade);
-  if (!items.length) return null;
-  const list = el('ul', 'badges');
-  items.forEach((item) => list.appendChild(el('li', '', item)));
-  return list;
-}
-
-function copyBlock(card, headingTag, spotlight) {
-  const copy = el('div', spotlight ? 'spotlight-copy' : 'card-copy');
-  const meta = metaLine(card);
-  if (meta) copy.appendChild(el('p', 'meta', meta));
-  const title = el(headingTag, '', card.player || 'Untitled card');
-  if (spotlight) title.id = 'spotlight-title';
-  copy.appendChild(title);
-  const detail = detailLine(card);
-  if (detail) copy.appendChild(el('p', 'detail', detail));
-  const chips = badges(card);
-  if (chips) copy.appendChild(chips);
-  if (String(card.notes || '').trim()) copy.appendChild(el('p', 'desc', String(card.notes).trim()));
-  return copy;
-}
-
-function cardActions(card) {
-  const row = el('div', 'card-actions');
-  const edit = el('button', 'link-button', 'Edit');
-  edit.type = 'button';
-  edit.dataset.action = 'edit';
-  const remove = el('button', 'link-button danger', 'Delete');
-  remove.type = 'button';
-  remove.dataset.action = 'delete';
-  row.append(edit, remove);
-  row.dataset.id = card.id;
-  return row;
-}
-
-async function openDisplayCases() {
+async function launchDisplayCases(trigger, card = null) {
   const owner = session?.user?.id;
   if (!owner || busy) return;
   try {
@@ -406,205 +278,46 @@ async function openDisplayCases() {
         getOwner: () => session?.user?.id || '',
       });
     }
-    await displayCases.open();
+    if (trigger && (!trigger.isConnected || trigger.closest('dialog:not([open])'))) return;
+    displayCases.open(trigger, card);
   } catch {
     if (session?.user?.id === owner) announce('Display cases could not be opened. Try again.');
   }
 }
 
 function renderAuth() {
-  ui.authBar.replaceChildren();
-  if (!session) {
-    const signIn = el('button', 'link-button', 'Sign in');
-    signIn.type = 'button';
-    signIn.addEventListener('click', () => {
-      ui.authMessage.textContent = '';
-      ui.authDialog.showModal();
-      ui.authEmail.focus();
-    });
-    ui.authBar.appendChild(signIn);
-    return;
-  }
-  ui.authBar.appendChild(el('span', 'who', session.user.email || 'Signed in'));
-  const add = el('button', 'gold-btn', 'Add card');
-  add.type = 'button';
-  add.id = 'add-card-btn';
-  add.addEventListener('click', () => openEditor(null));
-  const batch = el('button', 'link-button', batchButtonText());
-  batch.type = 'button';
-  batch.id = 'batch-scan-btn';
-  batch.addEventListener('click', () => { if (!busy) batchDialog.open(); });
-  const casesButton = el('button', 'link-button', 'Display cases');
-  casesButton.type = 'button';
-  casesButton.setAttribute('aria-haspopup', 'dialog');
-  casesButton.addEventListener('click', openDisplayCases);
-  const setPassword = el('button', 'link-button', 'Set password');
-  setPassword.type = 'button';
-  setPassword.addEventListener('click', openPasswordDialog);
-  const signOut = el('button', 'link-button', 'Sign out');
-  signOut.type = 'button';
-  signOut.addEventListener('click', () => {
-    supabase.auth.signOut();
-  });
-  ui.authBar.append(add, batch, casesButton, setPassword, signOut);
+  navigation.setUser(session?.user);
+  navigation.setBatchLabel(batchButtonText());
 }
 
-function renderStats(list) {
-  const waiting = Boolean(loadError);
-  ui.statsWaiting.hidden = !waiting;
-  ui.statGrid.hidden = waiting;
-  ui.playerCounts.closest('table').hidden = waiting;
-  document.getElementById('players-heading').hidden = waiting;
-  if (waiting) {
-    ui.statCount.textContent = '';
-    return;
-  }
-  const total = list.length;
-  ui.statCount.textContent = countLabel(total, 'card');
-  ui.statCards.textContent = String(total);
-  ui.statAutos.textContent = String(list.filter((card) => card.is_auto).length);
-  ui.statGraded.textContent = String(list.filter(isGraded).length);
-  ui.statSerials.textContent = String(list.filter(isNumbered).length);
-
-  const counts = new Map();
-  list.forEach((card) => {
-    const name = String(card.player || '').trim();
-    if (!name) return;
-    counts.set(name, (counts.get(name) || 0) + 1);
-  });
-  const rows = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en'));
-  ui.playerCounts.replaceChildren();
-  if (!rows.length) {
-    const tr = document.createElement('tr');
-    const td = el('td', 'empty-cell', 'No cards yet.');
-    td.colSpan = 2;
-    tr.appendChild(td);
-    ui.playerCounts.appendChild(tr);
-    return;
-  }
-  rows.forEach(([name, count]) => {
-    const tr = document.createElement('tr');
-    const th = document.createElement('th');
-    th.scope = 'row';
-    th.textContent = name;
-    tr.appendChild(th);
-    tr.appendChild(el('td', '', String(count)));
-    ui.playerCounts.appendChild(tr);
-  });
-}
-
-function filtersActive() {
-  return Boolean(
-    ui.search.value.trim()
-    || ui.filterPlayer.value
-    || ui.filterSet.value
-    || ui.filterYear.value
-    || ui.filterAuto.checked
-    || ui.filterGraded.checked,
-  );
-}
-
-function haystack(card) {
-  return [
-    card.player,
-    card.set_name,
-    card.card_number,
-    card.parallel,
-    card.serial,
-    card.grader,
-    card.grade,
-    card.notes,
-    card.year,
-  ].filter((value) => value != null && String(value).trim() !== '').join(' ').toLowerCase();
-}
-
-function filteredCards() {
-  const list = cards || [];
-  const query = ui.search.value.trim().toLowerCase();
-  const player = ui.filterPlayer.value;
-  const setName = ui.filterSet.value;
-  const year = ui.filterYear.value;
-  return list.filter((card) => {
-    if (player && String(card.player || '').trim() !== player) return false;
-    if (setName && String(card.set_name || '').trim() !== setName) return false;
-    if (year && String(card.year ?? '') !== year) return false;
-    if (ui.filterAuto.checked && !card.is_auto) return false;
-    if (ui.filterGraded.checked && !isGraded(card)) return false;
-    if (query && !haystack(card).includes(query)) return false;
-    return true;
-  });
-}
-
-function fillSelect(select, values, label) {
-  const current = select.value;
-  const options = [new Option(label, '')];
-  values.forEach((value) => options.push(new Option(value, value)));
-  select.replaceChildren(...options);
-  if (values.includes(current)) select.value = current;
-}
-
-function refreshFilterChoices() {
-  const list = cards || [];
-  const players = [...new Set(list.map((card) => String(card.player || '').trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, 'en'));
-  const sets = [...new Set(list.map((card) => String(card.set_name || '').trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, 'en'));
-  const years = [...new Set(list.map((card) => (card.year == null ? '' : String(card.year))).filter(Boolean))]
-    .sort((a, b) => Number(b) - Number(a));
-  fillSelect(ui.filterPlayer, players, 'All players');
-  fillSelect(ui.filterSet, sets, 'All sets');
-  fillSelect(ui.filterYear, years, 'All years');
-}
+const gallery = createCollectionGallery({
+  root: $('collection'),
+  imageUrl,
+  quoteFor: card => vaultValue.quoteFor(card),
+  owns,
+  inspectCard,
+  placeSpotlight,
+});
 
 function renderGrid() {
-  const list = cards;
-  const loaded = Array.isArray(list) && !loadError;
-  ui.filters.hidden = !loaded || list.length === 0;
-  ui.loading.hidden = list !== null || Boolean(loadError);
-  if (!loaded) {
-    ui.emptyState.hidden = true;
-    ui.grid.replaceChildren();
-    ui.collectionCount.textContent = '';
-    return;
-  }
-
-  const visible = filteredCards();
-  ui.clearFilters.hidden = !filtersActive();
-  ui.collectionCount.textContent = visible.length === list.length
-    ? countLabel(list.length, 'card')
-    : `Showing ${visible.length} of ${list.length}`;
-  ui.emptyState.hidden = visible.length > 0;
-  ui.emptySlab.hidden = list.length > 0;
-  if (!visible.length) {
-    ui.emptyMessage.textContent = list.length
-      ? 'No cards match these filters.'
-      : (session
-        ? 'The vault is empty. Add the first card.'
-        : 'The vault is empty. Sign in to add the first card.');
-  }
-
-  const fragment = document.createDocumentFragment();
-  visible.forEach((card) => {
-    const slot = el('li', 'card-slot');
-    const article = el('article', 'tilt');
-    article.dataset.id = card.id;
-    const glare = el('div', 'glare');
-    glare.setAttribute('aria-hidden', 'true');
-    const body = el('div', 'card-body');
-    body.appendChild(figureFor(card, { badge: Boolean(card.featured) }));
-    body.appendChild(copyBlock(card, 'h3', false));
-    if (owns(card)) body.append(vaultValue.cardDetails(card), vaultValue.cardPurchase(card), cardActions(card));
-    article.append(glare, body);
-    bindTilt(article);
-    slot.appendChild(article);
-    fragment.appendChild(slot);
-  });
-  ui.grid.replaceChildren(fragment);
+  const visible = cards && pendingCardDeletes.size ? cards.filter(card => !pendingCardDeletes.has(card.id)) : cards;
+  gallery(visible, session, loadError);
 }
 
+const phoneGallery = window.matchMedia('(max-width: 767px)');
+function placeSpotlight(slot = $('gallery-hall-slot')) {
+  const collection = $('collection');
+  if (phoneGallery.matches && slot) {
+    if (ui.spotlight.parentElement !== slot) slot.append(ui.spotlight);
+  } else if (collection.previousElementSibling !== ui.spotlight) {
+    collection.before(ui.spotlight);
+  }
+}
+phoneGallery.addEventListener('change', () => placeSpotlight());
+
 function spotlightPool() {
-  const list = cards || [];
-  const featured = list.filter((card) => card.featured);
+  const list = (cards || []).filter(card => !pendingCardDeletes.has(card.id));
+  const featured = list.filter(card => card.featured);
   return featured.length ? featured : list.slice(0, 1);
 }
 
@@ -621,33 +334,35 @@ function createSpotlight() {
   }
 
   function show(announceSlide) {
-    if (loadError || !items.length) {
-      const loading = cards === null && !loadError;
-      ui.spotlightCount.textContent = loadError ? 'Unavailable' : loading ? '' : '0 cards';
-      ui.spotPrev.disabled = true;
-      ui.spotNext.disabled = true;
-      const placeholder = el('div', 'placeholder');
-      const copy = el('div', 'empty-copy');
-      const title = loadError ? 'Cards unavailable' : loading ? 'Opening the case…' : 'The case is empty';
-      copy.appendChild(el('h3', '', title));
-      if (loadError) copy.appendChild(el('p', '', 'Reload the page to try again.'));
-      if (!loadError && !loading) copy.appendChild(el('p', '', 'Featured cards from the collection will appear here.'));
-      placeholder.appendChild(copy);
-      ui.spotlightBody.replaceChildren(placeholder);
+    root.hidden = !items.length || Boolean(loadError);
+    if (root.hidden) {
+      ui.spotlightBody.replaceChildren();
       return;
     }
     const card = items[index];
-    const featured = (cards || []).some((item) => item.featured);
-    ui.spotlightCount.textContent = items.length > 1
-      ? `Card ${index + 1} of ${items.length}`
-      : (featured ? 'Featured card' : 'Newest card');
-    const layout = el('div', 'spotlight-layout');
-    layout.appendChild(figureFor(card, { badge: Boolean(card.featured), eager: true }));
-    layout.appendChild(copyBlock(card, 'h3', true));
-    ui.spotlightBody.replaceChildren(layout);
-    const canMove = items.length > 1;
-    ui.spotPrev.disabled = !canMove;
-    ui.spotNext.disabled = !canMove;
+    const trigger = el('button', 'hall-card');
+    trigger.type = 'button';
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    const art = el('span', 'hall-thumb');
+    const src = imageUrl(card.image_path);
+    if (src) {
+      const img = el('img');
+      img.alt = '';
+      img.src = src;
+      img.addEventListener('error', () => img.remove(), { once: true });
+      art.append(img);
+    }
+    const copy = el('span', 'hall-copy');
+    copy.append(
+      el('span', 'hall-label', `Hall of Fame · ${card.featured ? (index + 1) + ' of ' + items.length : 'Newest card'}`),
+      el('strong', 'hall-player', card.player || 'Untitled card'),
+    );
+    const metadata = [metaLine(card), card.is_auto && 'Autograph', card.serial, gradeLabel(card)].filter(Boolean);
+    if (metadata.length) copy.append(el('span', 'hall-meta', metadata.join(' · ')));
+    trigger.append(art, copy);
+    trigger.addEventListener('click', () => inspectCard(card, trigger));
+    ui.spotlightBody.replaceChildren(trigger);
+    root.querySelector('.hall-controls').hidden = items.length < 2;
     if (announceSlide) {
       ui.spotlightStatus.textContent = `Showing ${card.player}. Card ${index + 1} of ${items.length}.`;
     }
@@ -718,17 +433,36 @@ function createSpotlight() {
 
 const spotlight = createSpotlight();
 const vaultValue = createVaultValue(card => openEditor(card, true), loadCards);
+vaultValue.subscribe(() => renderGrid());
 const purchaseEditor = createPurchaseEditor(vaultValue.purchases);
 const batchQueue = createScanQueue();
 function batchButtonText() {
   return batchQueue.items.length ? 'Resume batch (' + batchQueue.items.length + ')' : 'Batch scan';
 }
+const navigation = createNavigation({
+  add: () => openEditor(null),
+  batch: () => { if (!busy) batchDialog.open(); },
+  cases: trigger => launchDisplayCases(trigger),
+  value: trigger => vaultValue.openHistory(trigger),
+  password: openPasswordDialog,
+  'sign-in': () => {
+    ui.authMessage.textContent = '';
+    ui.authDialog.showModal();
+    ui.authEmail.focus();
+  },
+  'sign-out': async () => {
+    try {
+      const {error} = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      ui.loadError.textContent = friendlyError(error);
+      ui.loadError.hidden = false;
+    }
+  },
+});
 const batchDialog = createBatchDialog(batchQueue, {
   onReview: entry => openEditor(null, false, entry),
-  onCount() {
-    const button = $('batch-scan-btn');
-    if (button) button.textContent = batchButtonText();
-  },
+  onCount: () => navigation.setBatchLabel(batchButtonText()),
 });
 
 function syncVaultValue() {
@@ -744,8 +478,6 @@ function render() {
   ui.loadError.hidden = !banner;
   ui.loadError.textContent = banner;
   renderAuth();
-  renderStats(cards || []);
-  refreshFilterChoices();
   syncVaultValue();
   syncSimilarCard();
   renderGrid();
@@ -1022,23 +754,62 @@ async function saveCard(event) {
   if (review && confirmed) advanceBatch(review, 'saved');
 }
 
-async function deleteCard(card) {
-  if (busy || !owns(card)) return;
-  busy = true;
+// Keep the database row and its photos intact throughout the undo window.
+function cancelPendingDeletes() {
+  for (const pending of pendingCardDeletes.values()) {
+    clearTimeout(pending.timer);
+    pending.notice.remove();
+  }
+  pendingCardDeletes.clear();
+}
+
+function deleteCard(card) {
+  if (busy || !owns(card) || pendingCardDeletes.has(card.id)) return;
+  const notice = el('div', 'delete-notice');
+  const message = el('span', '', `Deleting ${card.player || 'card'} in 10 seconds.`);
+  message.setAttribute('role', 'status');
+  const undo = el('button', '', 'Undo');
+  undo.type = 'button';
+  undo.setAttribute('aria-label', `Undo deletion of ${card.player || 'card'}`);
+  notice.append(message, undo);
+  $('delete-notices').append(notice);
+  const pending = { notice, ownerSession: session };
+  pendingCardDeletes.set(card.id, pending);
+  undo.addEventListener('click', () => {
+    clearTimeout(pending.timer);
+    pendingCardDeletes.delete(card.id);
+    notice.remove();
+    renderGrid();
+    spotlight.sync();
+    announce(`Kept ${card.player || 'card'}.`);
+    $('collection').focus({preventScroll: true});
+  }, { once: true });
+  pending.timer = window.setTimeout(() => commitCardDelete(card, pending), 10000);
+  renderGrid();
+  spotlight.sync();
+  undo.focus({preventScroll: true});
+}
+
+async function commitCardDelete(card, pending) {
+  if (pendingCardDeletes.get(card.id) !== pending || !owns(card)) return;
+  pending.notice.remove();
   try {
-    const { data, error } = await supabase.from('cards').delete().eq('id', card.id).eq('image_path', card.image_path).select();
+    const { data, error } = await supabase.from('cards').delete()
+      .eq('id', card.id).eq('owner', card.owner).eq('image_path', card.image_path).select();
     if (error) throw error;
     if (!data?.length) throw new Error('That card changed. Reload the vault before deleting it.');
-    forgetCardReviews(session, card);
-    const cleaned = await removeStoredCard(supabase.storage.from('card-images'), data[0].image_path);
     inventoryRevision++;
-    cards = cards.filter((item) => item.id !== card.id);
-    render();
-    announce(`Deleted ${card.player}.` + (cleaned ? '' : ' A photo could not be removed from storage.'));
+    cards = (cards || []).filter(item => item.id !== card.id);
+    forgetCardReviews(pending.ownerSession, card);
+    if (owns(card)) {
+      const cleaned = await removeStoredCard(supabase.storage.from('card-images'), data[0].image_path);
+      if (owns(card)) announce(`Deleted ${card.player}.` + (cleaned ? '' : ' A photo could not be removed from storage.'));
+    }
   } catch (error) {
-    announce(friendlyError(error));
+    if (owns(card)) announce(friendlyError(error));
   } finally {
-    busy = false;
+    if (pendingCardDeletes.get(card.id) === pending) pendingCardDeletes.delete(card.id);
+    render();
   }
 }
 
@@ -1160,166 +931,7 @@ function cleanAuthUrl() {
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
-function initBackdrop() {
-  const canvas = document.getElementById('backdrop');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if (!ctx) return;
 
-  const slabs = [
-    { x: 0.08, y: 0.16, w: 90, h: 126, rot: 0.35, vy: 0.000012, vr: 0.00003, alpha: 0.16 },
-    { x: 0.78, y: 0.62, w: 120, h: 168, rot: 2.1, vy: 0.00001, vr: -0.00002, alpha: 0.13 },
-    { x: 0.42, y: 0.82, w: 70, h: 98, rot: 1.2, vy: 0.000016, vr: 0.00004, alpha: 0.15 },
-    { x: 0.9, y: 0.22, w: 84, h: 118, rot: 3.4, vy: 0.000013, vr: 0.000018, alpha: 0.12 },
-  ];
-  const motes = [];
-  for (let i = 0; i < 18; i += 1) {
-    motes.push({
-      x: ((i * 47) % 100) / 100,
-      y: ((i * 29) % 100) / 100,
-      r: 1.1 + (i % 3),
-      v: 0.000028 + (i % 5) * 0.000008,
-      a: 0.16 + (i % 4) * 0.05,
-    });
-  }
-  const spots = [
-    { x: 0.18, y: 0.22, r: 0.55, color: '227,24,55', alpha: 0.55, speed: 0.15, phase: 0.2 },
-    { x: 0.78, y: 0.72, r: 0.48, color: '140,12,32', alpha: 0.7, speed: 0.11, phase: 1.4 },
-    { x: 0.5, y: 0.4, r: 0.3, color: '227,24,55', alpha: 0.32, speed: 0.18, phase: 2.3 },
-    { x: 0.28, y: 0.8, r: 0.26, color: '255,184,28', alpha: 0.1, speed: 0.09, phase: 0.8 },
-  ];
-
-  let width = 0;
-  let height = 0;
-  let dpr = 1;
-  let raf = 0;
-  let last = 0;
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = Math.max(1, Math.floor(width * dpr));
-    canvas.height = Math.max(1, Math.floor(height * dpr));
-  }
-
-  function drawSlab(slab) {
-    ctx.save();
-    ctx.translate(slab.x * width, slab.y * height);
-    ctx.rotate(slab.rot);
-    ctx.strokeStyle = `rgba(255,184,28,${slab.alpha})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(-slab.w / 2, -slab.h / 2, slab.w, slab.h, 8);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function draw(time, dt) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#4a0712';
-    ctx.fillRect(0, 0, width, height);
-    spots.forEach((spot) => {
-      const ox = Math.sin(time * spot.speed + spot.phase) * width * 0.06;
-      const oy = Math.cos(time * spot.speed * 0.8 + spot.phase) * height * 0.05;
-      const cx = spot.x * width + ox;
-      const cy = spot.y * height + oy;
-      const radius = spot.r * Math.max(width, height);
-      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-      gradient.addColorStop(0, `rgba(${spot.color},${spot.alpha})`);
-      gradient.addColorStop(1, 'rgba(74,7,18,0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-    });
-    slabs.forEach((slab) => {
-      if (dt) {
-        slab.y -= slab.vy * dt;
-        slab.rot += slab.vr * dt;
-        if (slab.y < -0.25) slab.y = 1.25;
-      }
-      drawSlab(slab);
-    });
-    motes.forEach((mote) => {
-      if (dt) {
-        mote.y -= mote.v * dt;
-        if (mote.y < -0.05) mote.y = 1.05;
-      }
-      ctx.globalAlpha = mote.a;
-      ctx.fillStyle = '#FFB81C';
-      ctx.beginPath();
-      ctx.arc(mote.x * width, mote.y * height, mote.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-    const vignette = ctx.createRadialGradient(
-      width / 2,
-      height / 2,
-      Math.min(width, height) * 0.2,
-      width / 2,
-      height / 2,
-      Math.max(width, height) * 0.72,
-    );
-    vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(20,0,6,0.45)');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  function stopLoop() {
-    window.cancelAnimationFrame(raf);
-    raf = 0;
-    last = 0;
-  }
-
-  function frame(now) {
-    const dt = last ? Math.min(34, now - last) : 16;
-    last = now;
-    draw(now * 0.001, reduce.matches ? 0 : dt);
-    if (!reduce.matches && !document.hidden) raf = window.requestAnimationFrame(frame);
-  }
-
-  function start() {
-    stopLoop();
-    resize();
-    if (reduce.matches || document.hidden) {
-      draw(0, 0);
-      return;
-    }
-    raf = window.requestAnimationFrame(frame);
-  }
-
-  window.addEventListener('resize', () => {
-    resize();
-    if (reduce.matches || document.hidden || !raf) draw(0, 0);
-  });
-  document.addEventListener('visibilitychange', start);
-  reduce.addEventListener('change', start);
-  start();
-}
-
-ui.filters.addEventListener('submit', (event) => event.preventDefault());
-['input', 'change'].forEach((type) => {
-  ui.filters.addEventListener(type, () => {
-    if (Array.isArray(cards)) renderGrid();
-  });
-});
-ui.clearFilters.addEventListener('click', () => {
-  ui.filters.reset();
-  renderGrid();
-});
-ui.grid.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-action]');
-  if (!button || busy) return;
-  const id = button.closest('[data-id]')?.dataset.id;
-  const card = (cards || []).find((item) => item.id === id);
-  if (!card || !owns(card)) return;
-  if (button.dataset.action === 'edit') openEditor(card);
-  if (button.dataset.action === 'delete') {
-    const confirmed = window.confirm(`Delete the ${card.player} card? This cannot be undone.`);
-    if (confirmed) deleteCard(card);
-  }
-});
 async function prepareCardPhoto(event) {
   const input = event.currentTarget;
   const file = input.files?.[0];
@@ -1411,6 +1023,8 @@ function setSession(next) {
   session = next || null;
   const current = session?.user?.id || '';
   if (previous !== current) {
+    cancelPendingDeletes();
+    $('card-detail')?.close();
     displayCases?.close();
     activeBatch = null;
     batchQueue.setOwner(current);
@@ -1423,15 +1037,14 @@ function setSession(next) {
     ui.cardDialog.close();
   }
   syncVaultValue();
-  if (previous !== current || !ui.authBar.childElementCount) {
-    renderAuth();
-    if (Array.isArray(cards)) renderGrid();
+  renderAuth();
+  if (previous !== current && Array.isArray(cards)) {
+    renderGrid();
+    spotlight.sync();
   }
 }
 
 async function init() {
-  initBackdrop();
-  bindTilt(document.getElementById('spotlight-slide'));
   renderAuth();
   const url = new URL(window.location.href);
   authBanner = new URLSearchParams(url.hash.slice(1)).get('error_description')

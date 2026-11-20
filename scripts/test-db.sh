@@ -5,11 +5,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Files newer than the last migration recorded on production (supabase/production-migrations.json).
+# Recorded migrations are history: they ran once, verbatim, and are not re-run.
+pending_migrations() {
+  local last
+  last=$(grep -o '"version": *"[0-9]*"' supabase/production-migrations.json | grep -o '[0-9]\{14\}' | sort | tail -1)
+  for migration in supabase/migrations/*.sql; do
+    local version
+    version=$(basename "$migration" | cut -d_ -f1)
+    if [ "$version" \> "$last" ]; then echo "$migration"; fi
+  done
+}
+
 if command -v supabase >/dev/null && docker info >/dev/null 2>&1; then
   supabase db start
   supabase db reset --local
-  # Every migration must be safe to apply twice (the README's paste-into-SQL-editor path relies on it).
-  for migration in supabase/migrations/*.sql; do
+  # Migrations not yet on production must be safe to apply twice: they may be pasted into the SQL editor.
+  for migration in $(pending_migrations); do
     PGOPTIONS="-c client_min_messages=warning" psql -X -q -v ON_ERROR_STOP=1 \
       "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f "$migration" >/dev/null
   done
@@ -40,8 +52,8 @@ psql_q -f scripts/db/supabase-shim.sql
 for migration in supabase/migrations/*.sql; do
   psql_q -f "$migration" >/dev/null
 done
-# Every migration must be safe to apply twice.
-for migration in supabase/migrations/*.sql; do
+# Migrations not yet on production must be safe to apply twice: they may be pasted into the SQL editor.
+for migration in $(pending_migrations); do
   psql_q -f "$migration" >/dev/null
 done
 find supabase/tests -name "*.sql" -print0 | sort -z | xargs -0 pg_prove

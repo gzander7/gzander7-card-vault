@@ -1,5 +1,5 @@
--- Cards table and photo bucket. Applied by `supabase db push`, or paste into the SQL editor.
--- Safe to run again: it creates what is missing and does not drop existing cards.
+-- Cards table and photo bucket. Applied to the live project before migrations were
+-- recorded there. Safe to run again: it creates what is missing and does not drop cards.
 
 create table if not exists public.cards (
   id uuid primary key default gen_random_uuid(),

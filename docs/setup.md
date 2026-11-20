@@ -4,7 +4,7 @@ The live vault uses the Supabase project [cyocszfzjngomhtvzone](https://supabase
 
 ## 1. Create the database
 
-Everything the database needs is in [`supabase/migrations`](../supabase/migrations), applied in filename order. Every file is safe to run again; none deletes cards.
+Everything the database needs is in [`supabase/migrations`](../supabase/migrations), applied in filename order. None deletes cards.
 
 **With the Supabase CLI (recommended):**
 
@@ -20,9 +20,17 @@ npx supabase link --project-ref cyocszfzjngomhtvzone
 npx supabase db push
 ```
 
-`db push` records which migrations it has applied. On a project that was set up by pasting the older SQL files, the first push re-applies them harmlessly and records them.
+`db push` records which migrations it has applied.
 
-**Without the CLI:** open **SQL Editor → New query**, paste each migration file in filename order, and run it.
+**The existing live project** was partly set up by pasting SQL, so its history doesn't record the first two files. Its schema already matches them (see [database.md](database.md#production-migration-history)). Before the first push, record them as applied. This writes only to the migration history table and runs no schema SQL:
+
+```bash
+npx supabase migration repair --status applied 20261118003255 20261118090616
+```
+
+Then `npx supabase db push --dry-run` should list only migrations newer than `20261118204804`. Never push with `--include-all`: it would re-run the old Vault Value file and roll its functions back.
+
+**Without the CLI (new projects only):** open **SQL Editor → New query**, paste each migration file in filename order, and run it.
 
 That creates the `cards` table, the public `card-images` bucket, purchase records, valuation sync and display cases. Visitors can read cards and photos. Signed-in users can only change their own cards and only write photos inside their own `card-images/<user id>/` folder.
 

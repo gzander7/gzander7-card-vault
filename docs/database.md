@@ -2,10 +2,22 @@
 
 The schema lives in [`supabase/migrations`](../supabase/migrations). Each file is applied once, in filename order, by `supabase db push` (see [setup.md](setup.md#1-create-the-database)).
 
+## Production migration history
+
+[`supabase/production-migrations.json`](../supabase/production-migrations.json) lists the migrations recorded on the live project. It was read with the Management API on 2026-11-20. [`migrations.test.mjs`](../migrations.test.mjs) keeps this folder consistent with it:
+
+- `20261118003255_cards_and_photos` and `20261118090616_valuations` (the first Vault Value release, #5) were pasted into the SQL editor before history was recorded. Run `supabase migration repair --status applied` once for these two versions; see [setup.md](setup.md#1-create-the-database).
+- The six migrations from `20261118171628` to `20261118204804` are copied verbatim from the project's history. They are history: never edit them.
+- Anything newer is pending. It must be safe to apply twice, because the test script re-applies pending files to check exactly that.
+
+Built from these files, a database has the same schema as the earlier consolidated migrations. A catalog comparison on 2026-11-20 matched production exactly: 156 columns, functions, policies, constraints, grants and triggers, with production compared before the two pending migrations.
+
+After applying migrations to production, add them to `production-migrations.json`.
+
 ## Rules for a migration
 
 - **Name it** `YYYYMMDDHHMMSS_short_description.sql`. `npx supabase migration new short_description` creates one.
-- **Make it safe to re-run.** Use `create … if not exists`, `create or replace`, and `drop … if exists` before re-creating policies, triggers and constraints. The test script applies every migration twice to check this.
+- **Make it safe to re-run.** Use `create … if not exists`, `create or replace`, and `drop … if exists` before re-creating policies, triggers and constraints. The test script applies every pending migration twice to check this.
 - **Never edit a migration that has been applied** to the live project. Add a new one.
 - **No explicit `begin`/`commit`.** The CLI wraps each file in a transaction.
 - **New tables:** enable Row Level Security, `revoke all … from public, anon, authenticated`, then grant only what the page needs. Supabase grants everything on new `public` tables by default.

@@ -1,27 +1,13 @@
--- Owner-only purchase records. Requires the cards migration.
--- Existing installs: apply before deploying the client that records pulls.
+-- Recorded on the live project as version 20261118173602 (add_private_card_purchase_tracking.sql). Copied verbatim from its migration history; do not edit.
+-- Run after schema.sql. Purchase details are private even when the card is public.
 
 create table if not exists public.vault_card_purchases (
   card_id uuid primary key references public.cards(id) on delete cascade,
   amount_cents bigint check (amount_cents between 0 and 999999999999),
   purchased_on date check (purchased_on is null or (isfinite(purchased_on) and purchased_on >= date '0001-01-01')),
   source text check (source is null or (length(source) between 1 and 160 and source = btrim(source))),
-  revision uuid not null
-);
-
--- Existing purchases and cleared revisions get NULL for both new fields.
--- The original unnamed cost/date/source check was named vault_card_purchases_check.
-alter table public.vault_card_purchases
-  add column if not exists acquisition_type text check (acquisition_type = 'pulled'),
-  add column if not exists box_name text check (
-    char_length(box_name) between 1 and 160 and
-    -- Include nonbreaking spaces and the byte order mark trimmed by the editor.
-    box_name !~ U&'^[[:space:]\00A0\2007\202F\FEFF]|[[:space:]\00A0\2007\202F\FEFF]$'
-  ),
-  drop constraint if exists vault_card_purchases_check;
-alter table public.vault_card_purchases add constraint vault_card_purchases_check check (
-  acquisition_type is not distinct from 'pulled' or
-  (box_name is null and (amount_cents is not null or (purchased_on is null and source is null)))
+  revision uuid not null,
+  check (amount_cents is not null or (purchased_on is null and source is null))
 );
 
 alter table public.vault_card_purchases enable row level security;
@@ -50,7 +36,6 @@ declare
   saved public.cards;
   caller uuid := auth.uid();
   stored_revision uuid;
-  stored_type text;
   next_revision uuid := (purchase->>'revision')::uuid;
   expected_revision uuid := (purchase->>'expected_revision')::uuid;
   bought_on date := (purchase->>'purchased_on')::date;
@@ -60,13 +45,6 @@ begin
   end if;
   if next_revision is null or next_revision is not distinct from expected_revision
       or not (purchase ?& array['amount_cents','source','purchased_on','expected_revision'])
-      or (purchase ? 'acquisition_type') <> (purchase ? 'box_name')
-      or jsonb_typeof(purchase->'acquisition_type') not in ('string','null')
-      or jsonb_typeof(purchase->'box_name') not in ('string','null')
-      or jsonb_typeof(purchase->'amount_cents') not in ('number','null')
-      or jsonb_typeof(purchase->'source') not in ('string','null')
-      or jsonb_typeof(purchase->'purchased_on') not in ('string','null')
-      or (purchase->>'purchased_on') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
       or bought_on > (now() at time zone 'Pacific/Kiritimati')::date then
     raise exception 'Invalid purchase details.' using errcode = '22023';
   end if;
@@ -90,21 +68,15 @@ begin
     end if;
   end if;
 
-  select p.revision, p.acquisition_type into stored_revision, stored_type
-  from public.vault_card_purchases p where p.card_id = saved.id;
+  select p.revision into stored_revision from public.vault_card_purchases p where p.card_id = saved.id;
   if stored_revision is distinct from expected_revision then
     raise exception 'This purchase changed on another device. Reopen the card to see the latest details.' using errcode = 'PT409';
   end if;
-  if stored_type = 'pulled' and not (purchase ? 'acquisition_type') then
-    raise exception 'Reload the vault to edit this pulled card with its box details.' using errcode = 'PT409';
-  end if;
   -- Clearing a purchase keeps just its revision. A stale editor cannot recreate it.
-  insert into public.vault_card_purchases (card_id, amount_cents, purchased_on, source, acquisition_type, box_name, revision)
-  values (saved.id, (purchase->>'amount_cents')::bigint, bought_on, purchase->>'source',
-          purchase->>'acquisition_type', purchase->>'box_name', next_revision)
+  insert into public.vault_card_purchases (card_id, amount_cents, purchased_on, source, revision)
+  values (saved.id, (purchase->>'amount_cents')::bigint, bought_on, purchase->>'source', next_revision)
   on conflict (card_id) do update set amount_cents = excluded.amount_cents, purchased_on = excluded.purchased_on,
-    source = excluded.source, acquisition_type = excluded.acquisition_type, box_name = excluded.box_name,
-    revision = excluded.revision;
+    source = excluded.source, revision = excluded.revision;
   return saved;
 end;
 $$;

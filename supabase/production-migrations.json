@@ -1,0 +1,31 @@
+{
+  "about": "Migration history recorded on the live Supabase project (supabase_migrations.schema_migrations), read on 2026-11-20 with the Management API. migrations.test.mjs keeps supabase/migrations consistent with it. Update this file after applying migrations to production.",
+  "project": "cyocszfzjngomhtvzone",
+  "appliedBeforeRecording": ["20261118003255", "20261118090616"],
+  "recorded": [
+    {
+      "version": "20261118171628",
+      "name": "add_manual_sold_comps"
+    },
+    {
+      "version": "20261118173602",
+      "name": "add_private_card_purchase_tracking"
+    },
+    {
+      "version": "20261118181542",
+      "name": "add_shareable_display_cases"
+    },
+    {
+      "version": "20261118182021",
+      "name": "declare_private_case_id_access_policy"
+    },
+    {
+      "version": "20261118191834",
+      "name": "record_per_card_vault_value_history"
+    },
+    {
+      "version": "20261118204804",
+      "name": "track_private_box_for_pulled_cards"
+    }
+  ]
+}

@@ -12,6 +12,8 @@ Once a day, for every owner:
 
 Lookups stop after a time budget (100 seconds by default) so the function finishes within Supabase's limits. Snapshots are still recorded for every owner from the estimates already saved; remaining cards are looked up on a later night. The function never changes sold comps that you entered or flagged.
 
+If one owner's refresh or snapshot fails (a database error, a record the database rejects), the job logs that owner's error and carries on with the rest. The run's summary lists those owners under `failures`. A manual run with `?wait=1` then returns HTTP 500, and a scheduled run logs "Nightly valuations failed for some owners". Only a failure to read the card list stops the whole run.
+
 ## Deploy it
 
 You need the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), linked to the project as in [setup.md](setup.md#1-create-the-database).
@@ -44,7 +46,7 @@ You need the [Supabase CLI](https://supabase.com/docs/guides/local-development/c
    curl -X POST -H "x-vault-cron-secret: <secret>" "https://cyocszfzjngomhtvzone.supabase.co/functions/v1/nightly-valuations?wait=1"
    ```
 
-   The reply lists each owner with the number of cards priced and the day recorded.
+   The reply lists each owner with the number of cards priced and the day recorded, plus any owners that failed.
 
 5. **Schedule it.** Open [`supabase/snippets/schedule-nightly-valuations.sql`](../supabase/snippets/schedule-nightly-valuations.sql), replace the two placeholders (the function URL and the same secret), and run it in the SQL editor. It enables `pg_cron` and `pg_net`, stores the URL and secret in Supabase Vault, and schedules a run at 09:17 UTC daily. Don't commit the edited file.
 

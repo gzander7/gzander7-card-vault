@@ -59,7 +59,9 @@ Deno.serve(async request => {
   // `?wait=1` runs in the foreground and returns the summary, for manual checks.
   if (new URL(request.url).searchParams.get('wait') === '1') {
     try {
-      return json(await run());
+      const summary = await run();
+      // Other owners were still processed; a failure for any of them is still a failure.
+      return json(summary, summary.failures.length ? 500 : 200);
     } catch (error) {
       console.error('Nightly valuations failed', error);
       return json({ error: error instanceof Error ? error.message : String(error) }, 500);
@@ -67,7 +69,11 @@ Deno.serve(async request => {
   }
   EdgeRuntime.waitUntil(
     run().then(
-      summary => console.log(JSON.stringify(summary)),
+      summary => {
+        if (summary.failures.length)
+          console.error('Nightly valuations failed for some owners', JSON.stringify(summary.failures));
+        console.log(JSON.stringify(summary));
+      },
       error => console.error('Nightly valuations failed', error),
     ),
   );

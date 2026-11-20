@@ -145,20 +145,97 @@ test('a provider outage keeps the previous estimate and still records the day', 
   assert.match(result.owners[0].notice, /could not be loaded/);
 });
 
-test('a project without the valuation functions fails loudly instead of pretending', async () => {
+test('a project without the valuation functions reports a failure instead of pretending', async () => {
+  const result = await runNightlyValuations({
+    listCards: async () => [card('a1', alice)],
+    readPrices: async () => null,
+    writePrices: async () => {},
+    lookup: async (c, { now }) => ({
+      status: 'insufficient',
+      valueCents: null,
+      sales: [],
+      checkedAt: now.toISOString(),
+    }),
+    clock: clockAt('2026-11-20T09:17:00Z'),
+  });
+  assert.deepEqual(result.owners, []);
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0].error, /sync is not installed/);
+});
+
+test('one owner failing does not stop the remaining owners', async () => {
+  const carol = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const db = fakeDatabase();
+  const logs = [];
+  const result = await runNightlyValuations({
+    listCards: async () => [card('a1', alice), card('b1', bob), card('c1', carol)],
+    readPrices: async owner => {
+      if (owner === bob) throw new Error('permission denied for function vault_prices_read_for');
+      return db.readPrices(owner);
+    },
+    writePrices: db.writePrices,
+    lookup: async (c, { now }) => ({
+      status: 'valued',
+      valueCents: 700,
+      sales: [],
+      checkedAt: now.toISOString(),
+      source: 'CardPricer',
+    }),
+    clock: clockAt('2026-11-20T09:17:00Z'),
+    log: message => logs.push(message),
+  });
+  assert.deepEqual(
+    result.owners.map(({ owner, priced, date }) => [owner, priced, date]),
+    [
+      [alice, 1, '2026-11-20'],
+      [carol, 1, '2026-11-20'],
+    ],
+    'owners before and after the failure are both recorded',
+  );
+  assert.deepEqual(result.failures, [
+    { owner: bob, cards: 1, error: 'permission denied for function vault_prices_read_for' },
+  ]);
+  assert.deepEqual(
+    db.writes.map(write => write.owner),
+    [alice, carol],
+  );
+  assert.ok(logs.some(line => line.includes(bob) && line.includes('failed')));
+});
+
+test("a failure while writing one owner's snapshot is isolated too", async () => {
+  const db = fakeDatabase();
+  const result = await runNightlyValuations({
+    listCards: async () => [card('a1', alice), card('b1', bob)],
+    readPrices: db.readPrices,
+    writePrices: async (owner, updates, entries) => {
+      if (owner === alice) throw new Error('new row violates check constraint');
+      return db.writePrices(owner, updates, entries);
+    },
+    lookup: async (c, { now }) => ({
+      status: 'valued',
+      valueCents: 300,
+      sales: [],
+      checkedAt: now.toISOString(),
+      source: 'CardPricer',
+    }),
+    clock: clockAt('2026-11-20T09:17:00Z'),
+  });
+  assert.deepEqual(
+    result.owners.map(({ owner }) => owner),
+    [bob],
+  );
+  assert.equal(result.failures[0].owner, alice);
+});
+
+test('the run still fails as a whole when the cards cannot be listed', async () => {
   await assert.rejects(
     runNightlyValuations({
-      listCards: async () => [card('a1', alice)],
-      readPrices: async () => null,
+      listCards: async () => {
+        throw new Error('connection refused');
+      },
+      readPrices: async () => ({ quotes: {}, reviews: {}, history: [] }),
       writePrices: async () => {},
-      lookup: async (c, { now }) => ({
-        status: 'insufficient',
-        valueCents: null,
-        sales: [],
-        checkedAt: now.toISOString(),
-      }),
-      clock: clockAt('2026-11-20T09:17:00Z'),
     }),
-    /sync is not installed/,
+    /connection refused/,
   );
 });

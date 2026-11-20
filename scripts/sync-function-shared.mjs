@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const target = join(root, 'supabase/functions/_shared/vault');
-const entries = ['pricing/nightly.mjs', 'card-catalogue.mjs'];
+const entries = ['pricing/nightly.mjs', 'pricing/ebay-sold.mjs', 'card-catalogue.mjs'];
 
 const seen = new Set();
 async function collect(file) {

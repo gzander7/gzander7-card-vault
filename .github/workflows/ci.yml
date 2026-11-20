@@ -39,7 +39,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check the Edge Function
-        run: deno check supabase/functions/nightly-valuations/index.ts
+        run: deno check supabase/functions/nightly-valuations/index.ts supabase/functions/ebay-sold-comps/index.ts
 
   browser:
     name: Browser tests

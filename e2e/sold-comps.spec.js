@@ -1,3 +1,4 @@
+import { identityKey } from '../pricing/identity.mjs';
 import { expect, seedCard, signIn, test } from './support/test.js';
 
 test.use({
@@ -90,4 +91,57 @@ test('the owner can still search for an autograph after recording enough sales t
   await expect(find).toBeVisible();
   const url = new URL(await find.getAttribute('href'));
   expect(url.searchParams.get('_nkw')).toBe('2025 Resurgence Ashton Jeanty 149 auto');
+});
+
+test('automatic receipts price the card without opening a marketplace and a reference can be confirmed', async ({
+  page,
+  context,
+  backend,
+}) => {
+  const target = backend.cards.find(c => c.player === 'CeeDee Lamb');
+  const today = new Date().toISOString();
+  const receipt = {
+    provider: 'CompsAPI',
+    title: 'Topps Chrome CeeDee Lamb #76 Leather Orange /25',
+    priceCents: 7000,
+    soldAt: today,
+    url: 'https://www.ebay.com/itm/123456789011',
+  };
+  const reference = {
+    ...receipt,
+    title: 'Topps Chrome CeeDee Lamb Leather Orange /25',
+    priceCents: 9000,
+    url: 'https://www.ebay.com/itm/123456789012',
+    matchNote: 'Card number unconfirmed',
+  };
+  await context.route('**/functions/v1/ebay-sold-comps', async route => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') return route.fallback();
+    expect(request.headers().authorization).toMatch(/^Bearer /);
+    const { cardId } = request.postDataJSON();
+    const saved = backend.cards.find(c => c.id === cardId);
+    return route.fulfill({
+      json: { status: 'ready', identity: identityKey(saved), sales: cardId === target.id ? [receipt, reference] : [] },
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    });
+  });
+  await page.goto('./');
+  await signIn(page);
+  await page
+    .locator('#card-grid')
+    .getByRole('button', { name: /^View CeeDee Lamb/ })
+    .click();
+  const detail = page.getByRole('dialog', { name: 'CeeDee Lamb' });
+  await expect(detail.getByText('eBay sold listings checked.', { exact: false })).toBeVisible();
+  const row = detail.getByRole('row').filter({ has: page.getByRole('link', { name: reference.title, exact: true }) });
+  await expect(row).toContainText('Reference');
+  await row.getByLabel('Sale information and actions for ' + reference.title).click();
+  await row.getByRole('button', { name: 'Review match' }).click();
+  const form = page.getByRole('dialog', { name: 'Review sold comp' });
+  await expect(form.getByLabel('Sale link')).toHaveValue(reference.url);
+  await expect(form.getByLabel('Count as an exact match')).not.toBeChecked();
+  await form.getByLabel('Count as an exact match').check();
+  await form.getByRole('button', { name: 'Save sale' }).click();
+  await expect(form).toBeHidden();
+  await expect(detail.locator('.estimate-amount')).toHaveText('$80');
 });

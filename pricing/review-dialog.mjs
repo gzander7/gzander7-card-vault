@@ -23,12 +23,15 @@ export function createReviewDialog(commit) {
     draft = { mode, card, sale };
     const entry = sale?.manual;
     const editing = mode === 'save';
+    const receipt = entry || (sale?.matchNote ? sale : null);
     form.reset();
     field('error').textContent = '';
     field('title').textContent = editing
       ? entry
         ? 'Edit sold comp'
-        : 'Add sold comp'
+        : sale?.matchNote
+          ? 'Review sold comp'
+          : 'Add sold comp'
       : mode === 'exclude'
         ? 'Flag a wrong match'
         : 'Remove saved sale?';
@@ -55,10 +58,10 @@ export function createReviewDialog(commit) {
         ' · ' +
         sale.soldAt.slice(0, 10)
       : '';
-    field('url').value = entry?.url || '';
-    field('price').value = entry ? (entry.priceCents / 100).toFixed(2) : '';
+    field('url').value = receipt?.url || '';
+    field('price').value = receipt ? (receipt.priceCents / 100).toFixed(2) : '';
     field('date').max = new Date().toISOString().slice(0, 10);
-    field('date').value = entry?.soldAt || '';
+    field('date').value = receipt?.soldAt?.slice(0, 10) || '';
     field('parallel').value = entry?.parallel || card.parallel || 'Base';
     field('exact').checked = Boolean(entry?.exact && entry.identity === identityKey(card));
     reason.value = '';
@@ -90,7 +93,8 @@ export function createReviewDialog(commit) {
       mode === 'save'
         ? {
             type: mode,
-            key: sale?.url,
+            key: sale?.manual ? sale.url : undefined,
+            confirmUrl: !sale?.manual && sale?.matchNote ? sale.url : undefined,
             input: {
               url: field('url').value,
               price: field('price').value,

@@ -217,7 +217,7 @@ function gradeMatches(card, row, full) {
 
 // The caller has already resolved a unique catalogue identity. Inspect the sale
 // title independently: its reported card/grade can still disagree with the card.
-export function saleMismatchReason(card, row) {
+export function saleMismatchReason(card, row, { allowMissingNumber = false } = {}) {
   if (!card || needsDetails(card)) return 'incomplete_card';
   const full = fields(row?.title);
   const title = normalize(full);
@@ -265,7 +265,11 @@ export function saleMismatchReason(card, row) {
     .replace(serialPattern, ' ')
     .replace(/\b(?:18|19|20)\d{2}\b/g, ' ');
   const taggedNumber = tagged.test(player.title);
-  if (!taggedNumber && !(standalone.test(bareEvidence) && (row.cardNumber || /[a-z]/i.test(number))))
+  if (
+    !allowMissingNumber &&
+    !taggedNumber &&
+    !(standalone.test(bareEvidence) && (row.cardNumber || /[a-z]/i.test(number)))
+  )
     return 'wrong_card_number';
 
   const expectedRun = printRun(card.serial);

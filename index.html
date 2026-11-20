@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Keep the Supabase origin in step with config.js; csp.test.mjs checks it. Tesseract's WASM core and model load from jsDelivr. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://cyocszfzjngomhtvzone.supabase.co https://cardpricer.co https://cdn.jsdelivr.net blob: data:; img-src 'self' https://cyocszfzjngomhtvzone.supabase.co blob: data:; style-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="Browse Gage’s personal collection of autographed, graded, and serial-numbered trading cards.">
   <meta name="theme-color" content="#30151b">
   <title>Gage’s Card Vault</title>

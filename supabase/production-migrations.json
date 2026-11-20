@@ -1,31 +1,56 @@
 {
-  "about": "Migration history recorded on the live Supabase project (supabase_migrations.schema_migrations), read on 2026-11-20 with the Management API. migrations.test.mjs keeps supabase/migrations consistent with it. Update this file after applying migrations to production.",
+  "about": "Production migration history verified on 2026-11-20. Each SHA-256 digest identifies the matching repository SQL file. Update this record after applying migrations to production.",
   "project": "cyocszfzjngomhtvzone",
-  "appliedBeforeRecording": ["20261118003255", "20261118090616"],
   "recorded": [
     {
+      "name": "cards_and_photos",
+      "version": "20261118003255",
+      "sha256": "c1c6911765abed332379209dc43541c550454c62e5a1da5edebe4abd2443e3ac"
+    },
+    {
+      "name": "valuations",
+      "version": "20261118090616",
+      "sha256": "3218ee19c9621db2ac0f162eba4b2b905167d341c6ed3c6a56642a44932acb33"
+    },
+    {
+      "name": "add_manual_sold_comps",
       "version": "20261118171628",
-      "name": "add_manual_sold_comps"
+      "sha256": "6003d96dda4f25bbd88a8f9542306ff858b6cfedf3927ca04e528a06f7b37fa7"
     },
     {
+      "name": "add_private_card_purchase_tracking",
       "version": "20261118173602",
-      "name": "add_private_card_purchase_tracking"
+      "sha256": "4d4033bf8c96e4b2f0ab5fc3383927d0eff6e81a5c4a0b3ed5367cbd607e1c93"
     },
     {
+      "name": "add_shareable_display_cases",
       "version": "20261118181542",
-      "name": "add_shareable_display_cases"
+      "sha256": "79dc4909ebb2ab3711d1e5a15e806a2574834ccd1fa0ed249d47dc1530f4d8fc"
     },
     {
+      "name": "declare_private_case_id_access_policy",
       "version": "20261118182021",
-      "name": "declare_private_case_id_access_policy"
+      "sha256": "8439df7683e0829fdd7062083d8a634d7eb714211a7f376e1c9ace910d71ca74"
     },
     {
+      "name": "record_per_card_vault_value_history",
       "version": "20261118191834",
-      "name": "record_per_card_vault_value_history"
+      "sha256": "0213d3d942d3821d8066f467e739a5e914f5bdbf3d131ad547dee0cba1c1891c"
     },
     {
+      "name": "track_private_box_for_pulled_cards",
       "version": "20261118204804",
-      "name": "track_private_box_for_pulled_cards"
+      "sha256": "0e9005a5de09ccda9771a82bac75f5f224d4232760acd4f1d9aeff158a7c0641"
+    },
+    {
+      "name": "cards_limits_and_updated_at",
+      "version": "20261119200000",
+      "sha256": "2df150a2eaf021f01f240e5093ff52c2126a498f46e76a2bdf00dcfe3806730e"
+    },
+    {
+      "name": "nightly_valuations",
+      "version": "20261119210000",
+      "sha256": "a89a0e43b76c3e4f1c6d1a0ea5199792c963411da69d93e18cd1bf607c288740"
     }
   ]
 }

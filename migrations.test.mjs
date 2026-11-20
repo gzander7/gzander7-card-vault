@@ -3,6 +3,7 @@
 // history (supabase/production-migrations.json), so a push never has to insert a
 // migration before ones production already ran, and never re-runs history.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
@@ -29,28 +30,18 @@ test('every migration recorded on production has its file, under the same versio
   }
 });
 
-test('nothing unrecorded sits among production history except the documented baseline', () => {
-  const recorded = new Set(production.recorded.map(entry => entry.version));
-  const baseline = new Set(production.appliedBeforeRecording);
-  const older = files.map(versionOf).filter(version => version <= lastRecorded);
+test('all migrations up to the last production version are recorded exactly once and in order', () => {
   assert.deepEqual(
-    older.filter(version => !recorded.has(version) && !baseline.has(version)),
-    [],
-    'a new migration must be newer than ' + lastRecorded,
+    production.recorded.map(entry => entry.version),
+    files.map(versionOf).filter(version => version <= lastRecorded),
   );
-  for (const version of baseline)
-    assert.ok(version < production.recorded[0].version, `${version} must precede recorded history`);
-  for (const version of baseline)
-    assert.ok(
-      files.some(file => versionOf(file) === version),
-      `baseline ${version} has a file`,
-    );
 });
 
-test('recorded migrations keep the SQL production ran', async () => {
-  for (const { version, name } of production.recorded) {
+test('recorded migration SQL matches the production manifest', async () => {
+  for (const { version, name, sha256 } of production.recorded) {
     const sql = await readFile(new URL(`./supabase/migrations/${version}_${name}.sql`, import.meta.url), 'utf8');
-    assert.match(sql.split('\n')[0], new RegExp(`^-- Recorded on the live project as version ${version} `));
+    const digest = createHash('sha256').update(sql.replace(/\r\n/g, '\n')).digest('hex');
+    assert.equal(digest, sha256, `SQL changed for ${version}_${name}`);
     assert.ok(!/^\s*(begin|commit);/im.test(sql), 'no explicit transaction control');
   }
 });

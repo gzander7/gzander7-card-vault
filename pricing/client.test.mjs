@@ -368,3 +368,45 @@ test('tied legacy and detailed observations merge only for matching totals and s
     assert.deepEqual((await fixture({ disk: reloaded.disk }).loadVaultPrices(session)).history, [replacement]);
   }
 });
+
+test('a snapshot without lookups records the day from saved estimates and syncs it', async () => {
+  const writes = [];
+  const remote = {
+    quotes: {
+      first: {
+        status: 'valued',
+        valueCents: 2500,
+        sales: [],
+        checkedAt: '2026-10-31T09:00:00.000Z',
+        identity: undefined,
+        source: 'CardPricer',
+      },
+    },
+    reviews: {},
+    history: [],
+  };
+  const f = fixture({
+    readRemote: async () => remote,
+    writeRemote: async (_session, updates, days) => {
+      writes.push({ updates, days });
+      return true;
+    },
+  });
+  // Saved quotes are keyed by identity; give the remote quote the card's current identity.
+  const { identityKey } = await import('./identity.mjs');
+  remote.quotes.first.identity = identityKey(first);
+
+  const result = await f.recordVaultSnapshot(session, [first, blank]);
+  assert.deepEqual(f.calls, [], 'no sales lookups');
+  assert.deepEqual(
+    result.history.map(({ date, valueCents, priced, total }) => [date, valueCents, priced, total]),
+    [['2026-11-01', 2500, 1, 2]],
+  );
+  assert.equal(result.storage, 'cloud');
+  assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0].updates, {}, 'unchanged quotes are not rewritten');
+  assert.equal(writes[0].days[0].date, '2026-11-01');
+
+  await f.recordVaultSnapshot(session, [first, blank]);
+  assert.equal(writes.length, 1, 'an unchanged day is not written twice');
+});

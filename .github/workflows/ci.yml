@@ -31,6 +31,15 @@ jobs:
         run: |
           npm run vendor
           git diff --exit-code -- vendor/
+      - name: Edge Function shared modules are in sync
+        run: |
+          npm run sync:functions
+          git diff --exit-code -- supabase/functions/_shared/
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check the Edge Function
+        run: deno check supabase/functions/nightly-valuations/index.ts
 
   browser:
     name: Browser tests

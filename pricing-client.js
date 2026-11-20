@@ -403,7 +403,20 @@ export function createPricingClient({
     return snapshot(state, notice);
   }
 
-  return { loadVaultPrices, refreshVaultPrices, reviewSale, forgetCardReviews };
+  // Records today's snapshot from the saved estimates without looking up new
+  // sales. The nightly job calls it after a time-boxed refresh, so every owner
+  // gets a daily point even when there was no time left for lookups.
+  async function recordVaultSnapshot(session, cards) {
+    await loadVaultPrices(session, cards);
+    const state = stateFor(session);
+    if (!state.cards) return snapshot(state);
+    recordDay(state);
+    persist(state, session.user.id);
+    await sync(state, session);
+    return snapshot(state);
+  }
+
+  return { loadVaultPrices, refreshVaultPrices, recordVaultSnapshot, reviewSale, forgetCardReviews };
 }
 
 export const { loadVaultPrices, refreshVaultPrices, reviewSale, forgetCardReviews } = createPricingClient();

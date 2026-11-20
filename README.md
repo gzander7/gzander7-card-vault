@@ -1,124 +1,59 @@
 # Card Vault
 
-Gage's trading card collection. GitHub Pages hosts the vault and its shared display cases. Supabase stores the cards, photos and case selections.
+Gage's trading card collection: autographs, relics, serial-numbered cards and slabs, with sold-comp estimates and shareable display cases.
 
-Live site, after Pages is enabled: https://gzander7.github.io/gzander7-card-vault/
+**Live site:** https://gzander7.github.io/gzander7-card-vault/
 
-The publishable key in `config.js` is public on purpose. Visitors can read the vault. Row Level Security is what limits writes to the signed-in owner.
+[![CI](https://github.com/gzander7/gzander7-card-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/gzander7/gzander7-card-vault/actions/workflows/ci.yml)
 
-## 1. Create the table and the photo bucket
+## What it does
 
-1. Open the project [cyocszfzjngomhtvzone](https://supabase.com/dashboard/project/cyocszfzjngomhtvzone) and go to **SQL Editor → New query**.
-2. Paste the entire file `supabase/schema.sql`.
-3. Run it. Running it again is safe; it does not delete cards.
+- **Public gallery.** Anyone can browse, search, filter and sort the collection, open a card's details, and turn it over in a 3D viewer.
+- **Owner tools.** After signing in, the owner can add cards from phone photos. The vault crops and straightens each photo and reads the printed details on the device. Batch scanning handles a stack of cards at once.
+- **Vault Value.** Owner-only estimates from recent sold comps, each with a confidence level, sale range and the reasons listings were skipped. Also a daily value history, private purchase costs with estimated gain or loss, and a book value that falls back to cost for unpriced cards.
+- **Display cases.** Shareable links to a chosen set of cards. Private notes and prices are never included.
+- **Backups.** Download every card with its purchases, estimates and history as JSON or CSV.
+- **Installable.** The vault can be added to a phone's home screen and opens offline.
 
-That creates `public.cards` and a public `card-images` bucket. Anonymous visitors can read. Signed-in users can add, edit, and delete their own rows and write photos inside their own `card-images/<uid>/` folder. A two-sided card stores both photos together in a versioned subfolder.
+The owner's guide is in [docs/using-the-vault.md](docs/using-the-vault.md).
 
-Until this step is done, the site shows **Database not set up yet** instead of a broken grid.
+## How it's built
 
-## 2. Allow sign-in and password reset links to return to the vault
+Static HTML, CSS and JavaScript modules served by GitHub Pages, with no build step. [Supabase](https://supabase.com) provides sign-in, the Postgres database (protected by Row Level Security), photo storage, and a nightly Edge Function that refreshes estimates. See [docs/architecture.md](docs/architecture.md).
 
-1. In the Supabase dashboard open **Authentication → URL Configuration**.
-2. Set **Site URL** to `https://gzander7.github.io/gzander7-card-vault/`.
-3. Add these **Redirect URLs**:
-   - `https://gzander7.github.io/gzander7-card-vault/`
-   - `https://gzander7.github.io/gzander7-card-vault/**`
-   - `http://localhost:4173/**`
-   - `http://127.0.0.1:4173/**`
-4. Save.
+The publishable key in `config.js` is public on purpose. Visitors can read the vault; Row Level Security limits every write to the signed-in owner.
 
-## 3. Turn on GitHub Pages from the branch
+## Development
 
-1. On GitHub, open **Settings → Pages**.
-2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-3. Choose branch `main` and folder **`/ (root)`**. Save.
-   After this pull request is merged, `main` has the site. To publish before that, choose this feature branch instead. The public URL stays the same.
-4. Wait until Pages says the site is live, then open https://gzander7.github.io/gzander7-card-vault/.
-
-There is no build step. Do not point Pages at a GitHub Actions workflow.
-
-## 4. Set your vault password
-
-Use the same account that owns your cards.
-
-1. If you're signed in, choose **Account → Set password**. If you're signed out, choose **Sign in**, enter your existing email, and select **Forgot password?**. Open the reset link to reach **Set password**.
-2. Enter and confirm the new password and select **Save password**.
-3. For future visits, choose **Sign in** and enter your email and password. **Email me a sign-in link** remains available as a backup.
-
-For a fresh installation, create the owner account in **Supabase → Authentication → Users** first. Keep the Email provider enabled and public signups disabled. The vault's sign-in form works with existing accounts.
-
-## Add a card
-
-Sign in, then choose **Add card**. Use **Choose photo** for a picture already in your library or files, or **Take photo** to open the camera on a supported phone. The browser resizes the picture to at most 1400 pixels on the long edge, previews it, and uploads it when you save. The same controls let you replace a photo in **Edit**. Saving other edits keeps the current photo. Open a card to edit it or add it to a display case. **More → Delete** gives you ten seconds to undo before the card and its photos are removed.
-
-Fields: player, year, set, card number, parallel, serial (for example `82/100`), autograph, relic, grader, grade, notes, and Hall of Fame. Featured cards rotate in the spotlight. If none are featured, the spotlight shows the newest card.
-
-Keep all four corners of the printed card in the frame. On phones and computers, the editor looks for the card edges, including inside a clear holder, and straightens the photo when it finds them. If it can’t find a clear outline, it keeps the full photo and tells you under the preview. Choose **Use full photo** to undo a crop before saving. The selected preview is used for scanning, the gallery, and the flip viewer.
-
-Choose **Adjust corners** under either photo to fine-tune the crop. Drag each handle to a printed corner of the card, or select a handle and tap its destination. You can also focus a handle and move it with the arrow keys. Choose **Apply crop** to preview the straightened image, then save the card. When editing a saved photo, the available area is the image currently in the vault. Choose the original photo again if you need detail beyond its saved edges.
-
-If the details you enter or scan match a card you own, **View card** opens the saved copy for comparison. Close the viewer to return to your draft. You can save another copy, including during batch review.
-
-### Scan the front and back
-
-In **Add card**, choose or take a photo under **Card front** and **Card back**. Once both are ready, the editor reads the printed text and fills the fields it recognizes. With one photo, choose **Read front** or **Read back** to start. When editing an existing card, adding its back can pair it with the saved front.
-
-Review the highlighted fields and choose **Save card**. A clear photo of the full card, including the edges or slab label, helps the reader find small print. Check foil lettering, serial numbers and the exact parallel against the card. Autograph and relic suggestions rely on printed wording.
-
-Text recognition runs on your device. The first scan downloads the English reader. Saving uploads the front and any selected back to the public collection. Scanning and two-sided viewing work with the existing photo bucket and table. [Tesseract.js](https://github.com/naptha/tesseract.js)
-
-### Batch scan
-
-Sign in and choose **Batch scan** on desktop or **Account → Batch scan** on your phone. For a stack of front photos, leave **Fronts only** selected. For two-sided cards, select **Alternating fronts and backs**, then choose the photos in front/back order. Each file selection starts with a front and an odd final photo becomes a front-only card. **Take a front photo** adds a camera shot to the queue. Expand a queued card to check its images, swap the sides, or take a missing back.
-
-Choose **Review cards**. The vault crops and reads one card at a time, including front-only cards. Check the highlighted details, replace a photo or add its back, and optionally enter a private purchase. **Save & next** adds the card to your collection and starts the next scan. **Skip card** advances without saving. **Back to batch** keeps the current draft, including your corrections, while the tab stays open. Reopen it with **Resume batch**. Reloading the page or signing out clears unfinished drafts. Confirmed cards are already in the vault.
-
-### Flip a card
-
-Select a card in the gallery or Hall of Fame to open its details. The photo viewer has front and back controls for paired scans. For a card with both photos, drag left or right to turn it over, or use the flip button. The gallery always shows the front. Cards saved before back photos were supported open with their front only. To add a back, choose **Edit**, select its back photo, then choose **Save changes**.
-
-## Share a display case
-
-Sign in and open **Display cases**, then choose **New display case**. Name the case and select up to 60 cards in the order you want visitors to see them. Choose **Create case**, then **Copy link**. Visitors can open the link without signing in, inspect each card, and flip any card that has a saved back. The case page shows the selected photos and printed card details. Purchase amounts, sellers, valuations and notes are omitted.
-
-You can edit the case name and selection on the same link. **Stop sharing** retires that link. For a new Supabase installation, run [supabase/display-cases.sql](supabase/display-cases.sql) after [supabase/schema.sql](supabase/schema.sql).
-
-## Vault Value and sold comps
-
-Sign in to see **Vault Value** in the navigation. Saving a new card or changing its identifying details starts a sold-comps lookup. Include the card number printed on the back, the parallel and print run when applicable, and the grading company and grade for a slab. Open the card to see its estimate, recent sales and source links, or why an estimate is unavailable.
-
-In the card’s **Recent sales** section, choose **Add a sale** to save a completed sale’s link, date, USD price and parallel. Select **Count as an exact match** after checking the version, autograph, print run and grade. Leave it unchecked to keep a reference. **Edit sale** lets you correct or remove an entry. **Flag wrong match** excludes a sale from the estimate and **Restore sale** reverses a flag.
-
-The estimate uses the newest two to five distinct exact sales within 90 days, including owner-confirmed sales. When there are at least four, a price above 2.5 times the sample median or below the median divided by 2.5 stays in Recent sales as **Left out: unusual price**. The vault calculates the displayed median and sale range from the remaining receipts. A single sale stays visible. Older receipts stay in the list, and a sale found by both sources counts once.
-
-**High confidence** requires at least four counted sales spanning 14 calendar days or more, with the highest price under twice the lowest. **Low confidence** means there are only two sales or the highest price is at least twice the lowest. Other estimates have **medium confidence**. For example, sales of $40 and $400 show a $220 median, low confidence and a $40–$400 sale range.
-
-**Recent sales** shows how many listings CardPricer found and verified, the main reason each rejected listing was skipped, and how many were left unchecked. A catalogue or listing can omit Jr., Sr., II or III. When both sources supply a suffix, it must agree. Changing the card’s identity requires reconfirming a manual match. For supported vaulted physical cards, USD Coin (USDC) sales count at $1 per USDC. Opening the vault rechecks automatic estimates at least seven days old. **Check for updates** requests a fresh lookup. The vault takes a daily snapshot on days you use it. [CardPricer public API](https://cardpricer.co/docs/api)
-
-Choose **Value history** in the summary above the gallery or **Value** in the phone navigation to chart your saved daily estimates over 30 days, 90 days, one year or all time. Tap or hover over the chart, or focus it and use the arrow keys, to see a date’s estimate and how many cards were priced. A single priced date shows one point. The table below lists every recorded date.
-
-**What changed?** compares the selected date with the preceding recorded date. Pick a point on the graph or choose a **Recorded date** to see which cards were added, removed, repriced, or gained or lost an estimate. Their contributions add up to the change in priced value. A signed-in visit starts card-level tracking, and the next recorded day supplies the first comparison. Earlier dates show the totals saved at the time.
-
-Sold comps, exclusions, values and history are visible to the signed-in owner. They save in the current browser by default. To set up cross-device sync in another installation, including one with an older valuation schema, run the current [supabase/valuations.sql](supabase/valuations.sql) in that project's SQL Editor. The next signed-in visit on the original device syncs its saved records. Clearing browser data before that sync removes its local copy.
-
-Run the pricing checks with `node --test pricing/*.test.mjs`.
-
-## Private purchase tracking
-
-In **Add card** or **Edit**, open **Purchase details**. For a purchase, enter the total paid in USD, including tax, shipping and fees. Date and source are optional. For a card you pulled, choose **Pulled** and optionally enter **From box**, such as “2024 Prizm blaster, box 2.” Leave the cost blank if you haven’t assigned one to that card. Entering $0 records a known zero cost. The box name is private. Any cost you enter applies only to this card. You can reopen that entry in the purchase section of the card details. Choose **Clear purchase details** and save to remove the private entry.
-
-**Vault Value** shows total spent across cards with a recorded cost. Estimated gain or loss compares current sold-comp estimates with cost for the same cards. The percentage uses their combined cost, and is omitted when that cost is zero. Cards awaiting an estimate still count toward total spent. Purchase changes sync to the signed-in owner’s devices and are saved with the card in one transaction.
-
-**Book value** uses each card’s market estimate when available and its recorded cost otherwise. The coverage shows how many cards have a market estimate, how many use cost, and how many still need either. A recorded $0 counts as a cost. The value history chart tracks market estimates.
-
-For a new installation, run [supabase/purchases.sql](supabase/purchases.sql) after [supabase/schema.sql](supabase/schema.sql). Existing installations with private purchase tracking can rerun the updated purchase script before deploying this editor. It preserves existing purchases and adds the optional pull fields to the owner-only table. Cards already in the gallery have no recorded cost until the owner enters one.
-
-## Local preview
-
-From the project folder:
+You need Node.js 22 or later.
 
 ```bash
-python3 -m http.server 4173
+npm ci
 ```
 
-Open http://127.0.0.1:4173/ . Do not open the HTML file directly; a `file://` address cannot load the ES modules. Add the localhost redirect URLs above before requesting a magic link locally.
+```bash
+npm start
+```
+
+That serves the site at http://127.0.0.1:4173/ against the Supabase project in `config.js`.
+
+| Command                           | What it runs                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `npm test`                        | Unit tests (Node's built-in test runner)                                         |
+| `npm run test:e2e`                | Browser tests in Playwright against an in-memory Supabase; desktop and phone     |
+| `npm run test:db`                 | Applies every migration to a fresh database and runs the pgTAP access-rule tests |
+| `npm run lint` / `npm run format` | ESLint and Prettier                                                              |
+| `npm run typecheck`               | TypeScript checking of the JavaScript (`checkJs`)                                |
+| `npm run check`                   | Lint, format check, type check and unit tests: what CI's first job runs          |
+
+CI runs all of these on every pull request. More detail, including how to add a migration and how to upgrade vendored libraries, is in [docs/development.md](docs/development.md).
+
+## Documentation
+
+- [Setting up a Supabase project and GitHub Pages](docs/setup.md)
+- [Using the vault](docs/using-the-vault.md)
+- [Architecture](docs/architecture.md)
+- [Database and migrations](docs/database.md)
+- [Nightly valuations](docs/nightly-valuations.md)
+- [Development](docs/development.md)
+- [Changelog](CHANGELOG.md)

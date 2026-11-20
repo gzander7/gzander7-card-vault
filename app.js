@@ -16,6 +16,7 @@ import { findSimilarCard } from './scanning/duplicates.mjs';
 import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
 import { createNavigation } from './navigation.mjs';
 import { bindVaultBackup } from './backup-ui.mjs';
+import { registerServiceWorker } from './pwa.mjs';
 import { backPhotoPath, removeStoredCard, savePhotoRevision, thumbnailPath } from './photos/storage.mjs';
 import { createThumbnailBackfill } from './photos/thumbnails.mjs';
 
@@ -1174,4 +1175,5 @@ async function init() {
   await loadCards();
 }
 
+registerServiceWorker();
 init();

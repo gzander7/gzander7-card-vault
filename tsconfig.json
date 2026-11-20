@@ -28,6 +28,7 @@
     "e2e",
     "supabase/functions",
     "**/*.test.mjs",
-    "**/*.test.mjs"
+    "**/*.test.mjs",
+    "sw.js"
   ]
 }

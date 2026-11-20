@@ -1,5 +1,4 @@
--- Optional cross-device sync. Run after schema.sql in the same Supabase project.
-begin;
+-- Optional cross-device sync for Vault Value. Requires the cards migration.
 
 create table if not exists public.vault_card_quotes (
   card_id uuid primary key references public.cards(id) on delete cascade,
@@ -206,4 +205,3 @@ revoke all on function public.vault_prices_read(), public.vault_prices_write(jso
 grant execute on function public.vault_prices_read(), public.vault_prices_write(jsonb, jsonb)
   to authenticated;
 notify pgrst, 'reload schema';
-commit;

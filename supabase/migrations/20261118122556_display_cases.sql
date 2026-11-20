@@ -1,5 +1,4 @@
--- Run after schema.sql. Display case links identify one live, owner-managed selection.
-begin;
+-- Shareable display cases. Requires the cards migration. Each link identifies one live, owner-managed selection.
 
 create schema if not exists vault_display_case_private;
 revoke all on schema vault_display_case_private from public, anon, authenticated;
@@ -103,4 +102,3 @@ grant execute on function vault_display_case_private.read_case(uuid), public.vau
   to anon, authenticated;
 
 notify pgrst, 'reload schema';
-commit;

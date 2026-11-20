@@ -1,0 +1,43 @@
+# Supabase CLI configuration for local development and CI.
+# The hosted project's settings are managed in its dashboard; the auth values
+# below mirror what docs/setup.md asks you to set there.
+project_id = "card-vault"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = false
+
+[studio]
+enabled = false
+
+[inbucket]
+enabled = false
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "https://gzander7.github.io/gzander7-card-vault/"
+additional_redirect_urls = [
+  "https://gzander7.github.io/gzander7-card-vault/**",
+  "http://localhost:4173/**",
+  "http://127.0.0.1:4173/**",
+]
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+
+[edge_runtime]
+enabled = true

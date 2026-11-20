@@ -19,7 +19,7 @@ import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/sto
 
 const SPOTLIGHT_MS = 5000;
 const SCHEMA_MESSAGE =
-  'Database not set up yet. In the Supabase SQL editor, run supabase/schema.sql, then reload this page.';
+  'Database not set up yet. Apply the files in supabase/migrations (see docs/setup.md), then reload this page.';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

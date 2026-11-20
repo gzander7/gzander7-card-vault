@@ -1,6 +1,5 @@
--- New installs: run after schema.sql. Existing installs: run this entire file
--- before deploying the client that records pulls. Purchase details are owner-only.
-begin;
+-- Owner-only purchase records. Requires the cards migration.
+-- Existing installs: apply before deploying the client that records pulls.
 
 create table if not exists public.vault_card_purchases (
   card_id uuid primary key references public.cards(id) on delete cascade,
@@ -115,4 +114,3 @@ revoke all on function public.vault_purchases_read(), public.vault_save_card_pur
 grant execute on function public.vault_purchases_read(), public.vault_save_card_purchase(jsonb,jsonb,jsonb)
   to authenticated;
 notify pgrst, 'reload schema';
-commit;

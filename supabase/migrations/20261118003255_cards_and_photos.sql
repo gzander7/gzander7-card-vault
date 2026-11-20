@@ -1,4 +1,4 @@
--- Card Vault schema. Paste this whole file into the Supabase SQL editor and run it.
+-- Cards table and photo bucket. Applied by `supabase db push`, or paste into the SQL editor.
 -- Safe to run again: it creates what is missing and does not drop existing cards.
 
 create table if not exists public.cards (

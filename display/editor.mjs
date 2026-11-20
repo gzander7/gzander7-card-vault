@@ -50,8 +50,13 @@ export function editCase(panel, { cards, original, initialCardId, onCancel, onSa
   reload.addEventListener('click', onReload);
 
   if (savedIds.length > selected.size) {
-    fields.prepend(element('p', 'case-warning',
-      'Some saved cards are missing from your vault. Saving will remove those cards from this case.'));
+    fields.prepend(
+      element(
+        'p',
+        'case-warning',
+        'Some saved cards are missing from your vault. Saving will remove those cards from this case.',
+      ),
+    );
   }
   if (!cards.length) {
     find('.case-search').hidden = true;
@@ -84,7 +89,7 @@ export function editCase(panel, { cards, original, initialCardId, onCancel, onSa
     input.setAttribute('aria-label', item.label);
     const thumb = element('span', 'case-thumb');
     thumb.setAttribute('aria-hidden', 'true');
-    thumb.append(photo(item.frontUrl, ''));
+    thumb.append(photo(item.thumbUrl, '', false, item.frontUrl));
     const copy = element('span', 'case-option-text');
     copy.append(element('strong', '', item.name));
     const details = [item.meta, item.detail, ...item.tags].filter(Boolean).join(' · ');
@@ -124,8 +129,7 @@ export function editCase(panel, { cards, original, initialCardId, onCancel, onSa
       if (!name.value.trim()) name.focus();
       return;
     }
-    const sameAttempt = lastAttempt?.title === values.title
-      && lastAttempt.card_ids.join() === values.card_ids.join();
+    const sameAttempt = lastAttempt?.title === values.title && lastAttempt.card_ids.join() === values.card_ids.join();
     if (!sameAttempt) {
       lastAttempt = { id, ...values, expectedRevision: original?.revision ?? null, revision: crypto.randomUUID() };
     }

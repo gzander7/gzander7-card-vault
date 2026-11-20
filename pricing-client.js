@@ -39,15 +39,24 @@ function sameTotals(left, right) {
 }
 
 function sameCards(previous, cards) {
-  return Array.isArray(previous) && previous.length === cards.length && cards.every((card, index) => {
-    const saved = previous[index];
-    return saved && card.id === saved.id && card.label === saved.label && card.valueCents === saved.valueCents;
-  });
+  return (
+    Array.isArray(previous) &&
+    previous.length === cards.length &&
+    cards.every((card, index) => {
+      const saved = previous[index];
+      return saved && card.id === saved.id && card.label === saved.label && card.valueCents === saved.valueCents;
+    })
+  );
 }
 
 function addsCardDetails(day, other) {
-  return Array.isArray(day?.cards) && other && !Array.isArray(other.cards)
-    && compareTimes(day.observedAt, other.observedAt) === 0 && sameTotals(day, other);
+  return (
+    Array.isArray(day?.cards) &&
+    other &&
+    !Array.isArray(other.cards) &&
+    compareTimes(day.observedAt, other.observedAt) === 0 &&
+    sameTotals(day, other)
+  );
 }
 
 function combine(left, right) {
@@ -59,7 +68,8 @@ function combine(left, right) {
   for (const entry of right?.history || []) {
     if (!entry?.observedAt) continue;
     const previous = dates.get(entry.date);
-    if (!newer(previous?.observedAt, entry.observedAt) && !addsCardDetails(previous, entry)) dates.set(entry.date, entry);
+    if (!newer(previous?.observedAt, entry.observedAt) && !addsCardDetails(previous, entry))
+      dates.set(entry.date, entry);
   }
   const failures = { ...left.failures };
   for (const [id, failure] of Object.entries(right?.failures || {})) {
@@ -69,15 +79,22 @@ function combine(left, right) {
   const reviews = mergeReviews(left.reviews, right?.reviews);
   for (const id of removedCards) delete reviews[id];
   return {
-    quotes: copy, reviews, removedCards,
+    quotes: copy,
+    reviews,
+    removedCards,
     history: [...dates.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    failures, cooldownUntil: Math.max(left.cooldownUntil, right?.cooldownUntil || 0),
+    failures,
+    cooldownUntil: Math.max(left.cooldownUntil, right?.cooldownUntil || 0),
   };
 }
 
 export function createPricingClient({
-  lookup = lookupComps, readRemote = readCloud, writeRemote = writeCloud, writeRemoteReviews = writeCloudReviews,
-  clock = () => new Date(), storage = () => globalThis.localStorage,
+  lookup = lookupComps,
+  readRemote = readCloud,
+  writeRemote = writeCloud,
+  writeRemoteReviews = writeCloudReviews,
+  clock = () => new Date(),
+  storage = () => globalThis.localStorage,
 } = {}) {
   const users = new Map();
 
@@ -91,7 +108,9 @@ export function createPricingClient({
       const stored = disk?.getItem(CACHE_PREFIX + id);
       if (stored) state.data = combine(state.data, JSON.parse(stored));
       state.disk = Boolean(disk);
-    } catch { state.disk = false; }
+    } catch {
+      state.disk = false;
+    }
     return state;
   }
 
@@ -100,7 +119,11 @@ export function createPricingClient({
       const disk = storage();
       const existing = disk.getItem(CACHE_PREFIX + id);
       if (existing) {
-        try { state.data = combine(JSON.parse(existing), state.data); } catch { /* Keep the working copy. */ }
+        try {
+          state.data = combine(JSON.parse(existing), state.data);
+        } catch {
+          /* Keep the working copy. */
+        }
       }
       if (activeIds) {
         // Different tabs may have loaded different card inventories. Only a
@@ -111,7 +134,9 @@ export function createPricingClient({
       }
       disk.setItem(CACHE_PREFIX + id, JSON.stringify(state.data));
       state.disk = true;
-    } catch { state.disk = false; }
+    } catch {
+      state.disk = false;
+    }
   }
 
   function cardQuotes(state) {
@@ -119,12 +144,22 @@ export function createPricingClient({
     for (const [id, f] of Object.entries(state.data.failures)) {
       const last = quotes[id];
       if (last?.identity === f.identity && !newer(f.failedAt, last.checkedAt)) continue;
-      if (last?.identity === f.identity && (last.status === 'valued' || last.sales?.length || last.extraSales?.length || last.diagnostics)) {
+      if (
+        last?.identity === f.identity &&
+        (last.status === 'valued' || last.sales?.length || last.extraSales?.length || last.diagnostics)
+      ) {
         quotes[id] = { ...last, refreshFailed: true };
         continue;
       }
-      quotes[id] = { status: 'unavailable', identity: f.identity, valueCents: null, sales: [],
-        checkedAt: f.failedAt, message: 'Sales are temporarily unavailable. The vault will try again.', source: 'CardPricer' };
+      quotes[id] = {
+        status: 'unavailable',
+        identity: f.identity,
+        valueCents: null,
+        sales: [],
+        checkedAt: f.failedAt,
+        message: 'Sales are temporarily unavailable. The vault will try again.',
+        source: 'CardPricer',
+      };
     }
     const now = clock();
     for (const card of state.cards || []) {
@@ -138,25 +173,35 @@ export function createPricingClient({
   function recordDay(state) {
     if (!state.cards) return;
     const quotes = cardQuotes(state);
-    const cards = state.cards.map(card => {
-      const quote = quotes[card.id];
-      const valued = quote?.status === 'valued' && Number.isSafeInteger(quote.valueCents) && quote.valueCents >= 0;
-      return { id: card.id, label: historyCardLabel(card), valueCents: valued ? quote.valueCents : null };
-    }).sort((a, b) => a.id.localeCompare(b.id));
+    const cards = state.cards
+      .map(card => {
+        const quote = quotes[card.id];
+        const valued = quote?.status === 'valued' && Number.isSafeInteger(quote.valueCents) && quote.valueCents >= 0;
+        return { id: card.id, label: historyCardLabel(card), valueCents: valued ? quote.valueCents : null };
+      })
+      .sort((a, b) => a.id.localeCompare(b.id));
     const priced = cards.filter(card => card.valueCents !== null);
     const valueCents = priced.length ? priced.reduce((sum, card) => sum + card.valueCents, 0) : null;
-    if (valueCents !== null && !Number.isSafeInteger(valueCents)) throw new RangeError('Vault total exceeds supported precision.');
+    if (valueCents !== null && !Number.isSafeInteger(valueCents))
+      throw new RangeError('Vault total exceeds supported precision.');
     const totals = { valueCents, priced: priced.length, total: cards.length };
     const now = clock();
     const date = now.toISOString().slice(0, 10);
     const previous = state.data.history.find(day => day.date === date);
     if (previous && sameTotals(previous, totals) && sameCards(previous.cards, cards)) return;
     const entry = { date, ...totals, observedAt: nextObservation(now, date, previous?.observedAt), cards };
-    state.data = combine(state.data, {history:[entry]});
+    state.data = combine(state.data, { history: [entry] });
   }
 
   function snapshot(state, notice = '') {
-    const mode = state.sync === 'ready' ? 'cloud' : state.disk ? (state.sync === 'offline' ? 'device-offline' : 'device') : 'session';
+    const mode =
+      state.sync === 'ready'
+        ? 'cloud'
+        : state.disk
+          ? state.sync === 'offline'
+            ? 'device-offline'
+            : 'device'
+          : 'session';
     const reviewStorage = state.sync === 'ready' && state.serverReviews ? 'cloud' : state.disk ? 'device' : 'session';
     return { quotes: cardQuotes(state), history: [...state.data.history], storage: mode, reviewStorage, notice };
   }
@@ -169,7 +214,8 @@ export function createPricingClient({
 
   async function loadVaultPrices(session, cards) {
     const state = stateFor(session);
-    if (cards !== undefined) state.cards = Array.isArray(cards) ? cards.filter(card => card.owner === session.user.id) : null;
+    if (cards !== undefined)
+      state.cards = Array.isArray(cards) ? cards.filter(card => card.owner === session.user.id) : null;
     if (clock().getTime() < state.nextRead) return snapshot(state);
     if (!state.reading) {
       state.reading = (async () => {
@@ -179,14 +225,18 @@ export function createPricingClient({
             state.data = combine(state.data, remote);
             rememberRemote(state, remote);
             state.sync = 'ready';
-          } else { state.sync = 'absent'; }
+          } else {
+            state.sync = 'absent';
+          }
           state.nextRead = clock().getTime() + (remote ? 60000 : 15 * 60000);
         } catch {
           state.sync = 'offline';
           state.nextRead = clock().getTime() + 60000;
         }
         persist(state, session.user.id);
-      })().finally(() => { state.reading = null; });
+      })().finally(() => {
+        state.reading = null;
+      });
     }
     await state.reading;
     return snapshot(state);
@@ -200,7 +250,9 @@ export function createPricingClient({
         const owned = new Set((state.cards || []).map(card => card.id));
         for (const [id, entries] of Object.entries(state.data.reviews)) {
           if (!owned.has(id)) continue;
-          const changed = Object.entries(entries).filter(([key, entry]) => entry.version > (state.serverReviews[id]?.[key]?.version || ''));
+          const changed = Object.entries(entries).filter(
+            ([key, entry]) => entry.version > (state.serverReviews[id]?.[key]?.version || ''),
+          );
           if (changed.length) pending[id] = Object.fromEntries(changed);
         }
         if (Object.keys(pending).length) {
@@ -212,24 +264,31 @@ export function createPricingClient({
                 throw new Error('The saved sale was not acknowledged by the vault.');
               }
             }
-            state.data = combine(state.data, {reviews:remote});
+            state.data = combine(state.data, { reviews: remote });
             recordDay(state);
             persist(state, session.user.id);
           }
         }
       }
-      const changed = Object.fromEntries(Object.entries(state.data.quotes)
-        .filter(([id, q]) => newer(q.checkedAt, state.serverQuotes[id])));
+      const changed = Object.fromEntries(
+        Object.entries(state.data.quotes).filter(([id, q]) => newer(q.checkedAt, state.serverQuotes[id])),
+      );
       // Older installations can still sync provider quotes. A total with local
       // receipts should travel only once its evidence is available on the server.
       const syncDays = state.serverReviews || !Object.keys(state.data.reviews).length;
-      const days = syncDays ? state.data.history.filter(day => {
-        const remote = state.serverDays[day.date];
-        return newer(day.observedAt, remote?.observedAt) || addsCardDetails(day, remote);
-      }) : [];
+      const days = syncDays
+        ? state.data.history.filter(day => {
+            const remote = state.serverDays[day.date];
+            return newer(day.observedAt, remote?.observedAt) || addsCardDetails(day, remote);
+          })
+        : [];
       if (!Object.keys(changed).length && !days.length) return;
       const ok = await writeRemote(session, changed, days);
-      if (ok === null) { state.sync = 'absent'; state.nextRead = 0; return; }
+      if (ok === null) {
+        state.sync = 'absent';
+        state.nextRead = 0;
+        return;
+      }
       for (const [id, q] of Object.entries(changed)) state.serverQuotes[id] = q.checkedAt;
       for (const day of days) state.serverDays[day.date] = day;
     } catch {
@@ -264,10 +323,15 @@ export function createPricingClient({
   function forgetCardReviews(session, card) {
     if (!session?.user?.id || card.owner !== session.user.id) return;
     const state = stateFor(session);
-    state.data = combine(state.data, {removedCards:[card.id]});
+    state.data = combine(state.data, { removedCards: [card.id] });
     persist(state, session.user.id);
   }
 
+  /**
+   * @param {{ user: { id: string } }} session
+   * @param {any[] | null} cards
+   * @param {{ onUpdate?: (snapshot: any) => void, signal?: AbortSignal, force?: boolean }} [options]
+   */
   async function refreshVaultPrices(session, cards, { onUpdate, signal, force = false } = {}) {
     if (force) stateFor(session).nextRead = 0;
     await loadVaultPrices(session, cards);
@@ -279,10 +343,13 @@ export function createPricingClient({
     const started = clock();
     const timestamp = started.toISOString();
     let notice = '';
-    const priority = card => state.data.quotes[card.id]?.identity === identityKey(card) ? 1 : 0;
+    const priority = card => (state.data.quotes[card.id]?.identity === identityKey(card) ? 1 : 0);
     owned.sort((a, b) => priority(a) - priority(b));
     for (const id of [...Object.keys(state.data.quotes), ...Object.keys(state.data.failures)]) {
-      if (!ids.has(id)) { delete state.data.quotes[id]; delete state.data.failures[id]; }
+      if (!ids.has(id)) {
+        delete state.data.quotes[id];
+        delete state.data.failures[id];
+      }
     }
     for (const card of owned) {
       if (signal?.aborted) return snapshot(state);
@@ -291,17 +358,30 @@ export function createPricingClient({
       const current = last?.identity === identity;
       const missing = needsDetails(card);
       if (current && missing && last.status === 'needs_details') continue;
-      if (current && !force && started - Date.parse(last.checkedAt) < 7 * DAY) continue;
+      if (current && !force && +started - Date.parse(last.checkedAt) < 7 * DAY) continue;
       const failure = state.data.failures[card.id];
-      if (!missing && (state.data.cooldownUntil > +started || (failure?.identity === identity && failure.retryAt > +started))) {
+      if (
+        !missing &&
+        (state.data.cooldownUntil > +started || (failure?.identity === identity && failure.retryAt > +started))
+      ) {
         notice = 'Sales lookup is temporarily paused. Saved estimates show their last check date.';
         continue;
       }
       try {
-        const excludedUrls = new Set(Object.entries(state.data.reviews[card.id] || {})
-          .filter(([, entry]) => entry.flag?.identity === identity).map(([url]) => url));
+        const excludedUrls = new Set(
+          Object.entries(state.data.reviews[card.id] || {})
+            .filter(([, entry]) => entry.flag?.identity === identity)
+            .map(([url]) => url),
+        );
         const result = missing
-          ? { status: 'needs_details', valueCents: null, sales: [], checkedAt: timestamp, message: missing, source: 'CardPricer' }
+          ? {
+              status: 'needs_details',
+              valueCents: null,
+              sales: [],
+              checkedAt: timestamp,
+              message: missing,
+              source: 'CardPricer',
+            }
           : await lookup(card, { now: started, signal, excludedUrls });
         if (signal?.aborted) return snapshot(state);
         state.data.quotes[card.id] = { ...result, identity };
@@ -323,7 +403,42 @@ export function createPricingClient({
     return snapshot(state, notice);
   }
 
-  return { loadVaultPrices, refreshVaultPrices, reviewSale, forgetCardReviews };
+  // Records today's snapshot from the saved estimates without looking up new
+  // sales. The nightly job calls it after a time-boxed refresh, so every owner
+  // gets a daily point even when there was no time left for lookups.
+  async function recordVaultSnapshot(session, cards) {
+    await loadVaultPrices(session, cards);
+    const state = stateFor(session);
+    if (!state.cards) return snapshot(state);
+    recordDay(state);
+    persist(state, session.user.id);
+    await sync(state, session);
+    return snapshot(state);
+  }
+
+  // Everything the owner's backup needs: the estimates shown in the vault,
+  // owner-entered sold comps and flags, and the daily history.
+  // A fresh read is required: when the cloud copy cannot be read, this device's
+  // cache may be partial or empty, and a backup must never look complete.
+  async function backupVaultPrices(session, cards) {
+    stateFor(session).nextRead = 0;
+    await loadVaultPrices(session, cards);
+    const state = stateFor(session);
+    if (state.sync !== 'ready' && state.sync !== 'absent') {
+      throw new Error('Vault Value records could not be loaded.');
+    }
+    return structuredClone({ quotes: cardQuotes(state), reviews: state.data.reviews, history: state.data.history });
+  }
+
+  return {
+    loadVaultPrices,
+    refreshVaultPrices,
+    recordVaultSnapshot,
+    backupVaultPrices,
+    reviewSale,
+    forgetCardReviews,
+  };
 }
 
-export const { loadVaultPrices, refreshVaultPrices, reviewSale, forgetCardReviews } = createPricingClient();
+export const { loadVaultPrices, refreshVaultPrices, backupVaultPrices, reviewSale, forgetCardReviews } =
+  createPricingClient();

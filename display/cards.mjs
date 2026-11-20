@@ -1,5 +1,5 @@
 import { SUPABASE_URL } from '../config.js';
-import { backPhotoPath } from '../photos/storage.mjs';
+import { backPhotoPath, thumbnailPath } from '../photos/storage.mjs';
 
 export const MAX_CARDS = 60;
 export const MAX_TITLE = 80;
@@ -31,6 +31,7 @@ export function caseFields(name, selection, cards) {
 
 function photoUrl(path) {
   const name = clean(path).replace(/^\/+/, '');
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what this rejects.
   if (!name || /[:\\\x00-\x1f]|%(?:2e|2f|5c)/i.test(name)) return '';
   const parts = name.split('/');
   if (parts.some(part => !part || part === '..' || part === '.')) return '';
@@ -45,12 +46,20 @@ export function presentCard(card) {
   const detail = [number && '#' + number.replace(/^#/, ''), clean(card.parallel)].filter(Boolean).join(' · ');
   const grade = [clean(card.grader), clean(card.grade)].filter(Boolean).join(' ');
   const serial = clean(card.serial);
-  const tags = [card.is_auto === true && 'Autograph', card.is_relic === true && 'Relic',
-    serial && 'Serial ' + serial, grade].filter(Boolean);
+  const tags = [
+    card.is_auto === true && 'Autograph',
+    card.is_relic === true && 'Relic',
+    serial && 'Serial ' + serial,
+    grade,
+  ].filter(Boolean);
   return {
-    name, meta, detail, tags,
+    name,
+    meta,
+    detail,
+    tags,
     label: [name, meta, detail, ...tags].filter(Boolean).join(', '),
     frontUrl: photoUrl(card.image_path),
+    thumbUrl: photoUrl(thumbnailPath(card.image_path)),
     backUrl: photoUrl(backPhotoPath(card.image_path)),
   };
 }

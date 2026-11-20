@@ -1,5 +1,5 @@
--- Card Vault schema. Paste this whole file into the Supabase SQL editor and run it.
--- Safe to run again: it creates what is missing and does not drop existing cards.
+-- Cards table and photo bucket. Applied to the live project before migrations were
+-- recorded there. Safe to run again: it creates what is missing and does not drop cards.
 
 create table if not exists public.cards (
   id uuid primary key default gen_random_uuid(),
@@ -79,7 +79,15 @@ on conflict (id) do update
 set name = excluded.name,
     "public" = excluded."public";
 
-alter table storage.objects enable row level security;
+-- Supabase enables RLS on storage.objects and owns the table, so the migration
+-- role cannot alter it there. Turn RLS on only where it is still off.
+do $$
+begin
+  if not (select relrowsecurity from pg_class where oid = 'storage.objects'::regclass) then
+    alter table storage.objects enable row level security;
+  end if;
+end
+$$;
 
 grant execute on function storage.foldername(text) to anon, authenticated;
 

@@ -28,7 +28,7 @@ export function createNavigation(actions) {
   });
   document.getElementById('mast-search').addEventListener('click', () => {
     selectSection(false);
-    collection.scrollIntoView({block: 'start'});
+    collection.scrollIntoView({ block: 'start' });
     collection.dispatchEvent(new Event('vault:search'));
   });
 
@@ -78,7 +78,9 @@ export function createNavigation(actions) {
   }
 
   function setBatchLabel(label) {
-    nav.querySelectorAll('[data-batch-label]').forEach(node => { node.textContent = label; });
+    nav.querySelectorAll('[data-batch-label]').forEach(node => {
+      node.textContent = label;
+    });
   }
-  return {setUser, setBatchLabel};
+  return { setUser, setBatchLabel };
 }

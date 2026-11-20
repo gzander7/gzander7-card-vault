@@ -1,0 +1,10 @@
+Copyright (c) 2026 Gage (github.com/gzander7). All rights reserved.
+
+This repository is public so the Card Vault can be hosted on GitHub Pages and
+reviewed. No license is granted to copy, modify or redistribute its code,
+design or photographs without written permission from the copyright holder.
+
+Third-party code keeps its own license:
+
+- vendor/supabase-js.mjs: @supabase/supabase-js and its dependencies, MIT License
+- vendor/tesseract/: tesseract.js, Apache License 2.0

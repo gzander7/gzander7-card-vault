@@ -1,5 +1,9 @@
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+/**
+ * @param {{ title: string, detail?: string, frontUrl: string, backUrl?: string }} card
+ * @param {any} [trigger]
+ */
 export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = document.activeElement) {
   const existing = document.getElementById('card-viewer');
   if (existing?.open) return existing;
@@ -51,7 +55,7 @@ export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = d
   let drag = null;
 
   const canFlip = () => state.front === 'ready' && state.back === 'ready';
-  const showBack = () => Math.cos(yaw * Math.PI / 180) < 0;
+  const showBack = () => Math.cos((yaw * Math.PI) / 180) < 0;
   function paint() {
     card.style.transform = `rotateX(${pitch}deg) rotateY(${yaw}deg)`;
     const backVisible = showBack();
@@ -80,8 +84,12 @@ export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = d
       hint.textContent = 'Drag or use the arrow keys to turn the card.';
     } else if (hasPhoto) {
       const other = hasFront ? 'back' : 'front';
-      const info = state[other] === 'absent' ? 'Only this side is saved.'
-        : state[other] === 'error' ? 'The other photo could not load.' : 'Loading the other side…';
+      const info =
+        state[other] === 'absent'
+          ? 'Only this side is saved.'
+          : state[other] === 'error'
+            ? 'The other photo could not load.'
+            : 'Loading the other side…';
       hint.textContent = info + ' Drag or use the arrow keys to tilt.';
     } else {
       hint.textContent = '';
@@ -92,15 +100,23 @@ export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = d
   for (const [side, url] of Object.entries({ front: frontUrl, back: backUrl })) {
     if (!url) continue;
     const image = images[side];
-    image.addEventListener('load', () => {
-      state[side] = 'ready';
-      image.hidden = false;
-      syncImages();
-    }, { once: true });
-    image.addEventListener('error', () => {
-      state[side] = 'error';
-      syncImages();
-    }, { once: true });
+    image.addEventListener(
+      'load',
+      () => {
+        state[side] = 'ready';
+        image.hidden = false;
+        syncImages();
+      },
+      { once: true },
+    );
+    image.addEventListener(
+      'error',
+      () => {
+        state[side] = 'error';
+        syncImages();
+      },
+      { once: true },
+    );
     image.src = url;
   }
 
@@ -119,15 +135,21 @@ export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = d
 
   stage.addEventListener('pointerdown', event => {
     if (drag || event.button !== 0 || !event.isPrimary || !stage.classList.contains('has-photo')) return;
-    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw, pitch,
-      degreesPerPixel: 210 / Math.max(1, card.offsetWidth) };
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      yaw,
+      pitch,
+      degreesPerPixel: 210 / Math.max(1, card.offsetWidth),
+    };
     stage.setPointerCapture(event.pointerId);
     stage.classList.add('is-turning');
   });
   stage.addEventListener('pointermove', event => {
     if (drag?.id !== event.pointerId) return;
     yaw = setYaw(drag.yaw + (event.clientX - drag.x) * drag.degreesPerPixel);
-    pitch = clamp(drag.pitch - (event.clientY - drag.y) * .35, -32, 32);
+    pitch = clamp(drag.pitch - (event.clientY - drag.y) * 0.35, -32, 32);
     paint();
   });
   function endDrag(event) {
@@ -151,10 +173,14 @@ export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = d
   });
   flip.addEventListener('click', turnToOtherSide);
   close.addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => {
-    dialog.remove();
-    if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-  }, { once: true });
+  dialog.addEventListener(
+    'close',
+    () => {
+      dialog.remove();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    },
+    { once: true },
+  );
 
   syncImages();
   document.body.appendChild(dialog);

@@ -22,10 +22,11 @@ function edgeMap({ width, height, data }, vertical) {
     for (let pos = 3; pos < depth - 3; pos++) {
       const p = 4 * (vertical ? t * width + pos : pos * width + t);
       const near = contrast(data, p - stride, p + stride);
-      const before = p - 3 * stride, after = p + 3 * stride;
+      const before = p - 3 * stride,
+        after = p + 3 * stride;
       const far = contrast(data, before, after);
-      const brightness = data[after] - data[before] +
-        2 * (data[after + 1] - data[before + 1]) + data[after + 2] - data[before + 2];
+      const brightness =
+        data[after] - data[before] + 2 * (data[after + 1] - data[before + 1]) + data[after + 2] - data[before + 2];
       polarity[row + pos] = Math.sign(brightness);
       strength[row + pos] = Math.min(255, near * 1.35, far);
     }
@@ -50,14 +51,14 @@ function candidateLines(map) {
   const votes = new Float32Array(depth + 2 * margin);
   const peaks = [];
   for (let angle = -40; angle <= 40; angle += 2) {
-    const slope = Math.tan(angle * Math.PI / 180);
+    const slope = Math.tan((angle * Math.PI) / 180);
     votes.fill(0);
     for (const { t, pos, weight } of ridges) {
       votes[Math.round(pos - slope * (t - middle)) + margin] += weight;
     }
     for (let bin = 1; bin < votes.length - 1; bin++) {
-      if (votes[bin] < Math.max(5, length * .027) ||
-          votes[bin] <= votes[bin - 1] || votes[bin] < votes[bin + 1]) continue;
+      if (votes[bin] < Math.max(5, length * 0.027) || votes[bin] <= votes[bin - 1] || votes[bin] < votes[bin + 1])
+        continue;
       const center = bin - margin;
       peaks.push({ slope, center, intercept: center - slope * middle, votes: votes[bin] });
     }
@@ -65,8 +66,10 @@ function candidateLines(map) {
   peaks.sort((a, b) => b.votes - a.votes);
   const distinct = [];
   for (const line of peaks) {
-    if (distinct.some(old => Math.abs(old.center - line.center) +
-      .24 * length * Math.abs(old.slope - line.slope) < 3.25)) continue;
+    if (
+      distinct.some(old => Math.abs(old.center - line.center) + 0.24 * length * Math.abs(old.slope - line.slope) < 3.25)
+    )
+      continue;
     distinct.push(line);
     if (distinct.length === 18) break;
   }
@@ -77,8 +80,9 @@ function oppositeEdges(lines, depth) {
   const pairs = [];
   for (let a = 0; a < lines.length; a++) {
     for (let b = a + 1; b < lines.length; b++) {
-      const first = lines[a], last = lines[b];
-      if (last.center - first.center < .16 * depth || Math.abs(first.slope - last.slope) > .38) continue;
+      const first = lines[a],
+        last = lines[b];
+      if (last.center - first.center < 0.16 * depth || Math.abs(first.slope - last.slope) > 0.38) continue;
       pairs.push([first, last]);
     }
   }
@@ -86,8 +90,7 @@ function oppositeEdges(lines, depth) {
 }
 
 function crossing(horizontal, vertical) {
-  const x = (vertical.slope * horizontal.intercept + vertical.intercept) /
-    (1 - vertical.slope * horizontal.slope);
+  const x = (vertical.slope * horizontal.intercept + vertical.intercept) / (1 - vertical.slope * horizontal.slope);
   return { x, y: horizontal.slope * x + horizontal.intercept };
 }
 
@@ -97,16 +100,18 @@ function localPeak(values, index) {
 
 function lineIndex(map, line, t) {
   const pos = Math.round(line.intercept + line.slope * t);
-  return t < 2 || t >= map.length - 2 || pos < 2 || pos >= map.depth - 2
-    ? -1 : t * map.depth + pos;
+  return t < 2 || t >= map.length - 2 || pos < 2 || pos >= map.depth - 2 ? -1 : t * map.depth + pos;
 }
 
 function support(map, line, start, end) {
   if (end <= start) return 0;
-  let total = 0, signed = 0, present = 0, distinct = 0;
+  let total = 0,
+    signed = 0,
+    present = 0,
+    distinct = 0;
   const count = 24;
   for (let i = 0; i < count; i++) {
-    const t = Math.round(start + (end - start) * ((i + .5) / count));
+    const t = Math.round(start + (end - start) * ((i + 0.5) / count));
     const index = lineIndex(map, line, t);
     if (index < 0) continue;
     let peak = index;
@@ -118,16 +123,16 @@ function support(map, line, start, end) {
     const right = pos >= map.depth - 7 ? 0 : localPeak(map.strength, index + 6);
     // A card edge stands out from parallel strips nearby. Random foil detail
     // can produce strong gradients almost anywhere, including on a false line.
-    if (value > (left + right) * .64 + 6) distinct++;
+    if (value > (left + right) * 0.64 + 6) distinct++;
     if (value >= 16) present++;
     const weight = Math.min(value / 64, 1);
     total += weight;
     signed += weight * map.polarity[peak];
   }
-  if (present < .7 * count || distinct < .54 * count) return 0;
+  if (present < 0.7 * count || distinct < 0.54 * count) return 0;
   // Along a physical outline, one side usually stays brighter over most of
   // the edge. A repeated checker pattern has contrast but reverses polarity.
-  return (.5 * total + .5 * Math.abs(signed)) / count;
+  return (0.5 * total + 0.5 * Math.abs(signed)) / count;
 }
 
 function distance(a, b) {
@@ -137,13 +142,21 @@ function distance(a, b) {
 function refine(map, line, start, end) {
   // Use only the supported segment here, so collinear texture beyond the
   // corners cannot tilt the fitted boundary.
-  let weight = 0, sumT = 0, sumP = 0, sumTT = 0, sumTP = 0;
+  let weight = 0,
+    sumT = 0,
+    sumP = 0,
+    sumTT = 0,
+    sumTP = 0;
   for (let t = Math.ceil(start + 2); t < end - 2; t++) {
     const pos = Math.round(line.intercept + line.slope * t);
-    let best = 0, bestPos = pos;
+    let best = 0,
+      bestPos = pos;
     for (let p = Math.max(2, pos - 2); p <= Math.min(map.depth - 3, pos + 2); p++) {
-      const value = map.strength[t * map.depth + p] / (1 + .09 * Math.abs(p - pos));
-      if (value > best) { best = value; bestPos = p; }
+      const value = map.strength[t * map.depth + p] / (1 + 0.09 * Math.abs(p - pos));
+      if (value > best) {
+        best = value;
+        bestPos = p;
+      }
     }
     if (best < 16) continue;
     const w = Math.min(1, best / 76);
@@ -167,34 +180,42 @@ export function detectCard(image) {
   const sides = oppositeEdges(candidateLines(vertical), width);
   const ends = oppositeEdges(candidateLines(horizontal), height);
   let best = null;
-  let bestScore = .65;
+  let bestScore = 0.65;
   for (const [left, right] of sides) {
     for (const [top, bottom] of ends) {
-      const tl = crossing(top, left), tr = crossing(top, right);
-      const br = crossing(bottom, right), bl = crossing(bottom, left);
+      const tl = crossing(top, left),
+        tr = crossing(top, right);
+      const br = crossing(bottom, right),
+        bl = crossing(bottom, left);
       const corners = [tl, tr, br, bl];
       if (corners.some(p => p.x < 2 || p.y < 2 || p.x > width - 3 || p.y > height - 3)) continue;
       const area = ((br.x - tl.x) * (bl.y - tr.y) - (br.y - tl.y) * (bl.x - tr.x)) / (2 * width * height);
-      if (area < .09 || area > .94) continue;
-      const topWidth = distance(tl, tr), bottomWidth = distance(bl, br);
-      const leftHeight = distance(tl, bl), rightHeight = distance(tr, br);
+      if (area < 0.09 || area > 0.94) continue;
+      const topWidth = distance(tl, tr),
+        bottomWidth = distance(bl, br);
+      const leftHeight = distance(tl, bl),
+        rightHeight = distance(tr, br);
       const aspect = (topWidth + bottomWidth) / (leftHeight + rightHeight);
       const ratio = Math.min(aspect, 1 / aspect);
-      if (ratio < .47 || ratio > .91 ||
-          Math.min(topWidth, bottomWidth) < .62 * Math.max(topWidth, bottomWidth) ||
-          Math.min(leftHeight, rightHeight) < .62 * Math.max(leftHeight, rightHeight)) continue;
+      if (
+        ratio < 0.47 ||
+        ratio > 0.91 ||
+        Math.min(topWidth, bottomWidth) < 0.62 * Math.max(topWidth, bottomWidth) ||
+        Math.min(leftHeight, rightHeight) < 0.62 * Math.max(leftHeight, rightHeight)
+      )
+        continue;
 
       const leftSupport = support(vertical, left, tl.y, bl.y);
-      if (leftSupport < .36) continue;
+      if (leftSupport < 0.36) continue;
       const rightSupport = support(vertical, right, tr.y, br.y);
-      if (rightSupport < .36) continue;
+      if (rightSupport < 0.36) continue;
       const topSupport = support(horizontal, top, tl.x, tr.x);
-      if (topSupport < .36) continue;
+      if (topSupport < 0.36) continue;
       const bottomSupport = support(horizontal, bottom, bl.x, br.x);
-      if (bottomSupport < .36) continue;
+      if (bottomSupport < 0.36) continue;
       const weakest = Math.min(leftSupport, rightSupport, topSupport, bottomSupport);
       const average = (leftSupport + rightSupport + topSupport + bottomSupport) / 4;
-      const score = .6 * average + .4 * weakest + .08 * Math.sqrt(area) - .16 * Math.abs(ratio - 5 / 7);
+      const score = 0.6 * average + 0.4 * weakest + 0.08 * Math.sqrt(area) - 0.16 * Math.abs(ratio - 5 / 7);
       if (score > bestScore) {
         bestScore = score;
         best = { tl, tr, br, bl, top, bottom, left, right };

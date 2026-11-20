@@ -5,8 +5,15 @@ export function backPhotoPath(frontPath) {
   return match ? match[1] + '/back' : '';
 }
 
+// Gallery thumbnails sit beside the front photo: front.jpg -> front.thumb.jpg.
+// Cards saved before thumbnails existed have none until one is backfilled.
+export function thumbnailPath(frontPath) {
+  const match = /^([\w-]+\/(?:pairs\/[\da-f-]{36}\/front|[\w-]+))\.(?:jpg|jpeg|png|webp)$/i.exec(frontPath || '');
+  return match ? match[1] + '.thumb.jpg' : '';
+}
+
 function photoPaths(frontPath) {
-  return [frontPath, backPhotoPath(frontPath)].filter(Boolean);
+  return [frontPath, backPhotoPath(frontPath), thumbnailPath(frontPath)].filter(Boolean);
 }
 
 async function removeCardPhotos(bucket, paths) {
@@ -29,7 +36,7 @@ function frontExtension(front, oldPath) {
 }
 
 // An undefined back keeps it, null removes it, and a Blob replaces it.
-async function stageCardPhotos(bucket, { owner, previousFront = '', front, back }) {
+async function stageCardPhotos(bucket, { owner, previousFront = '', front, back, makeThumbnail }) {
   const previousBack = backPhotoPath(previousFront);
   if (!front && !previousFront) throw new Error('A front photo is required.');
   if (!front && (back === undefined || (!back && !previousBack))) {
@@ -50,9 +57,22 @@ async function stageCardPhotos(bucket, { owner, previousFront = '', front, back 
     const { error } = await bucket.upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
     if (error) throw error;
     created.push(path);
+    return blob;
+  }
+  // A thumbnail is an optimisation: the gallery falls back to the full photo,
+  // so a failure here never blocks the save.
+  async function writeThumbnail(frontBlob) {
+    const path = thumbnailPath(frontPath);
+    if (!makeThumbnail || !path) return;
+    try {
+      const thumbnail = await makeThumbnail(frontBlob);
+      if (!thumbnail) return;
+      const { error } = await bucket.upload(path, thumbnail, { contentType: 'image/jpeg', upsert: false });
+      if (!error) created.push(path);
+    } catch {}
   }
   try {
-    await write(frontPath, front, previousFront);
+    await writeThumbnail(await write(frontPath, front, previousFront));
     if (paired) await write(backPhotoPath(frontPath), back, previousBack);
   } catch (error) {
     await removeCardPhotos(bucket, created);
@@ -64,20 +84,27 @@ async function stageCardPhotos(bucket, { owner, previousFront = '', front, back 
 // Only retire the old objects after the row points to the staged revision.
 // An ambiguous commit can still reference the new objects after a network
 // failure. Check the row before deciding what is safe to remove.
-export async function savePhotoRevision(client, { id, owner, previousFront, previousCard, fields, front, back, purchase }) {
+export async function savePhotoRevision(
+  client,
+  { id, owner, previousFront, previousCard, fields, front, back, purchase, makeThumbnail },
+) {
   const bucket = client.storage.from('card-images');
-  const change = await stageCardPhotos(bucket, { owner, previousFront, front, back });
+  const change = await stageCardPhotos(bucket, { owner, previousFront, front, back, makeThumbnail });
   const row = { ...fields, owner, image_path: change.frontPath };
   async function writeRow() {
     if (purchase) {
-      return client.rpc('vault_save_card_purchase', {
-        card_data: {...row, id}, previous_card: previousCard || (previousFront ? {image_path:previousFront} : null), purchase,
-      }).single();
+      return client
+        .rpc('vault_save_card_purchase', {
+          card_data: { ...row, id },
+          previous_card: previousCard || (previousFront ? { image_path: previousFront } : null),
+          purchase,
+        })
+        .single();
     }
     const table = client.from('cards');
     const write = previousFront
       ? table.update(row).eq('id', id).eq('image_path', previousFront)
-      : table.insert({...row, id});
+      : table.insert({ ...row, id });
     return write.select().single();
   }
 
@@ -85,7 +112,7 @@ export async function savePhotoRevision(client, { id, owner, previousFront, prev
     const result = await client.from('cards').select('*').eq('id', id).maybeSingle();
     if (result.error) throw result.error;
     if (!result.data) return null;
-    if (!Object.entries(row).every(([key,value]) => result.data[key] === value)) return null;
+    if (!Object.entries(row).every(([key, value]) => result.data[key] === value)) return null;
     if (purchase) {
       const receipt = await client.from('vault_card_purchases').select('revision').eq('card_id', id).maybeSingle();
       if (receipt.error) throw receipt.error;
@@ -100,7 +127,11 @@ export async function savePhotoRevision(client, { id, owner, previousFront, prev
     let saved = retry ? await readCommitted() : null;
     if (!saved) {
       let response;
-      try { response = await writeRow(); } catch { /* The server may have committed. */ }
+      try {
+        response = await writeRow();
+      } catch {
+        /* The server may have committed. */
+      }
       const duplicate = response?.error?.code === '23505';
       if (response?.error && response.status >= 400 && response.status < 500 && !(retry && duplicate)) {
         if (!retry) await removeCardPhotos(bucket, change.created);
@@ -111,16 +142,21 @@ export async function savePhotoRevision(client, { id, owner, previousFront, prev
       }
       saved = response?.error ? null : response?.data;
       if (!saved) {
-        try { saved = await readCommitted(); } catch { /* Retain staged files while the result is unknown. */ }
+        try {
+          saved = await readCommitted();
+        } catch {
+          /* Retain staged files while the result is unknown. */
+        }
       }
       if (!saved) {
+        /** @type {Error & { retrySave?: () => Promise<{ saved: any, cleaned: boolean }> }} */
         const error = new Error('Could not confirm the save. Reconnect and check the card before trying again.');
         if (!previousFront) error.retrySave = () => commit(true);
         throw error;
       }
     }
     const cleaned = await removeCardPhotos(bucket, change.replaced);
-    return {saved, cleaned};
+    return { saved, cleaned };
   }
   return commit();
 }

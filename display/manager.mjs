@@ -36,7 +36,9 @@ function openManager({ client, owner, getOwner }, trigger, card) {
   let cases = [];
   let pending = null;
   const live = () => dialog.open && getOwner() === owner;
-  const tell = message => { if (live()) status.textContent = message; };
+  const tell = message => {
+    if (live()) status.textContent = message;
+  };
 
   function close() {
     pending?.abort();
@@ -47,14 +49,21 @@ function openManager({ client, owner, getOwner }, trigger, card) {
   dialog.addEventListener('cancel', event => {
     if (closeButton.disabled) event.preventDefault();
   });
-  dialog.addEventListener('close', () => {
-    pending?.abort();
-    dialog.remove();
-    if (getOwner() === owner && trigger?.isConnected &&
-        (trigger.closest('dialog[open]') || !document.querySelector('dialog[open]'))) {
-      trigger.focus({ preventScroll: true });
-    }
-  }, { once: true });
+  dialog.addEventListener(
+    'close',
+    () => {
+      pending?.abort();
+      dialog.remove();
+      if (
+        getOwner() === owner &&
+        trigger?.isConnected &&
+        (trigger.closest('dialog[open]') || !document.querySelector('dialog[open]'))
+      ) {
+        trigger.focus({ preventScroll: true });
+      }
+    },
+    { once: true },
+  );
 
   function screen(title) {
     heading.textContent = title;
@@ -95,8 +104,11 @@ function openManager({ client, owner, getOwner }, trigger, card) {
       const retry = button('Try again', 'link-button', load);
       panel.append(retry);
       const missing = ['42P01', 'PGRST205'].includes(result.error.code);
-      tell(missing ? 'Display cases haven’t been set up for this vault yet.'
-        : 'Your display cases could not be loaded. Check your connection and try again.');
+      tell(
+        missing
+          ? 'Display cases haven’t been set up for this vault yet.'
+          : 'Your display cases could not be loaded. Check your connection and try again.',
+      );
       retry.focus();
       return;
     }
@@ -132,8 +144,11 @@ function openManager({ client, owner, getOwner }, trigger, card) {
         let change;
         const add = button('Add card', 'link-button', async () => {
           change ??= {
-            id: row.id, title: row.title, card_ids: [...row.card_ids, card.id],
-            expectedRevision: row.revision, revision: crypto.randomUUID(),
+            id: row.id,
+            title: row.title,
+            card_ids: [...row.card_ids, card.id],
+            expectedRevision: row.revision,
+            revision: crypto.randomUUID(),
           };
           picker.disabled = true;
           tell('Adding card…');
@@ -144,8 +159,11 @@ function openManager({ client, owner, getOwner }, trigger, card) {
             if (result.error instanceof CaseConflict || result.error.code === '23514') {
               const reload = button('Reload cases', 'link-button', load);
               add.replaceWith(reload);
-              tell(result.error instanceof CaseConflict ? result.error.message
-                : 'A card in this selection is unavailable. Check the saved selection in Display cases.');
+              tell(
+                result.error instanceof CaseConflict
+                  ? result.error.message
+                  : 'A card in this selection is unavailable. Check the saved selection in Display cases.',
+              );
               reload.focus();
             } else {
               tell('Could not add the card. Check your connection and try again.');
@@ -153,7 +171,7 @@ function openManager({ client, owner, getOwner }, trigger, card) {
             }
             return;
           }
-          cases = cases.map(existing => existing.id === row.id ? result.data : existing);
+          cases = cases.map(existing => (existing.id === row.id ? result.data : existing));
           showPicker('Card added to “' + row.title + '”.');
         });
         add.setAttribute('aria-label', 'Add card to ' + row.title);
@@ -227,10 +245,12 @@ function openManager({ client, owner, getOwner }, trigger, card) {
   async function edit(original) {
     screen(original ? 'Edit display case' : 'New display case');
     tell('Loading your vault cards…');
-    const catalogue = await request((signal, renewTimeout) => listPickerCards(client, owner, signal, count => {
-      renewTimeout();
-      tell('Loading your vault cards… ' + cardCount(count) + ' loaded.');
-    }));
+    const catalogue = await request((signal, renewTimeout) =>
+      listPickerCards(client, owner, signal, count => {
+        renewTimeout();
+        tell('Loading your vault cards… ' + cardCount(count) + ' loaded.');
+      }),
+    );
     if (!catalogue) return;
     if (catalogue.error) {
       const actions = element('div', 'case-controls');
@@ -250,7 +270,11 @@ function openManager({ client, owner, getOwner }, trigger, card) {
     }
     tell('');
     editCase(panel, {
-      cards: catalogue.data, original, initialCardId: card?.id, tell, onReload: load,
+      cards: catalogue.data,
+      original,
+      initialCardId: card?.id,
+      tell,
+      onReload: load,
       onCancel: () => showHome('', original?.id),
       async onSave(change) {
         const result = await request(signal => saveCase(client, owner, change, signal), true);
@@ -258,14 +282,19 @@ function openManager({ client, owner, getOwner }, trigger, card) {
         if (result.error) {
           const conflict = result.error instanceof CaseConflict;
           if (conflict) tell(result.error.message);
-          else if (result.error.code === '23514') tell('A selected card is unavailable. Reopen the editor to refresh your card choices.');
+          else if (result.error.code === '23514')
+            tell('A selected card is unavailable. Reopen the editor to refresh your card choices.');
           else tell('Could not save this case. Check your connection and try again.');
           return { conflict };
         }
         const saved = result.data;
-        cases = [...cases.filter(item => item.id !== saved.id), saved]
-          .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
-        showHome(original ? 'Changes saved to the same share link.' : '“' + saved.title + '” is ready to share.', saved.id);
+        cases = [...cases.filter(item => item.id !== saved.id), saved].sort(
+          (a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id),
+        );
+        showHome(
+          original ? 'Changes saved to the same share link.' : '“' + saved.title + '” is ready to share.',
+          saved.id,
+        );
         return null;
       },
     });

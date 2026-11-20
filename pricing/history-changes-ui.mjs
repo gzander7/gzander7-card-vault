@@ -35,16 +35,22 @@ export function createHistoryComparison(section, { dateText, money, signedMoney 
 
   return function showComparison(previous, current, datesOutsideRange = false) {
     const { status, netCents, changes } = compareDays(previous, current);
-    dates.textContent = [previous, current].filter(Boolean).map(day => dateText(day.date)).join(' to ');
+    dates.textContent = [previous, current]
+      .filter(Boolean)
+      .map(day => dateText(day.date))
+      .join(' to ');
     net.hidden = status !== 'ready';
     amount.textContent = net.hidden ? '' : signedMoney(netCents);
     amount.dataset.direction = net.hidden ? '' : String(Math.sign(netCents));
     let message = '';
     if (status === 'empty') {
-      message = datesOutsideRange ? 'Choose a longer chart range to compare recorded dates.' : 'Your first recorded date will appear here.';
+      message = datesOutsideRange
+        ? 'Choose a longer chart range to compare recorded dates.'
+        : 'Your first recorded date will appear here.';
     } else if (status === 'legacy') {
       if (!Array.isArray(current.cards)) message = 'Only the vault total was recorded for this date.';
-      else if (previous && !Array.isArray(previous.cards)) message = 'The previous date has only a vault total. This date starts a new card-by-card comparison.';
+      else if (previous && !Array.isArray(previous.cards))
+        message = 'The previous date has only a vault total. This date starts a new card-by-card comparison.';
       else message = 'The saved card details are incomplete for this comparison.';
     } else if (status === 'baseline') {
       message = 'This is the first record with card details. The next recorded date will show what changed.';

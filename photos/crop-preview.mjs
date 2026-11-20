@@ -2,13 +2,18 @@
 // A paused batch keeps only the normalized manual corners and the selected view.
 export function createCropPreview(side, apply, editor) {
   const control = name => document.getElementById(side + '-crop-' + name);
-  const toggle = control('toggle'), adjust = control('adjust'), note = control('note');
+  const toggle = control('toggle'),
+    adjust = control('adjust'),
+    note = control('note');
   let state = null;
 
   function render() {
     adjust.hidden = !state;
     toggle.hidden = !state?.crop;
-    if (!state) { note.textContent = ''; return; }
+    if (!state) {
+      note.textContent = '';
+      return;
+    }
     if (state.crop) {
       const cropChoice = state.manual ? 'Use adjusted crop' : 'Use auto-crop';
       const cropStatus = state.manual ? 'Corners adjusted and straightened.' : 'Auto-cropped and straightened.';
@@ -76,7 +81,10 @@ export function createCropPreview(side, apply, editor) {
     set(full, draft) {
       clear();
       state = {
-        full, crop: full.crop, corners: full.corners, manual: Boolean(draft?.corners),
+        full,
+        crop: full.crop,
+        corners: full.corners,
+        manual: Boolean(draft?.corners),
         useCrop: Boolean(full.crop) && !draft?.full,
       };
       select();
@@ -90,6 +98,7 @@ export function createCropPreview(side, apply, editor) {
       if (!state) return null;
       return { corners: state.manual ? state.corners : null, full: Boolean(state.crop) && !state.useCrop };
     },
-    setPreparing, clear,
+    setPreparing,
+    clear,
   };
 }

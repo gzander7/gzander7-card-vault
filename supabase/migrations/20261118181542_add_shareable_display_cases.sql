@@ -1,5 +1,5 @@
+-- Recorded on the live project as version 20261118181542 (add_shareable_display_cases.sql). Copied verbatim from its migration history; do not edit.
 -- Run after schema.sql. Display case links identify one live, owner-managed selection.
-begin;
 
 create schema if not exists vault_display_case_private;
 revoke all on schema vault_display_case_private from public, anon, authenticated;
@@ -26,9 +26,6 @@ create policy vault_manage_own_display_cases on public.vault_display_cases for a
 create table if not exists vault_display_case_private.issued_ids (id uuid primary key);
 alter table vault_display_case_private.issued_ids enable row level security;
 revoke all on vault_display_case_private.issued_ids from public, anon, authenticated;
-drop policy if exists vault_deny_client_access on vault_display_case_private.issued_ids;
-create policy vault_deny_client_access on vault_display_case_private.issued_ids
-  as restrictive for all to anon, authenticated using (false) with check (false);
 insert into vault_display_case_private.issued_ids (id)
   select id from public.vault_display_cases on conflict (id) do nothing;
 
@@ -103,4 +100,3 @@ grant execute on function vault_display_case_private.read_case(uuid), public.vau
   to anon, authenticated;
 
 notify pgrst, 'reload schema';
-commit;

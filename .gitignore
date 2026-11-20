@@ -1,0 +1,9 @@
+node_modules/
+test-results/
+playwright-report/
+.supabase/
+supabase/.temp/
+supabase/.branches/
+.env
+.env.*
+!.env.example

@@ -19,8 +19,11 @@ export async function readPublicCase(id, fetchImpl = fetch) {
     const body = await response.text();
     const data = body.trim() ? JSON.parse(body) : null;
     if (data === null) return null;
-    if (typeof data.title !== 'string' || !Array.isArray(data.cards)
-        || !data.cards.every(card => card && typeof card === 'object' && !Array.isArray(card))) {
+    if (
+      typeof data.title !== 'string' ||
+      !Array.isArray(data.cards) ||
+      !data.cards.every(card => card && typeof card === 'object' && !Array.isArray(card))
+    ) {
       throw new Error('Invalid display case response.');
     }
     return { title: data.title, cards: data.cards.map(presentCard) };

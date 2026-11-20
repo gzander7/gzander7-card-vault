@@ -3,10 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Keep the Supabase origin in step with config.js; csp.test.mjs checks it. Tesseract's WASM core and model load from jsDelivr. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://cyocszfzjngomhtvzone.supabase.co https://cardpricer.co https://cdn.jsdelivr.net blob: data:; img-src 'self' https://cyocszfzjngomhtvzone.supabase.co blob: data:; style-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="Browse Gage’s personal collection of autographed, graded, and serial-numbered trading cards.">
   <meta name="theme-color" content="#30151b">
   <title>Gage’s Card Vault</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="vault-shell.css">
   <link rel="stylesheet" href="collection.css">
@@ -149,6 +154,15 @@
                 <tbody id="value-history-rows"></tbody>
               </table>
             </div>
+            <section class="value-backup" aria-labelledby="backup-heading">
+              <h3 id="backup-heading">Back up your vault</h3>
+              <p>Download every card you own with its photo links, purchases, estimates, sold comps and value history.</p>
+              <div class="backup-actions">
+                <button type="button" id="backup-json" class="link-button">Download backup (JSON)</button>
+                <button type="button" id="backup-csv" class="link-button">Download spreadsheet (CSV)</button>
+              </div>
+              <p id="backup-status" role="status"></p>
+            </section>
             <p class="value-method">Estimates show the median and range of the latest two to five matching sales within 90 days. With at least four sales, prices above 2.5 times the median or below 40% of it are left out. Automatic sales come from <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">CardPricer</a>.</p>
             <p>High confidence takes at least four counted sales spanning two weeks, with the highest price under twice the lowest. Two sales, or a highest price at least twice the lowest, give low confidence. Other estimates have medium confidence.</p>
           </div>
@@ -227,7 +241,7 @@
     </footer>
   </div>
 
-  <div id="delete-notices" aria-label="Pending card deletions"></div>
+  <div id="delete-notices" role="group" aria-label="Pending card deletions"></div>
 
   <dialog id="auth-dialog" aria-labelledby="auth-title">
     <form id="auth-form" method="post">

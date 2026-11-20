@@ -2,8 +2,16 @@ import { readCardPhotos } from './ocr.mjs';
 import { createCropPreview } from '../photos/crop-preview.mjs';
 import { parseCardScan } from './parser.mjs';
 
-export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, cornerEditor, onSourceChange = () => {},
-  autoRead = (hasFront, hasBack) => hasFront && hasBack, onBackFile = () => {} }) {
+export function createScanEditor({
+  getCardHints,
+  onSuggestions,
+  prepareImage,
+  onBackPreparing,
+  cornerEditor,
+  onSourceChange = () => {},
+  autoRead = (hasFront, hasBack) => hasFront && hasBack,
+  onBackFile = /** @param {Blob | null} _file */ _file => {},
+}) {
   const byId = id => document.getElementById(id);
   const dialog = byId('card-dialog');
   const photoField = byId('photo-field');
@@ -94,17 +102,28 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
           prefix = 'The saved back was unavailable. Only the front was read. ';
         }
       }
-      const result = await readCardPhotos({ front, back }, {
-        signal: controller.signal,
-        onProgress: event => reportProgress(controller, event),
-      });
+      const result = await readCardPhotos(
+        { front, back },
+        {
+          signal: controller.signal,
+          onProgress: event => reportProgress(controller, event),
+        },
+      );
       if (scan !== controller || !dialog.open || photoField.disabled) return;
       const suggestions = parseCardScan(result, getCardHints());
       const applied = onSuggestions(suggestions);
       if (applied > 0) {
-        setStatus(prefix + 'Filled ' + applied + (applied === 1 ? ' field.' : ' fields.') + ' Review the highlighted details before saving.');
+        setStatus(
+          prefix +
+            'Filled ' +
+            applied +
+            (applied === 1 ? ' field.' : ' fields.') +
+            ' Review the highlighted details before saving.',
+        );
       } else if (Object.keys(suggestions).length) {
-        setStatus(prefix + 'Scan complete. The recognized details already have entries. Review your fields before saving.');
+        setStatus(
+          prefix + 'Scan complete. The recognized details already have entries. Review your fields before saving.',
+        );
       } else {
         setStatus(prefix + 'No fields could be read confidently. Try a closer, glare-free photo or enter the details.');
       }
@@ -151,16 +170,20 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
     onBackPreparing(false);
   }
 
-  const backCrop = createCropPreview('back', prepared => {
-    if (backUrl) URL.revokeObjectURL(backUrl);
-    backChange = prepared.blob;
-    backUrl = URL.createObjectURL(backChange);
-    back = prepared.scanBlob;
-    savedBack = null;
-    backImage.src = backUrl;
-    backPreview.hidden = false;
-    sourceChanged();
-  }, cornerEditor);
+  const backCrop = createCropPreview(
+    'back',
+    prepared => {
+      if (backUrl) URL.revokeObjectURL(backUrl);
+      backChange = prepared.blob;
+      backUrl = URL.createObjectURL(backChange);
+      back = prepared.scanBlob;
+      savedBack = null;
+      backImage.src = backUrl;
+      backPreview.hidden = false;
+      sourceChanged();
+    },
+    cornerEditor,
+  );
 
   function clearBack() {
     backCrop.clear();
@@ -183,7 +206,10 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
       backImage.src = url;
       backPreview.hidden = false;
     };
-    backCrop.setSaved(loadBlob, () => { restore(); sourceChanged(); });
+    backCrop.setSaved(loadBlob, () => {
+      restore();
+      sourceChanged();
+    });
     restore();
     updateControls();
   }
@@ -264,6 +290,18 @@ export function createScanEditor({ getCardHints, onSuggestions, prepareImage, on
   backCamera.addEventListener('change', chooseBack);
   read.addEventListener('click', start);
   stop.addEventListener('click', cancel);
-  return { setFront, setSavedFront, setSavedBack, getBackChange: () => backChange, reset, cancel, pause, resume,
-    prepareBack, removeBack, start, backCropSnapshot:backCrop.snapshot };
+  return {
+    setFront,
+    setSavedFront,
+    setSavedBack,
+    getBackChange: () => backChange,
+    reset,
+    cancel,
+    pause,
+    resume,
+    prepareBack,
+    removeBack,
+    start,
+    backCropSnapshot: backCrop.snapshot,
+  };
 }

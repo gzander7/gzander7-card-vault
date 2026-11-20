@@ -1,32 +1,44 @@
 function isPhoto(file) {
   if (!file?.size) return false;
   if (file.type?.startsWith('image/')) return true;
-  return (!file.type || file.type === 'application/octet-stream') &&
-    /\.(?:jpe?g|png|heic|heif|webp|avif|gif|bmp|tiff?)$/i.test(file.name);
+  return (
+    (!file.type || file.type === 'application/octet-stream') &&
+    /\.(?:jpe?g|png|heic|heif|webp|avif|gif|bmp|tiff?)$/i.test(file.name)
+  );
 }
 
 export function createScanQueue() {
-  let owner = '', items = [], saved = 0, skipped = 0;
-  function reset() { items = []; saved = skipped = 0; }
+  let owner = '',
+    items = [],
+    saved = 0,
+    skipped = 0;
+  function reset() {
+    items = [];
+    saved = skipped = 0;
+  }
   function setOwner(id) {
     if ((id || '') !== owner) reset();
     owner = id || '';
   }
   function add(files, pairs) {
     let ignored = 0;
-    if (!owner) return {ignored:files.length};
+    if (!owner) return { ignored: files.length };
     const step = pairs ? 2 : 1;
     for (let i = 0; i < files.length; i += step) {
-      const front = files[i], candidate = pairs ? files[i + 1] : null;
-      if (!isPhoto(front)) { ignored += candidate ? 2 : 1; continue; }
+      const front = files[i],
+        candidate = pairs ? files[i + 1] : null;
+      if (!isPhoto(front)) {
+        ignored += candidate ? 2 : 1;
+        continue;
+      }
       const back = candidate && isPhoto(candidate) ? candidate : null;
       if (candidate && !back) ignored++;
-      items.push({id:crypto.randomUUID(), front, back, draft:null});
+      items.push({ id: crypto.randomUUID(), front, back, draft: null });
     }
-    return {ignored};
+    return { ignored };
   }
   function finish(entry, outcome) {
-    if (items[0] !== entry || !entry || !['saved','skipped'].includes(outcome)) return false;
+    if (items[0] !== entry || !entry || !['saved', 'skipped'].includes(outcome)) return false;
     items.shift();
     if (outcome === 'saved') saved++;
     else skipped++;
@@ -36,14 +48,32 @@ export function createScanQueue() {
     const index = items.indexOf(entry);
     if (index !== -1) items.splice(index, 1);
   }
-  return {setOwner, reset, add, finish, remove, get items() { return items; },
-    get saved() { return saved; }, get skipped() { return skipped; }};
+  return {
+    setOwner,
+    reset,
+    add,
+    finish,
+    remove,
+    get items() {
+      return items;
+    },
+    get saved() {
+      return saved;
+    },
+    get skipped() {
+      return skipped;
+    },
+  };
 }
 
-export function createBatchDialog(queue, {onReview, onCount}) {
+export function createBatchDialog(queue, { onReview, onCount }) {
   const field = name => document.getElementById('batch-' + name);
-  const dialog = field('dialog'), list = field('list'), message = field('message');
-  const library = field('files'), camera = field('camera'), review = field('review');
+  const dialog = field('dialog'),
+    list = field('list'),
+    message = field('message');
+  const library = field('files'),
+    camera = field('camera'),
+    review = field('review');
   const previews = new Map();
 
   function revoke(row) {
@@ -86,7 +116,10 @@ export function createBatchDialog(queue, {onReview, onCount}) {
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       if (!file || !queue.items.includes(entry)) return;
-      if (!isPhoto(file)) { message.textContent = 'Choose an image for the back.'; return; }
+      if (!isPhoto(file)) {
+        message.textContent = 'Choose an image for the back.';
+        return;
+      }
       entry.back = file;
       if (entry.draft) {
         entry.draft.suggestions = {};
@@ -112,20 +145,25 @@ export function createBatchDialog(queue, {onReview, onCount}) {
     const actions = document.createElement('div');
     actions.className = 'batch-row-actions';
     if (!entry.retry) {
-      if (entry.back) actions.append(makeButton('Swap sides', () => {
-        [entry.front,entry.back] = [entry.back,entry.front];
-        if (entry.draft) {
-          entry.draft.suggestions = {};
-          [entry.draft.frontCrop, entry.draft.backCrop] = [entry.draft.backCrop, entry.draft.frontCrop];
-        }
-        render(entry);
-      }));
+      if (entry.back)
+        actions.append(
+          makeButton('Swap sides', () => {
+            [entry.front, entry.back] = [entry.back, entry.front];
+            if (entry.draft) {
+              entry.draft.suggestions = {};
+              [entry.draft.frontCrop, entry.draft.backCrop] = [entry.draft.backCrop, entry.draft.frontCrop];
+            }
+            render(entry);
+          }),
+        );
       else actions.append(takeBack(entry));
-      actions.append(makeButton('Remove from queue', () => {
-        queue.remove(entry);
-        render();
-        field('title').focus();
-      }));
+      actions.append(
+        makeButton('Remove from queue', () => {
+          queue.remove(entry);
+          render();
+          field('title').focus();
+        }),
+      );
     } else {
       actions.textContent = 'Review this card to retry its unconfirmed save.';
     }
@@ -168,16 +206,17 @@ export function createBatchDialog(queue, {onReview, onCount}) {
     const files = Array.from(input.files || []);
     input.value = '';
     if (!files.length) return;
-    const {ignored} = queue.add(files, paired);
+    const { ignored } = queue.add(files, paired);
     message.textContent = ignored ? 'Some selected files could not be queued. Check the photo pairs below.' : '';
     render();
   }
   library.addEventListener('change', () => collect(library, field('order').value === 'pairs'));
   camera.addEventListener('change', () => collect(camera, false));
   field('order').addEventListener('change', () => {
-    field('order-hint').textContent = field('order').value === 'pairs'
-      ? 'Choose front, back, front, back in one selection. A final front can stand alone.'
-      : 'Each selected photo starts a card. You can add its back during review.';
+    field('order-hint').textContent =
+      field('order').value === 'pairs'
+        ? 'Choose front, back, front, back in one selection. A final front can stand alone.'
+        : 'Each selected photo starts a card. You can add its back during review.';
   });
   review.addEventListener('click', () => {
     if (!queue.items.length) return;
@@ -191,5 +230,11 @@ export function createBatchDialog(queue, {onReview, onCount}) {
     if (!queue.items.length) queue.reset();
     onCount();
   });
-  return {open, close() { if (dialog.open) dialog.close(); clearList(); }};
+  return {
+    open,
+    close() {
+      if (dialog.open) dialog.close();
+      clearList();
+    },
+  };
 }

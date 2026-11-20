@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":pinAllExceptPeerDependencies", "schedule:weekly"],
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Library versions pinned in jsDelivr and Deno npm: URLs",
+      "managerFilePatterns": ["/^scanning/ocr\\.mjs$/", "/^supabase/functions/.+\\.ts$/"],
+      "matchStrings": [
+        "cdn\\.jsdelivr\\.net/npm/(?<depName>(?:@[\\w.-]+/)?[\\w.-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "npm:(?<depName>(?:@[\\w.-]+/)?[\\w.-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Keep each library's npm pin, vendored copy and URLs on one version",
+      "matchPackageNames": ["@supabase/supabase-js"],
+      "groupName": "supabase-js"
+    },
+    {
+      "matchPackageNames": ["tesseract.js", "tesseract.js-core", "@tesseract.js-data/eng"],
+      "groupName": "tesseract"
+    },
+    {
+      "description": "The browser tests use the Chromium that matches this version",
+      "matchPackageNames": ["@playwright/test"],
+      "groupName": "playwright"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}

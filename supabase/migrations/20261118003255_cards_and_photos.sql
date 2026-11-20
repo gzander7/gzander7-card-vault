@@ -79,7 +79,15 @@ on conflict (id) do update
 set name = excluded.name,
     "public" = excluded."public";
 
-alter table storage.objects enable row level security;
+-- Supabase enables RLS on storage.objects and owns the table, so the migration
+-- role cannot alter it there. Turn RLS on only where it is still off.
+do $$
+begin
+  if not (select relrowsecurity from pg_class where oid = 'storage.objects'::regclass) then
+    alter table storage.objects enable row level security;
+  end if;
+end
+$$;
 
 grant execute on function storage.foldername(text) to anon, authenticated;
 

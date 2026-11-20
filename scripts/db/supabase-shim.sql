@@ -54,6 +54,8 @@ begin
   return parts[1:array_length(parts, 1) - 1];
 end
 $$;
+-- Supabase ships storage.objects with RLS already enabled.
+alter table storage.objects enable row level security;
 grant usage on schema storage to anon, authenticated, service_role;
 grant all on storage.objects, storage.buckets to anon, authenticated, service_role;
 

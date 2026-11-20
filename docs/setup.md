@@ -22,13 +22,7 @@ npx supabase db push
 
 `db push` records which migrations it has applied.
 
-**The existing live project** was partly set up by pasting SQL, so its history doesn't record the first two files. Its schema already matches them (see [database.md](database.md#production-migration-history)). Before the first push, record them as applied. This writes only to the migration history table and runs no schema SQL:
-
-```bash
-npx supabase migration repair --status applied 20261118003255 20261118090616
-```
-
-Then `npx supabase db push --dry-run` should list only migrations newer than `20261118204804`. Never push with `--include-all`: it would re-run the old Vault Value file and roll its functions back.
+The live project has recorded every migration through `20261119210000_nightly_valuations`, including both original baseline files. Run `npx supabase db push --dry-run` to preview any future migrations before applying them. [Production migration history](database.md#production-migration-history)
 
 **Without the CLI (new projects only):** open **SQL Editor → New query**, paste each migration file in filename order, and run it.
 
@@ -70,7 +64,7 @@ For a fresh installation, create the owner account in **Supabase → Authenticat
 
 ## 5. Schedule nightly valuations (optional)
 
-Without this, Vault Value still works: estimates refresh when the owner opens the vault, and the history gains a point on those days. To record a value every day, deploy the Edge Function and schedule it as described in [nightly-valuations.md](nightly-valuations.md).
+The live vault runs this job daily at 09:17 UTC, even when nobody opens the site. For a new installation, follow the [nightly valuations setup](nightly-valuations.md).
 
 ## 6. Turn on dependency updates (optional)
 

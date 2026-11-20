@@ -4,15 +4,9 @@ The schema lives in [`supabase/migrations`](../supabase/migrations). Each file i
 
 ## Production migration history
 
-[`supabase/production-migrations.json`](../supabase/production-migrations.json) lists the migrations recorded on the live project. It was read with the Management API on 2026-11-20. [`migrations.test.mjs`](../migrations.test.mjs) keeps this folder consistent with it:
+The live project has recorded all ten migrations through `20261119210000_nightly_valuations`. The two original migrations for cards, photos and valuations were applied manually and registered on November 20, 2026 after checking the live schema. The six intervening migrations were recovered from the project's history. The card limits and nightly valuation migrations were applied from the repository.
 
-- `20261118003255_cards_and_photos` and `20261118090616_valuations` (the first Vault Value release, #5) were pasted into the SQL editor before history was recorded. Run `supabase migration repair --status applied` once for these two versions; see [setup.md](setup.md#1-create-the-database).
-- The six migrations from `20261118171628` to `20261118204804` are copied verbatim from the project's history. They are history: never edit them.
-- Anything newer is pending. It must be safe to apply twice, because the test script re-applies pending files to check exactly that.
-
-Built from these files, a database has the same schema as the earlier consolidated migrations. A catalog comparison on 2026-11-20 matched production exactly: 156 columns, functions, policies, constraints, grants and triggers, with production compared before the two pending migrations.
-
-After applying migrations to production, add them to `production-migrations.json`.
+After applying a migration to production, append its version, name and the SHA-256 digest of its repository SQL file to [the production manifest](../supabase/production-migrations.json). Run `git show HEAD:supabase/migrations/<filename> | sha256sum` to get the digest. [Migration tests](../migrations.test.mjs) check the filenames, order and contents against that record.
 
 ## Rules for a migration
 

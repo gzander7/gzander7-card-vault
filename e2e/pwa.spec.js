@@ -32,3 +32,16 @@ test('the vault is installable and opens offline after a visit', async ({ page, 
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
   await context.setOffline(false);
 });
+
+test("cleanup removes only the vault's own outdated caches", async ({ page, backend: _backend }) => {
+  // Other GitHub Pages sites under the same account share this origin and its caches.
+  await page.goto('favicon.svg');
+  await page.evaluate(async () => {
+    await (await caches.open('another-pages-site')).put('/another-site/', new Response('theirs'));
+    await (await caches.open('card-vault-site-v0')).put('/old/', new Response('stale'));
+  });
+  await page.goto('./');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await expect.poll(() => page.evaluate(() => caches.keys())).not.toContain('card-vault-site-v0');
+  expect(await page.evaluate(() => caches.keys())).toContain('another-pages-site');
+});

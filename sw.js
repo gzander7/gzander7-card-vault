@@ -10,6 +10,9 @@
 const SITE_CACHE = 'card-vault-site-v1';
 const CDN_CACHE = 'card-vault-cdn-v1';
 const CACHES = [SITE_CACHE, CDN_CACHE];
+// Every GitHub Pages site under gzander7.github.io shares this origin and its
+// caches. Only ever remove this app's own outdated caches.
+const OWN_CACHE = /^card-vault-/;
 const PINNED_CDN = /^https:\/\/cdn\.jsdelivr\.net\/npm\/(?:@[^/]+\/)?[^/@]+@\d+\.\d+\.\d+\//;
 
 self.addEventListener('install', event => {
@@ -25,7 +28,9 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches
       .keys()
-      .then(keys => Promise.all(keys.filter(key => !CACHES.includes(key)).map(key => caches.delete(key))))
+      .then(keys =>
+        Promise.all(keys.filter(key => OWN_CACHE.test(key) && !CACHES.includes(key)).map(key => caches.delete(key))),
+      )
       .then(() => self.clients.claim()),
   );
 });

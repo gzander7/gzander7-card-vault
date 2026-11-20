@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { backPhotoPath, removeStoredCard, savePhotoRevision } from './storage.mjs';
+import { backPhotoPath, removeStoredCard, savePhotoRevision, thumbnailPath } from './storage.mjs';
+import { createThumbnailBackfill } from './thumbnails.mjs';
 
 const front = new Blob(['front'], { type: 'image/jpeg' });
 const back = new Blob(['back'], { type: 'image/webp' });
@@ -270,4 +271,62 @@ test('retrying an interrupted batch insert reuses both uploaded photos and its p
   assert.equal(store.purchase().revision, purchase.revision);
   assert.deepEqual([saved.image_path, backPhotoPath(saved.image_path)], staged);
   assert.deepEqual([...store.files.keys()], staged);
+});
+
+test('thumbnails sit beside the front photo and only for vault-shaped paths', () => {
+  const pair = 'owner/pairs/0f8b5c1e-1d2a-4b3c-9d4e-5f6a7b8c9d0e/front.webp';
+  assert.equal(thumbnailPath(pair), 'owner/pairs/0f8b5c1e-1d2a-4b3c-9d4e-5f6a7b8c9d0e/front.thumb.jpg');
+  assert.equal(thumbnailPath('owner/0f8b5c1e.jpg'), 'owner/0f8b5c1e.thumb.jpg');
+  assert.equal(thumbnailPath('owner/older photo.jpg'), '', 'unusual legacy names keep the full photo');
+  assert.equal(thumbnailPath('owner/x.thumb.jpg'), '', 'a thumbnail has no thumbnail');
+  assert.equal(thumbnailPath(''), '');
+});
+
+test('saving a photo also stores its thumbnail, and replacing or deleting it cleans up', async () => {
+  const store = vault();
+  const small = new Blob(['thumb'], { type: 'image/jpeg' });
+  const makeThumbnail = async blob => (assert.equal(blob, front), small);
+  const { saved } = await store.save({ front, makeThumbnail });
+  assert.equal(store.files.get(thumbnailPath(saved.image_path)), small);
+
+  const { saved: withBack } = await store.save({ back, makeThumbnail });
+  assert.equal(store.files.get(thumbnailPath(withBack.image_path)), small, 'the new revision gets its own thumbnail');
+  assert.ok(!store.files.has(thumbnailPath(saved.image_path)), 'the old revision thumbnail is removed');
+  assert.equal(store.files.size, 3);
+
+  assert.ok(await removeStoredCard(store.bucket, withBack.image_path));
+  assert.equal(store.files.size, 0);
+});
+
+test('a thumbnail failure never blocks the save', async () => {
+  const store = vault();
+  const { saved } = await store.save({
+    front,
+    makeThumbnail: async () => {
+      throw new Error('Canvas unavailable');
+    },
+  });
+  assert.equal(store.files.get(saved.image_path), front);
+  assert.equal(store.files.size, 1);
+});
+
+test('the backfill creates each missing thumbnail once and survives failures', async () => {
+  const uploads = [];
+  let fail = true;
+  const backfill = createThumbnailBackfill({
+    fetchPhoto: async path => {
+      if (fail) {
+        fail = false;
+        throw new Error('offline');
+      }
+      return new Blob([path]);
+    },
+    makeThumbnail: async blob => blob,
+    upload: async path => void uploads.push(path),
+  });
+  backfill('owner/a.jpg');
+  backfill('owner/b.jpg');
+  backfill('owner/b.jpg');
+  await backfill('owner/odd name.jpg');
+  assert.deepEqual(uploads, ['owner/b.thumb.jpg']);
 });

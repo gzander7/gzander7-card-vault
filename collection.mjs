@@ -133,7 +133,8 @@ function makeTile(card, openCard) {
   return { item, photo, meta, trigger, tags, price };
 }
 
-function fillTile(tile, card, src) {
+// The grid loads the small thumbnail first and falls back to the full photo.
+function fillTile(tile, card, src, thumb, onThumbnailMissing) {
   tile.card = card;
   const name = text(card.player) || 'Trading card';
   if (tile.source !== src) {
@@ -149,10 +150,15 @@ function fillTile(tile, card, src) {
       img.loading = 'lazy';
       img.addEventListener('error', () => {
         if (tile.source !== src) return;
+        if (thumb && img.src === thumb) {
+          img.src = src;
+          onThumbnailMissing(card);
+          return;
+        }
         tile.photo.classList.add('no-photo');
         img.remove();
       });
-      img.src = src;
+      img.src = thumb || src;
       tile.photo.append(img);
     }
   }
@@ -208,7 +214,16 @@ function reconcile(parent, nodes) {
   if (restoreFocus && active.isConnected && document.activeElement !== active) active.focus({ preventScroll: true });
 }
 
-export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspectCard, placeSpotlight }) {
+export function createCollectionGallery({
+  root,
+  imageUrl,
+  thumbnailUrl = /** @param {string} _path */ _path => '',
+  onThumbnailMissing = /** @param {any} _card */ _card => {},
+  quoteFor,
+  owns,
+  inspectCard,
+  placeSpotlight,
+}) {
   const get = id => root.querySelector('#' + id);
   const form = get('filters');
   const chips = form.querySelector('.gallery-chips');
@@ -304,7 +319,8 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
     const nodes = visible.map(card => {
       if (!tiles.has(card.id)) tiles.set(card.id, makeTile(card, openCard));
       const tile = tiles.get(card.id);
-      if (tile.card !== card) fillTile(tile, card, imageUrl(card.image_path));
+      if (tile.card !== card)
+        fillTile(tile, card, imageUrl(card.image_path), thumbnailUrl(card.image_path), onThumbnailMissing);
       fillEstimate(tile, quotes.get(card.id), owns(card));
       return tile.item;
     });

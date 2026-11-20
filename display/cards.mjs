@@ -1,5 +1,5 @@
 import { SUPABASE_URL } from '../config.js';
-import { backPhotoPath } from '../photos/storage.mjs';
+import { backPhotoPath, thumbnailPath } from '../photos/storage.mjs';
 
 export const MAX_CARDS = 60;
 export const MAX_TITLE = 80;
@@ -59,6 +59,7 @@ export function presentCard(card) {
     tags,
     label: [name, meta, detail, ...tags].filter(Boolean).join(', '),
     frontUrl: photoUrl(card.image_path),
+    thumbUrl: photoUrl(thumbnailPath(card.image_path)),
     backUrl: photoUrl(backPhotoPath(card.image_path)),
   };
 }

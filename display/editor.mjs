@@ -89,7 +89,7 @@ export function editCase(panel, { cards, original, initialCardId, onCancel, onSa
     input.setAttribute('aria-label', item.label);
     const thumb = element('span', 'case-thumb');
     thumb.setAttribute('aria-hidden', 'true');
-    thumb.append(photo(item.frontUrl, ''));
+    thumb.append(photo(item.thumbUrl, '', false, item.frontUrl));
     const copy = element('span', 'case-option-text');
     copy.append(element('strong', '', item.name));
     const details = [item.meta, item.detail, ...item.tags].filter(Boolean).join(' · ');

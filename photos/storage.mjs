@@ -5,8 +5,15 @@ export function backPhotoPath(frontPath) {
   return match ? match[1] + '/back' : '';
 }
 
+// Gallery thumbnails sit beside the front photo: front.jpg -> front.thumb.jpg.
+// Cards saved before thumbnails existed have none until one is backfilled.
+export function thumbnailPath(frontPath) {
+  const match = /^([\w-]+\/(?:pairs\/[\da-f-]{36}\/front|[\w-]+))\.(?:jpg|jpeg|png|webp)$/i.exec(frontPath || '');
+  return match ? match[1] + '.thumb.jpg' : '';
+}
+
 function photoPaths(frontPath) {
-  return [frontPath, backPhotoPath(frontPath)].filter(Boolean);
+  return [frontPath, backPhotoPath(frontPath), thumbnailPath(frontPath)].filter(Boolean);
 }
 
 async function removeCardPhotos(bucket, paths) {
@@ -29,7 +36,7 @@ function frontExtension(front, oldPath) {
 }
 
 // An undefined back keeps it, null removes it, and a Blob replaces it.
-async function stageCardPhotos(bucket, { owner, previousFront = '', front, back }) {
+async function stageCardPhotos(bucket, { owner, previousFront = '', front, back, makeThumbnail }) {
   const previousBack = backPhotoPath(previousFront);
   if (!front && !previousFront) throw new Error('A front photo is required.');
   if (!front && (back === undefined || (!back && !previousBack))) {
@@ -50,9 +57,22 @@ async function stageCardPhotos(bucket, { owner, previousFront = '', front, back 
     const { error } = await bucket.upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
     if (error) throw error;
     created.push(path);
+    return blob;
+  }
+  // A thumbnail is an optimisation: the gallery falls back to the full photo,
+  // so a failure here never blocks the save.
+  async function writeThumbnail(frontBlob) {
+    const path = thumbnailPath(frontPath);
+    if (!makeThumbnail || !path) return;
+    try {
+      const thumbnail = await makeThumbnail(frontBlob);
+      if (!thumbnail) return;
+      const { error } = await bucket.upload(path, thumbnail, { contentType: 'image/jpeg', upsert: false });
+      if (!error) created.push(path);
+    } catch {}
   }
   try {
-    await write(frontPath, front, previousFront);
+    await writeThumbnail(await write(frontPath, front, previousFront));
     if (paired) await write(backPhotoPath(frontPath), back, previousBack);
   } catch (error) {
     await removeCardPhotos(bucket, created);
@@ -66,10 +86,10 @@ async function stageCardPhotos(bucket, { owner, previousFront = '', front, back 
 // failure. Check the row before deciding what is safe to remove.
 export async function savePhotoRevision(
   client,
-  { id, owner, previousFront, previousCard, fields, front, back, purchase },
+  { id, owner, previousFront, previousCard, fields, front, back, purchase, makeThumbnail },
 ) {
   const bucket = client.storage.from('card-images');
-  const change = await stageCardPhotos(bucket, { owner, previousFront, front, back });
+  const change = await stageCardPhotos(bucket, { owner, previousFront, front, back, makeThumbnail });
   const row = { ...fields, owner, image_path: change.frontPath };
   async function writeRow() {
     if (purchase) {

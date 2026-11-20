@@ -38,6 +38,13 @@ test('the owner can add, edit and delete a card, with undo', async ({ page, back
   expect(added).toMatchObject({ owner: OWNER.id, year: 2023, set_name: 'Prizm' });
   expect(backend.objects.has(added.image_path)).toBe(true);
   expect(added.image_path.startsWith(OWNER.id + '/')).toBe(true);
+  const thumbnail = added.image_path.replace(/\.\w+$/, '.thumb.jpg');
+  expect(backend.objects.get(thumbnail)?.type).toBe('image/jpeg');
+  expect(backend.objects.get(thumbnail).body.length).toBeLessThan(backend.objects.get(added.image_path).body.length);
+  await expect(page.locator('#card-grid .gallery-tile', { hasText: 'Rookie Phenom' }).locator('img')).toHaveAttribute(
+    'src',
+    /\.thumb\.jpg$/,
+  );
 
   let details = await openDetails(page, 'Rookie Phenom');
   await details.getByRole('button', { name: /^Edit/ }).click();
@@ -68,6 +75,23 @@ test('the owner can add, edit and delete a card, with undo', async ({ page, back
   await expect(page.locator('#status')).toHaveText(/Deleted Rookie Phenom/);
   expect(backend.cards.some(card => card.id === added.id)).toBe(false);
   expect(backend.objects.has(added.image_path)).toBe(false);
+  expect(backend.objects.has(thumbnail)).toBe(false);
+});
+
+test('older cards without a thumbnail fall back to the full photo and get one backfilled', async ({
+  page,
+  backend,
+}) => {
+  const [card] = backend.cards;
+  const thumbnail = card.image_path.replace(/\.\w+$/, '.thumb.jpg');
+  await page.goto('./');
+  const image = page.locator('#card-grid .gallery-tile img').first();
+  await expect(image).toHaveAttribute('src', new RegExp(card.image_path.replace(/[.]/g, '\\.') + '$'));
+  expect(backend.objects.has(thumbnail), 'visitors never write').toBe(false);
+
+  await signIn(page);
+  await page.reload();
+  await expect.poll(() => backend.objects.has(thumbnail)).toBe(true);
 });
 
 test('saving requires a photo', async ({ page, backend: _backend }) => {

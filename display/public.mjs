@@ -17,7 +17,7 @@ function setHeading(title) {
 
 function cardTile(card, index) {
   const tile = element('li', 'case-tile');
-  const image = photo(card.frontUrl, 'Front of ' + card.label, index < 3);
+  const image = photo(card.thumbUrl, 'Front of ' + card.label, index < 3, card.frontUrl);
   const frame = element(card.frontUrl ? 'button' : 'div', 'case-card-photo');
   frame.append(image);
   if (card.frontUrl) {

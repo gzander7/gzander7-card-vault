@@ -5,7 +5,7 @@ import { readCardPages } from './card-catalogue.mjs';
 import { createCollectionGallery } from './collection.mjs';
 import { createPurchaseEditor } from './pricing/purchase-editor.mjs';
 import { forgetCardReviews } from './pricing-client.js';
-import { compressCardImage } from './photos/prepare.mjs';
+import { compressCardImage, createThumbnail } from './photos/prepare.mjs';
 import { createCropPreview } from './photos/crop-preview.mjs';
 import { createCornerDialog } from './photos/corner-dialog.mjs';
 import { openCardViewer } from './card-viewer.mjs';
@@ -16,7 +16,8 @@ import { findSimilarCard } from './scanning/duplicates.mjs';
 import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
 import { createNavigation } from './navigation.mjs';
 import { bindVaultBackup } from './backup-ui.mjs';
-import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
+import { backPhotoPath, removeStoredCard, savePhotoRevision, thumbnailPath } from './photos/storage.mjs';
+import { createThumbnailBackfill } from './photos/thumbnails.mjs';
 
 const SPOTLIGHT_MS = 5000;
 const SCHEMA_MESSAGE =
@@ -311,9 +312,28 @@ function renderAuth() {
   navigation.setBatchLabel(batchButtonText());
 }
 
+// Cards saved before thumbnails existed get one the next time their owner browses.
+const backfillThumbnail = createThumbnailBackfill({
+  fetchPhoto: async path => {
+    const response = await fetch(imageUrl(path), { credentials: 'omit' });
+    if (!response.ok) throw new Error('The photo could not be loaded.');
+    return response.blob();
+  },
+  makeThumbnail: createThumbnail,
+  upload: async (path, blob) => {
+    const { error } = await supabase.storage
+      .from('card-images')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+  },
+});
 const gallery = createCollectionGallery({
   root: $('collection'),
   imageUrl,
+  thumbnailUrl: path => imageUrl(thumbnailPath(path)),
+  onThumbnailMissing: card => {
+    if (owns(card)) backfillThumbnail(card.image_path);
+  },
   quoteFor: card => vaultValue.quoteFor(card),
   owns,
   inspectCard,
@@ -789,6 +809,7 @@ async function saveCard(event) {
           front: photo,
           back,
           purchase,
+          makeThumbnail: createThumbnail,
         });
     if (session?.user?.id !== owner || (review && activeBatch !== review)) return;
     const savedPurchase = review?.entry.retry ? review.entry.submittedPurchase : purchase;

@@ -12,14 +12,20 @@ export function button(text, className, onClick) {
   return control;
 }
 
-export function photo(url, alt, eager = false) {
+// Tries the small thumbnail first, then the full photo, then a text fallback.
+export function photo(url, alt, eager = false, fullUrl = '') {
   const fallback = () => element('span', 'case-photo-fallback', 'Photo unavailable');
-  if (!url) return fallback();
+  const sources = [url, fullUrl].filter((source, index, all) => source && all.indexOf(source) === index);
+  if (!sources.length) return fallback();
   const image = element('img');
   image.alt = alt;
   image.loading = eager ? 'eager' : 'lazy';
   image.decoding = 'async';
-  image.addEventListener('error', () => image.replaceWith(fallback()), { once: true });
-  image.src = url;
+  image.addEventListener('error', () => {
+    sources.shift();
+    if (sources.length) image.src = sources[0];
+    else image.replaceWith(fallback());
+  });
+  image.src = sources[0];
   return image;
 }

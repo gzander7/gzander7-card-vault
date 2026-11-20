@@ -1,7 +1,7 @@
 -- Who can read and write cards and card photos.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'alice@example.com'),
@@ -80,10 +80,16 @@ select is(
   (select player from public.cards where id = 'b0000000-0000-4000-8000-000000000001'),
   'Bob Card', 'Bob''s card is unchanged'
 );
-select is_empty(
-  $$delete from storage.objects where name like 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/%' returning name$$,
-  'an owner cannot delete another owner''s photos'
-);
+-- Bob tries to delete Alice's photos directly. Supabase blocks every direct SQL
+-- delete on storage tables with a trigger (deletes go through the Storage API);
+-- elsewhere RLS matches no rows. Either way, the check below must find the photo.
+do $$
+begin
+  delete from storage.objects where name like 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/%';
+exception when others then
+  null;
+end
+$$;
 reset role;
 
 select is(

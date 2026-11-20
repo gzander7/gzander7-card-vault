@@ -3,7 +3,7 @@ import { createCropPreview } from '../photos/crop-preview.mjs';
 import { parseCardScan } from './parser.mjs';
 
 export function createScanEditor({ getCardHints, onSuggestions, prepareImage, onBackPreparing, cornerEditor, onSourceChange = () => {},
-  autoRead = (hasFront, hasBack) => hasFront && hasBack, onBackFile = () => {} }) {
+  autoRead = (hasFront, hasBack) => hasFront && hasBack, onBackFile = /** @param {Blob | null} _file */ _file => {} }) {
   const byId = id => document.getElementById(id);
   const dialog = byId('card-dialog');
   const photoField = byId('photo-field');

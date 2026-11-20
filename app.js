@@ -1,4 +1,4 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
+import { createClient } from './vendor/supabase-js.mjs';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.js';
 import { createVaultValue } from './valuation-ui.js';
 import { readCardPages } from './card-catalogue.mjs';
@@ -443,7 +443,7 @@ const navigation = createNavigation({
   add: () => openEditor(null),
   batch: () => { if (!busy) batchDialog.open(); },
   cases: trigger => launchDisplayCases(trigger),
-  value: trigger => vaultValue.openHistory(trigger),
+  value: () => vaultValue.openHistory(),
   password: openPasswordDialog,
   'sign-in': () => {
     ui.authMessage.textContent = '';

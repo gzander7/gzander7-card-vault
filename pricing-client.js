@@ -268,6 +268,11 @@ export function createPricingClient({
     persist(state, session.user.id);
   }
 
+  /**
+   * @param {{ user: { id: string } }} session
+   * @param {any[] | null} cards
+   * @param {{ onUpdate?: (snapshot: any) => void, signal?: AbortSignal, force?: boolean }} [options]
+   */
   async function refreshVaultPrices(session, cards, { onUpdate, signal, force = false } = {}) {
     if (force) stateFor(session).nextRead = 0;
     await loadVaultPrices(session, cards);
@@ -291,7 +296,7 @@ export function createPricingClient({
       const current = last?.identity === identity;
       const missing = needsDetails(card);
       if (current && missing && last.status === 'needs_details') continue;
-      if (current && !force && started - Date.parse(last.checkedAt) < 7 * DAY) continue;
+      if (current && !force && +started - Date.parse(last.checkedAt) < 7 * DAY) continue;
       const failure = state.data.failures[card.id];
       if (!missing && (state.data.cooldownUntil > +started || (failure?.identity === identity && failure.retryAt > +started))) {
         notice = 'Sales lookup is temporarily paused. Saved estimates show their last check date.';

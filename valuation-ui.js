@@ -66,7 +66,7 @@ function soldSearch(card) {
     printRun && '/' + printRun, card.is_auto && 'auto', card.is_relic && 'relic', card.grader, card.grade]
     .filter(Boolean).join(' ');
   const url = new URL('https://www.ebay.com/sch/i.html');
-  url.search = new URLSearchParams({ _nkw: search, LH_Sold: '1', LH_Complete: '1' });
+  url.search = new URLSearchParams({ _nkw: search, LH_Sold: '1', LH_Complete: '1' }).toString();
   const link = element('a', 'Check eBay sold listings');
   link.href = url.href;
   link.target = '_blank';

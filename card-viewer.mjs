@@ -1,5 +1,9 @@
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+/**
+ * @param {{ title: string, detail?: string, frontUrl: string, backUrl?: string }} card
+ * @param {any} [trigger]
+ */
 export function openCardViewer({ title, detail, frontUrl, backUrl }, trigger = document.activeElement) {
   const existing = document.getElementById('card-viewer');
   if (existing?.open) return existing;

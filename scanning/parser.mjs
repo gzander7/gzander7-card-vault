@@ -245,6 +245,10 @@ function extractGrades(front, back) {
   return {grader, grade};
 }
 
+/**
+ * @param {{ front?: any, back?: any }} [readings]
+ * @param {any[]} [knownCards]
+ */
 export function parseCardScan({front, back} = {}, knownCards = []) {
   const f = readLines(front), b = readLines(back);
   if (f.length && b.length) {

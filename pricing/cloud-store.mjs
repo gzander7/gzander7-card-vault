@@ -1,5 +1,6 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config.js';
 
+/** @returns {Promise<any>} `true` for writes, `{ data }` for reads, or null when the function is not installed. */
 async function callVaultRpc(session, name, body, fetchImpl) {
   if (!session?.user?.id || !session.access_token) {
     throw new Error('Sign in to sync vault values.');
@@ -25,6 +26,7 @@ async function callVaultRpc(session, name, body, fetchImpl) {
       const problem = await response.json().catch(() => null);
       if ((problem?.code === 'PGRST202' || problem?.code === '42883')
           && String(problem.message).includes(name)) return null;
+      /** @type {Error & { status?: number }} */
       const error = new Error(`Vault value sync failed (HTTP ${response.status}).`);
       error.status = response.status;
       throw error;

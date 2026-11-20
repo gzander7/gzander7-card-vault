@@ -114,6 +114,7 @@ export async function savePhotoRevision(client, { id, owner, previousFront, prev
         try { saved = await readCommitted(); } catch { /* Retain staged files while the result is unknown. */ }
       }
       if (!saved) {
+        /** @type {Error & { retrySave?: () => Promise<{ saved: any, cleaned: boolean }> }} */
         const error = new Error('Could not confirm the save. Reconnect and check the card before trying again.');
         if (!previousFront) error.retrySave = () => commit(true);
         throw error;

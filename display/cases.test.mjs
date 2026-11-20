@@ -38,7 +38,7 @@ test('the editor preserves the selected order and only accepts cards in the pick
   }
   assert.throws(() => caseFields('  ', [first], allowed));
   assert.throws(() => caseFields('x'.repeat(81), [first], allowed));
-  const many = Array.from({ length: 61 }, (_, i) => ({ id: crypto.randomUUID(), owner }));
+  const many = Array.from({ length: 61 }, () => ({ id: crypto.randomUUID(), owner }));
   assert.equal(caseFields('x'.repeat(80), many.slice(0, 60).map(c => c.id), many).card_ids.length, 60);
   assert.throws(() => caseFields('Case', many.map(c => c.id), many));
 });

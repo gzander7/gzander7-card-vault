@@ -55,7 +55,7 @@ async function waitForSlot(signal) {
       return;
     }
     if (backoffUntil > now || delay > MINUTE) throw limited(delay);
-    await new Promise((resolve, reject) => {
+    await new Promise(/** @param {(value?: void) => void} resolve */ (resolve, reject) => {
       const finish = () => { signal?.removeEventListener('abort', cancel); resolve(); };
       const timer = setTimeout(finish, delay);
       const cancel = () => { clearTimeout(timer); reject(signal.reason); };
@@ -161,6 +161,10 @@ function tapeMismatch(card, row, catalogId, url) {
   return null;
 }
 
+/**
+ * @param {any} card
+ * @param {{ fetchImpl?: typeof fetch, now?: Date, signal?: AbortSignal, excludedUrls?: Set<string> }} [options]
+ */
 export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), signal, excludedUrls = new Set() } = {}) {
   signal?.throwIfAborted();
   const checkedAt = now.toISOString();
@@ -170,7 +174,7 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
 
   async function get(path, params) {
     const url = new URL(path, API);
-    url.search = new URLSearchParams(params);
+    url.search = new URLSearchParams(params).toString();
     const shared = fetchImpl === globalThis.fetch;
     if (shared) await waitForSlot(signal);
     signal?.throwIfAborted();

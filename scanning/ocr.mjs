@@ -1,6 +1,8 @@
-// Pinned browser distribution, WASM workers and English recognition data. Only
+// The page-side wrapper and worker script are vendored (see vendor/README.md).
+// The pinned WASM core and English recognition data load from jsDelivr. Only
 // these assets use the network; photo pixels go to an in-browser worker.
-const DISTRIBUTION = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist';
+const WRAPPER = new URL('../vendor/tesseract/tesseract.esm.min.js', import.meta.url).href;
+const WORKER = new URL('../vendor/tesseract/worker.min.js', import.meta.url).href;
 const CORE = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0';
 const ENGLISH = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int';
 const MAX_EDGE = 2100;
@@ -60,6 +62,10 @@ function resultFor(data, width, height) {
   return { text: data.text || '', lines, width, height };
 }
 
+/**
+ * @param {{ front?: Blob | null, back?: Blob | null }} photos
+ * @param {{ signal?: AbortSignal, onProgress?: (progress: { side: string | null, stage: string, progress: number }) => void }} [options]
+ */
 export async function readCardPhotos({ front, back }, { signal, onProgress } = {}) {
   if (!front && !back) throw new Error('Choose a front or back photo to scan.');
   signal?.throwIfAborted();
@@ -95,10 +101,10 @@ export async function readCardPhotos({ front, back }, { signal, onProgress } = {
     allowTime(90000, startupError());
     let engine;
     try {
-      ({ default: engine } = await import('https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.esm.min.js'));
+      ({ default: engine } = await import(WRAPPER));
       controller.signal.throwIfAborted();
       worker = await engine.createWorker('eng', engine.OEM.LSTM_ONLY, {
-        workerPath: DISTRIBUTION + '/worker.min.js',
+        workerPath: WORKER,
         corePath: CORE,
         langPath: ENGLISH,
         logger(event) {

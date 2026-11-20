@@ -31,6 +31,7 @@ export function caseFields(name, selection, cards) {
 
 function photoUrl(path) {
   const name = clean(path).replace(/^\/+/, '');
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what this rejects.
   if (!name || /[:\\\x00-\x1f]|%(?:2e|2f|5c)/i.test(name)) return '';
   const parts = name.split('/');
   if (parts.some(part => !part || part === '..' || part === '.')) return '';

@@ -1,5 +1,6 @@
 import { estimateEvidenceText, money } from './pricing/estimate-display.mjs';
 
+/** @type {Array<[string, string, (card: any) => boolean]>} */
 const types = [
   ['auto', 'Autos', card => card.is_auto],
   ['graded', 'Graded', card => Boolean(text(card.grader) || text(card.grade))],
@@ -146,7 +147,7 @@ function fillEstimate(tile, quote, isOwner) {
 
 // Keep already displayed buttons connected when prices arrive or another card is edited.
 function reconcile(parent, nodes) {
-  const active = document.activeElement;
+  const active = /** @type {HTMLElement | null} */ (document.activeElement);
   const restoreFocus = active && parent.contains(active);
   const wanted = new Set(nodes);
   for (const old of [...parent.children]) if (!wanted.has(old)) old.remove();

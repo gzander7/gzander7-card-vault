@@ -1,5 +1,6 @@
 import { historyCardLabel, loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
-import { identityKey, printRun } from './pricing/identity.mjs';
+import { soldSearchTerms } from './pricing/sold-search.mjs';
+import { identityKey } from './pricing/identity.mjs';
 import { estimateEvidenceText, listingDiagnosticsText, money } from './pricing/estimate-display.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
 import { readCloudPurchases } from './pricing/cloud-store.mjs';
@@ -90,27 +91,7 @@ function hasValue(quote) {
 }
 
 function ebaySoldSearchUrl(card) {
-  const run = printRun(card.serial);
-  const parallel = card.parallel?.trim();
-  const variant = parallel && parallel.toLowerCase() !== 'base' ? parallel : '';
-  // Sellers often omit the checklist number on numbered parallels. For an
-  // unnumbered auto or relic, the checklist number identifies the design even
-  // when sellers use different names for the finish.
-  const useInsertNumber = !run && card.card_number && (card.is_auto || card.is_relic);
-  const search = [
-    card.year,
-    card.set_name,
-    card.player,
-    !(run && variant) && card.card_number,
-    !useInsertNumber && variant,
-    run && '/' + run,
-    card.is_auto && 'auto',
-    card.is_relic && 'relic',
-    card.grader,
-    card.grade,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const search = soldSearchTerms(card);
   const url = new URL('https://www.ebay.com/sch/i.html');
   url.search = new URLSearchParams({ _nkw: search, LH_Sold: '1', LH_Complete: '1' }).toString();
   return url.href;
@@ -184,7 +165,7 @@ function saleRow(sale, card, onAction) {
     ? 'Excluded'
     : sale.reason === 'Unusual price'
       ? 'Left out: unusual price'
-      : sale.reason === 'Reference only'
+      : (sale.matchNote && !sale.manual) || sale.reason === 'Reference only'
         ? 'Reference'
         : sale.reason
           ? 'Unused'
@@ -197,7 +178,8 @@ function saleRow(sale, card, onAction) {
   match.append(badge);
   const price = element('td', money(sale.priceCents));
   price.className = 'comp-price';
-  const source = sale.manual ? (sale.automatic ? 'CardPricer and your entry' : 'Entered by you') : 'CardPricer';
+  const feed = sale.provider === 'CompsAPI' ? 'eBay via CompsAPI' : 'CardPricer';
+  const source = sale.manual ? (sale.automatic ? feed + ' and your entry' : 'Entered by you') : feed;
   const mobileMeta = element(
     'span',
     [shortDate(sale.soldAt), title === 'Exact' ? 'Exact match' : title].filter(Boolean).join(' · '),
@@ -215,6 +197,8 @@ function saleRow(sale, card, onAction) {
     element('small', [source, sale.flag ? 'Excluded · ' + sale.flag : sale.reason].filter(Boolean).join(' · ')),
   );
   if (sale.manual) actions.append(actionButton('Edit sale', () => onAction('save', card, sale)));
+  else if (sale.matchNote && !sale.flag)
+    actions.append(actionButton('Review match', () => onAction('save', card, sale)));
   if (sale.flag) actions.append(actionButton('Restore sale', button => onAction('restore', card, sale, button)));
   else if (!sale.reason || sale.automatic)
     actions.append(actionButton('Flag wrong match', () => onAction('exclude', card, sale)));
@@ -226,7 +210,12 @@ function saleRow(sale, card, onAction) {
 
 function drawSales(body, card, quote, loading, onAction) {
   const sales = quote?.evidence || quote?.sales || [];
-  const diagnostics = listingDiagnosticsText(quote?.diagnostics);
+  const market = {
+    ready: 'eBay sold listings checked.',
+    retry: 'eBay sold search will retry.',
+    disabled: 'Connect a CompsAPI key in Supabase to enable automatic eBay sales.',
+  }[quote?.ebayStatus];
+  const diagnostics = [listingDiagnosticsText(quote?.diagnostics), market].filter(Boolean).join(' ');
   const key = JSON.stringify([sales, diagnostics, loading && !quote, identityKey(card)]);
   if (renderedSales.get(body) === key) return;
   renderedSales.set(body, key);
@@ -254,7 +243,7 @@ function drawSales(body, card, quote, loading, onAction) {
     if (sales.some(sale => /^https:\/\/(?:polygonscan\.com|solscan\.io)\/tx\//.test(sale.url))) {
       contents.push(element('small', 'Vaulted-card sales settled in USDC are counted at $1 per USDC.'));
     }
-  } else if (!diagnostics) {
+  } else if (!diagnostics || market) {
     contents.push(element('p', loading && !quote ? 'Checking sold listings…' : 'No sales recorded.'));
   }
   body.replaceChildren(...contents);

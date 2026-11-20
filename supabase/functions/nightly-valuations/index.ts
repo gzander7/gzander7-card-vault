@@ -7,6 +7,8 @@
 // verification is off for this function (supabase/config.toml) because the
 // publishable key is public and must not be enough to start CardPricer lookups.
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
+import { combineSoldLookups } from '../_shared/vault/pricing/sold-sources.mjs';
+import { cachedEbaySales } from '../_shared/ebay-cache.mjs';
 import { readCardPages } from '../_shared/vault/card-catalogue.mjs';
 import { runNightlyValuations } from '../_shared/vault/pricing/nightly.mjs';
 
@@ -45,6 +47,9 @@ function run() {
       const { error } = await db.rpc('vault_prices_write_for', { target: owner, updates, entries });
       if (error) throw error;
     },
+    lookup: combineSoldLookups((card, options) =>
+      cachedEbaySales(db, card, { key: Deno.env.get('COMPSAPI_KEY'), ...options }),
+    ),
     lookupBudgetMs,
     log: message => console.log(message),
   });
@@ -61,7 +66,10 @@ Deno.serve(async request => {
     try {
       const summary = await run();
       // Other owners were still processed; a failure for any of them is still a failure.
-      return json(summary, summary.failures.length ? 500 : 200);
+      return json(
+        { ...summary, ebayConfigured: Boolean(Deno.env.get('COMPSAPI_KEY')) },
+        summary.failures.length ? 500 : 200,
+      );
     } catch (error) {
       console.error('Nightly valuations failed', error);
       return json({ error: error instanceof Error ? error.message : String(error) }, 500);

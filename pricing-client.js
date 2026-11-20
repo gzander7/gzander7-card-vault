@@ -1,6 +1,6 @@
 import { identityKey, needsDetails } from './pricing/identity.mjs';
-import { lookupComps } from './pricing/cardpricer.mjs';
-import { readCloud, writeCloud, writeCloudReviews } from './pricing/cloud-store.mjs';
+import { combineSoldLookups } from './pricing/sold-sources.mjs';
+import { readCloud, readEbaySales, writeCloud, writeCloudReviews } from './pricing/cloud-store.mjs';
 import { changeReview, mergeReviews, reviewedQuote } from './pricing/reviews.mjs';
 import { presentCard } from './display/cards.mjs';
 
@@ -89,7 +89,7 @@ function combine(left, right) {
 }
 
 export function createPricingClient({
-  lookup = lookupComps,
+  lookup = combineSoldLookups(readEbaySales),
   readRemote = readCloud,
   writeRemote = writeCloud,
   writeRemoteReviews = writeCloudReviews,
@@ -358,7 +358,9 @@ export function createPricingClient({
       const current = last?.identity === identity;
       const missing = needsDetails(card);
       if (current && missing && last.status === 'needs_details') continue;
-      if (current && !force && +started - Date.parse(last.checkedAt) < 7 * DAY) continue;
+      const nextLookupAt = last?.nextLookupAt ?? Date.parse(last?.checkedAt) + 7 * DAY;
+      const firstMarketCheck = !last?.lookupVersion && last?.status === 'insufficient';
+      if (current && !force && !firstMarketCheck && +started < nextLookupAt) continue;
       const failure = state.data.failures[card.id];
       if (
         !missing &&
@@ -382,9 +384,9 @@ export function createPricingClient({
               message: missing,
               source: 'CardPricer',
             }
-          : await lookup(card, { now: started, signal, excludedUrls });
+          : await lookup(card, { now: started, signal, excludedUrls, session, previous: current ? last : null });
         if (signal?.aborted) return snapshot(state);
-        state.data.quotes[card.id] = { ...result, identity };
+        state.data.quotes[card.id] = { ...result, identity, lookupVersion: 2 };
         delete state.data.failures[card.id];
       } catch (error) {
         if (signal?.aborted) return snapshot(state);

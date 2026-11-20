@@ -155,7 +155,11 @@ export function changeReview(card, entries, quote, command, now) {
     const oldKey = command.key;
     if (oldKey && !entries[oldKey]?.manual) throw new Error('That saved sale has changed. Reopen Sold comps.');
     const oldFlag = oldKey ? entries[oldKey].flag : null;
+    const confirming =
+      command.confirmUrl === manual.url &&
+      quote?.evidence?.some(row => row.url === manual.url && row.matchNote && !row.manual && !row.flag);
     if (
+      !confirming &&
       oldKey !== manual.url &&
       (entries[manual.url]?.manual || quote?.evidence?.some(row => row.url === manual.url))
     ) {
@@ -210,6 +214,7 @@ export function reviewedQuote(card, automatic, entries, now) {
     const day = saleDay(row);
     if (row.flag) row.reason = row.flag;
     else if (row.manual && row.manual.identity === identity && !row.manual.exact) row.reason = 'Reference only';
+    else if (row.matchNote && row.manual?.identity !== identity) row.reason = row.matchNote;
     else if (!row.automatic && row.manual?.identity !== identity) row.reason = 'Card details changed';
     else if (!Number.isSafeInteger(row.priceCents) || row.priceCents < 1) row.reason = 'Invalid sale price';
     else if (!Number.isFinite(day) || !validCalendarDate(row.soldAt.slice(0, 10))) row.reason = 'Invalid sale date';

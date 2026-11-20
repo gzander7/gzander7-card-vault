@@ -51,6 +51,11 @@
       "name": "nightly_valuations",
       "version": "20261119210000",
       "sha256": "a89a0e43b76c3e4f1c6d1a0ea5199792c963411da69d93e18cd1bf607c288740"
+    },
+    {
+      "name": "cache_ebay_sold_searches",
+      "version": "20261120202617",
+      "sha256": "18722b309841e656ed615c957c6e8036595fb18abf2a00ffbe0d83c23431936f"
     }
   ]
 }

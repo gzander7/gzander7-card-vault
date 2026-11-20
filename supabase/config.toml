@@ -33,3 +33,7 @@ enable_signup = false
 # Called by pg_cron with a shared secret, not a user JWT. See docs/nightly-valuations.md.
 [functions.nightly-valuations]
 verify_jwt = false
+
+# The owner endpoint validates the caller's access token with Auth.getUser.
+[functions.ebay-sold-comps]
+verify_jwt = false

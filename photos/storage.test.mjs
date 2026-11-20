@@ -38,29 +38,43 @@ function vault(initialFront) {
   };
   const db = {
     storage: { from: () => bucket },
-    rpc(name, {card_data, previous_card, purchase}) {
+    rpc(name, { card_data, previous_card, purchase }) {
       assert.equal(name, 'vault_save_card_purchase');
       assert.ok(!('amount_cents' in card_data));
       if (row) assert.equal(previous_card.image_path, row.image_path);
-      return { async single() {
-        if (faults.conflict) return {status:409, error:{code:'PT409',message:'Purchase changed.'}};
-        if (!faults.skipCommit) {
-          row = {...row, ...card_data};
-          privateRecord = {revision:purchase.revision};
-        }
-        if (faults.ambiguous) throw Error('Connection lost');
-        return {data:row};
-      }};
+      return {
+        async single() {
+          if (faults.conflict) return { status: 409, error: { code: 'PT409', message: 'Purchase changed.' } };
+          if (!faults.skipCommit) {
+            row = { ...row, ...card_data };
+            privateRecord = { revision: purchase.revision };
+          }
+          if (faults.ambiguous) throw Error('Connection lost');
+          return { data: row };
+        },
+      };
     },
     from(table) {
       const filters = {};
       let data;
       let edit;
       return {
-        select() { return this; },
-        eq(key, value) { filters[key] = value; return this; },
-        insert(payload) { data = payload; return this; },
-        update(payload) { edit = true; data = payload; return this; },
+        select() {
+          return this;
+        },
+        eq(key, value) {
+          filters[key] = value;
+          return this;
+        },
+        insert(payload) {
+          data = payload;
+          return this;
+        },
+        update(payload) {
+          edit = true;
+          data = payload;
+          return this;
+        },
         async single() {
           if (faults.reject) return { status: 403, error: new Error('No write access') };
           if (edit && !(filters.id === row?.id && filters.image_path === row.image_path)) {
@@ -72,7 +86,7 @@ function vault(initialFront) {
         },
         async maybeSingle() {
           if (faults.offline) throw Error('Network disconnected');
-          if (table === 'vault_card_purchases') return { data:privateRecord || null };
+          if (table === 'vault_card_purchases') return { data: privateRecord || null };
           return { data: filters.id === row?.id ? row : null };
         },
       };
@@ -80,7 +94,11 @@ function vault(initialFront) {
   };
   function save(changes = {}) {
     return savePhotoRevision(db, {
-      id: 'card', owner: 'owner', previousFront: row?.image_path, fields: { player: 'Player' }, ...changes,
+      id: 'card',
+      owner: 'owner',
+      previousFront: row?.image_path,
+      fields: { player: 'Player' },
+      ...changes,
     });
   }
   return { files, bucket, save, faults, row: () => row, purchase: () => privateRecord };
@@ -151,7 +169,13 @@ test('a failed read of the retained back leaves the original pair intact', async
   store.faults.unreadable = oldBack;
   await assert.rejects(store.save({ front }), /Photo could not be read/);
   assert.equal(store.row().image_path, saved.image_path);
-  assert.deepEqual([...store.files.entries()], [[saved.image_path, front], [oldBack, back]]);
+  assert.deepEqual(
+    [...store.files.entries()],
+    [
+      [saved.image_path, front],
+      [oldBack, back],
+    ],
+  );
 });
 
 test('a stale photo edit cannot overwrite the winner or delete its images', async () => {
@@ -186,17 +210,20 @@ test('failure to clean up obsolete images never rolls back a committed card', as
 
 test('purchases commit with the card and lost responses require a matching private revision', async () => {
   const store = vault();
-  const purchase = {revision:'r1', expected_revision:null, amount_cents:0, purchased_on:null, source:null};
-  const { saved } = await store.save({front, purchase});
+  const purchase = { revision: 'r1', expected_revision: null, amount_cents: 0, purchased_on: null, source: null };
+  const { saved } = await store.save({ front, purchase });
   assert.equal(store.purchase()?.revision, 'r1');
   assert.ok(!('amount_cents' in saved));
   store.faults.ambiguous = true;
-  await store.save({purchase:{...purchase,revision:'r2',expected_revision:'r1'}});
+  await store.save({ purchase: { ...purchase, revision: 'r2', expected_revision: 'r1' } });
   assert.equal(store.purchase().revision, 'r2');
   store.faults.skipCommit = true;
-  await assert.rejects(store.save({purchase:{...purchase,revision:'r3',expected_revision:'r2'}}), /Could not confirm/);
+  await assert.rejects(
+    store.save({ purchase: { ...purchase, revision: 'r3', expected_revision: 'r2' } }),
+    /Could not confirm/,
+  );
   store.faults.conflict = true;
-  await assert.rejects(store.save({back, purchase}), error => error.code === 'PT409');
+  await assert.rejects(store.save({ back, purchase }), error => error.code === 'PT409');
   assert.deepEqual([...store.files.keys()], [saved.image_path]);
 });
 
@@ -204,7 +231,11 @@ test('an interrupted batch create can confirm the original row and photos withou
   const store = vault();
   store.faults.ambiguous = store.faults.offline = true;
   let pending;
-  try { await store.save({front, back}); } catch (error) { pending = error; }
+  try {
+    await store.save({ front, back });
+  } catch (error) {
+    pending = error;
+  }
   assert.equal(typeof pending?.retrySave, 'function');
   const uploaded = [...store.files.keys()];
   store.faults.offline = false;
@@ -215,16 +246,26 @@ test('an interrupted batch create can confirm the original row and photos withou
 
 test('retrying an interrupted batch insert reuses both uploaded photos and its private purchase revision', async () => {
   const store = vault();
-  const purchase = {revision:'draft-r1', expected_revision:null, amount_cents:625, purchased_on:null, source:'Card shop'};
+  const purchase = {
+    revision: 'draft-r1',
+    expected_revision: null,
+    amount_cents: 625,
+    purchased_on: null,
+    source: 'Card shop',
+  };
   store.faults.skipCommit = store.faults.ambiguous = store.faults.offline = true;
   let pending;
-  try { await store.save({front, back, purchase}); } catch (error) { pending = error; }
+  try {
+    await store.save({ front, back, purchase });
+  } catch (error) {
+    pending = error;
+  }
   assert.equal(typeof pending?.retrySave, 'function');
   assert.equal(store.row(), undefined);
   const staged = [...store.files.keys()];
   await assert.rejects(pending.retrySave(), /Network disconnected/);
   store.faults.skipCommit = store.faults.ambiguous = store.faults.offline = false;
-  const {saved} = await pending.retrySave();
+  const { saved } = await pending.retrySave();
   assert.equal(saved.id, 'card');
   assert.equal(store.purchase().revision, purchase.revision);
   assert.deepEqual([saved.image_path, backPhotoPath(saved.image_path)], staged);

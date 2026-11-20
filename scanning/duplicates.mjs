@@ -1,9 +1,19 @@
-const clean = value => String(value ?? '').normalize('NFKC').toLowerCase().trim();
-const label = value => clean(value).normalize('NFD').replace(/\p{M}/gu, '')
-  .replace(/['’‘]|(?<=\p{L})\./gu, '').replace(/[\p{Pd},\s]+/gu, ' ').trim();
+const clean = value =>
+  String(value ?? '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .trim();
+const label = value =>
+  clean(value)
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/['’‘]|(?<=\p{L})\./gu, '')
+    .replace(/[\p{Pd},\s]+/gu, ' ')
+    .trim();
 
 function printedNumber(value) {
-  return clean(value).replace(/^(?:card\s*)?(?:no\.|(?:no|number)(?=\s|#|$)|#)\s*#?\s*/u, '')
+  return clean(value)
+    .replace(/^(?:card\s*)?(?:no\.|(?:no|number)(?=\s|#|$)|#)\s*#?\s*/u, '')
     .replace(/[\p{Pd}\s]+/gu, '-')
     .replace(/(?<=\p{L})-(?=\d)|(?<=\d)-(?=\p{L})/gu, '');
 }
@@ -41,10 +51,18 @@ export function findSimilarCard(cards, owner, draft) {
   let best = null;
   let bestRank = -1;
   for (const card of cards) {
-    if (card.id === draft.id || clean(card.owner) !== ownerId || clean(card.year) !== year
-      || printedNumber(card.card_number) !== number || label(card.player) !== player || label(card.set_name) !== set
-      || parallelLabel(card.parallel) !== parallel || Boolean(card.is_auto) !== Boolean(draft.is_auto)
-      || Boolean(card.is_relic) !== Boolean(draft.is_relic)) continue;
+    if (
+      card.id === draft.id ||
+      clean(card.owner) !== ownerId ||
+      clean(card.year) !== year ||
+      printedNumber(card.card_number) !== number ||
+      label(card.player) !== player ||
+      label(card.set_name) !== set ||
+      parallelLabel(card.parallel) !== parallel ||
+      Boolean(card.is_auto) !== Boolean(draft.is_auto) ||
+      Boolean(card.is_relic) !== Boolean(draft.is_relic)
+    )
+      continue;
     const candidate = serialDetails(card.serial);
     if (candidate.text === serial.text) return card;
     const sameRun = serial.run !== null && serial.run === candidate.run;

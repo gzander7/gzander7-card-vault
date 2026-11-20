@@ -5,7 +5,11 @@ const COLUMNS = 'id,title,card_ids,revision';
 const PICKER_COLUMNS = 'id,player,year,set_name,card_number,parallel,serial,is_auto,is_relic,grader,grade,image_path';
 
 export async function listPickerCards(client, owner, signal, onPage) {
-  const cards = await readCardPages(() => client.from('cards').select(PICKER_COLUMNS).eq('owner', owner), signal, onPage);
+  const cards = await readCardPages(
+    () => client.from('cards').select(PICKER_COLUMNS).eq('owner', owner),
+    signal,
+    onPage,
+  );
   const byName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
   return cards.sort((a, b) => byName.compare(a.player, b.player));
 }
@@ -20,8 +24,14 @@ export async function listCases(client, owner, signal) {
   const cases = [];
   const pageSize = 200;
   while (true) {
-    const page = await client.from(TABLE).select(COLUMNS).eq('owner', owner)
-      .order('title').order('id').range(cases.length, cases.length + pageSize - 1).abortSignal(signal);
+    const page = await client
+      .from(TABLE)
+      .select(COLUMNS)
+      .eq('owner', owner)
+      .order('title')
+      .order('id')
+      .range(cases.length, cases.length + pageSize - 1)
+      .abortSignal(signal);
     if (page.error) throw page.error;
     cases.push(...page.data);
     if (page.data.length < pageSize) return cases;
@@ -29,8 +39,13 @@ export async function listCases(client, owner, signal) {
 }
 
 async function findCase(client, owner, id, signal) {
-  const response = await client.from(TABLE).select(COLUMNS).eq('owner', owner).eq('id', id)
-    .abortSignal(signal).maybeSingle();
+  const response = await client
+    .from(TABLE)
+    .select(COLUMNS)
+    .eq('owner', owner)
+    .eq('id', id)
+    .abortSignal(signal)
+    .maybeSingle();
   if (response.error) throw response.error;
   return response.data;
 }
@@ -60,7 +75,9 @@ export async function saveCase(client, owner, change, signal) {
   const saved = await findCase(client, owner, id, signal);
   if (saved?.revision === revision) return saved;
   if (!expectedRevision && !saved && written.error?.code === '23505') {
-    throw new CaseConflict('This link has already been used. Reload your display cases and create a new case for a fresh link.');
+    throw new CaseConflict(
+      'This link has already been used. Reload your display cases and create a new case for a fresh link.',
+    );
   }
   if ((saved?.revision ?? null) !== expectedRevision) throw new CaseConflict();
   throw new Error('The save could not be confirmed. Reconnect and retry.');

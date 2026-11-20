@@ -8,16 +8,28 @@ const types = [
   ['relic', 'Relics', card => card.is_relic],
   ['featured', 'Hall of Fame', card => card.featured],
 ];
-const facets = [['player', 'Player', 'players'], ['set_name', 'Set', 'sets'], ['year', 'Year', 'years']];
-const sorts = [['newest', 'Newest first'], ['value', 'Highest value'], ['year', 'Year, newest to oldest'], ['player', 'Player, A to Z']];
-const views = [['grid', 'Grid'], ['list', 'List']];
+const facets = [
+  ['player', 'Player', 'players'],
+  ['set_name', 'Set', 'sets'],
+  ['year', 'Year', 'years'],
+];
+const sorts = [
+  ['newest', 'Newest first'],
+  ['value', 'Highest value'],
+  ['year', 'Year, newest to oldest'],
+  ['player', 'Player, A to Z'],
+];
+const views = [
+  ['grid', 'Grid'],
+  ['list', 'List'],
+];
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 const text = value => String(value ?? '').trim();
 const searchable = value => text(value).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const countCards = n => n + (n === 1 ? ' card' : ' cards');
 const timestamp = card => Date.parse(card.created_at) || 0;
 const newest = (a, b) => timestamp(b) - timestamp(a) || collator.compare(a.id, b.id);
-const toggle = (array, value) => array.includes(value) ? array.filter(item => item !== value) : [...array, value];
+const toggle = (array, value) => (array.includes(value) ? array.filter(item => item !== value) : [...array, value]);
 
 export function defaultFilters() {
   return { query: '', sort: 'newest', view: 'grid', types: [], player: [], set_name: [], year: [] };
@@ -29,19 +41,40 @@ function activeCount(filters) {
 
 export function matchingCards(cards, filters) {
   const query = searchable(filters.query);
-  return cards.filter(card => types.every(([key,, matches]) => !filters.types.includes(key) || matches(card))
-    && facets.every(([key]) => !filters[key].length || filters[key].includes(text(card[key])))
-    && (!query || searchable([card.player, card.set_name, card.card_number, card.parallel, card.serial, card.grader,
-      card.grade, card.notes, card.year, card.card_number && '#' + card.card_number].filter(Boolean).join(' ')).includes(query)));
+  return cards.filter(
+    card =>
+      types.every(([key, , matches]) => !filters.types.includes(key) || matches(card)) &&
+      facets.every(([key]) => !filters[key].length || filters[key].includes(text(card[key]))) &&
+      (!query ||
+        searchable(
+          [
+            card.player,
+            card.set_name,
+            card.card_number,
+            card.parallel,
+            card.serial,
+            card.grader,
+            card.grade,
+            card.notes,
+            card.year,
+            card.card_number && '#' + card.card_number,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        ).includes(query)),
+  );
 }
 
 export function estimateCents(quote) {
-  return quote?.status === 'valued' && Number.isSafeInteger(quote.valueCents) && quote.valueCents > 0 ? quote.valueCents : null;
+  return quote?.status === 'valued' && Number.isSafeInteger(quote.valueCents) && quote.valueCents > 0
+    ? quote.valueCents
+    : null;
 }
 
 export function sortCards(cards, sort, quotes) {
   return [...cards].sort((a, b) => {
-    if (sort === 'value') return (estimateCents(quotes.get(b.id)) ?? -1) - (estimateCents(quotes.get(a.id)) ?? -1) || newest(a, b);
+    if (sort === 'value')
+      return (estimateCents(quotes.get(b.id)) ?? -1) - (estimateCents(quotes.get(a.id)) ?? -1) || newest(a, b);
     if (sort === 'year') return (Number(b.year) || 0) - (Number(a.year) || 0) || newest(a, b);
     if (sort === 'player') return collator.compare(text(a.player), text(b.player)) || newest(a, b);
     return newest(a, b);
@@ -125,23 +158,41 @@ function fillTile(tile, card, src) {
   }
   tile.meta.textContent = [text(card.year), text(card.set_name)].filter(Boolean).join(' · ');
   tile.trigger.textContent = name;
-  tile.trigger.setAttribute('aria-label', 'View ' + [name, tile.meta.textContent, card.card_number && '#' + card.card_number].filter(Boolean).join(', '));
-  const labels = [card.is_auto && 'Auto', text(card.parallel), text(card.serial), [text(card.grader), text(card.grade)].filter(Boolean).join(' '), card.is_relic && 'Relic'].filter(Boolean);
+  tile.trigger.setAttribute(
+    'aria-label',
+    'View ' + [name, tile.meta.textContent, card.card_number && '#' + card.card_number].filter(Boolean).join(', '),
+  );
+  const labels = [
+    card.is_auto && 'Auto',
+    text(card.parallel),
+    text(card.serial),
+    [text(card.grader), text(card.grade)].filter(Boolean).join(' '),
+    card.is_relic && 'Relic',
+  ].filter(Boolean);
   tile.tags.replaceChildren(...labels.map(label => element('li', '', label)));
 }
 
 function fillEstimate(tile, quote, isOwner) {
   tile.price.hidden = !isOwner;
   const cents = estimateCents(quote);
-  const summary = !isOwner ? '' : cents !== null ? money(cents)
-    : quote?.status === 'needs_details' ? 'Needs details to price' : 'Unpriced';
+  const summary = !isOwner
+    ? ''
+    : cents !== null
+      ? money(cents)
+      : quote?.status === 'needs_details'
+        ? 'Needs details to price'
+        : 'Unpriced';
   const evidence = isOwner && cents !== null ? estimateEvidenceText(quote) : '';
   if (tile.summary === summary && tile.evidence === evidence) return;
   tile.summary = summary;
   tile.evidence = evidence;
   tile.price.replaceChildren();
-  if (cents !== null && isOwner) tile.price.append(element('strong', '', summary), element('span', 'estimate-label', ' est.'),
-    element('span', 'tile-evidence', evidence));
+  if (cents !== null && isOwner)
+    tile.price.append(
+      element('strong', '', summary),
+      element('span', 'estimate-label', ' est.'),
+      element('span', 'tile-evidence', evidence),
+    );
   else tile.price.textContent = summary;
 }
 
@@ -177,7 +228,9 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
   let expanded;
   let sortOptions = [];
   let loaded = false;
-  const openCard = (id, trigger) => { if (byId.has(id)) inspectCard(byId.get(id), trigger); };
+  const openCard = (id, trigger) => {
+    if (byId.has(id)) inspectCard(byId.get(id), trigger);
+  };
 
   for (const [key, label] of types) {
     const quick = button(label);
@@ -203,20 +256,37 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
     const visible = sortCards(filtered, applied.sort, quotes);
     const active = activeCount(applied);
     const narrowed = active > 0 || Boolean(text(applied.query));
-    get('collection-count').textContent = !loaded ? '' : narrowed ? visible.length + ' of ' + countCards(cards.length) : countCards(cards.length);
-    get('collection-stats').textContent = loaded ? types.slice(0, 3).map(([key, label, matches]) => {
-      const count = cards.filter(matches).length;
-      return ' · ' + count + ' ' + (key === 'auto' && count === 1 ? 'auto' : label.toLowerCase());
-    }).join('') : '';
+    get('collection-count').textContent = !loaded
+      ? ''
+      : narrowed
+        ? visible.length + ' of ' + countCards(cards.length)
+        : countCards(cards.length);
+    get('collection-stats').textContent = loaded
+      ? types
+          .slice(0, 3)
+          .map(([key, label, matches]) => {
+            const count = cards.filter(matches).length;
+            return ' · ' + count + ' ' + (key === 'auto' && count === 1 ? 'auto' : label.toLowerCase());
+          })
+          .join('')
+      : '';
     get('active-filter-count').textContent = active ? ' (' + active + ')' : '';
-    for (const chip of quickButtons) chip.setAttribute('aria-pressed', String(chip.dataset.quick === 'all' ? !active : applied.types.includes(chip.dataset.quick)));
+    for (const chip of quickButtons)
+      chip.setAttribute(
+        'aria-pressed',
+        String(chip.dataset.quick === 'all' ? !active : applied.types.includes(chip.dataset.quick)),
+      );
     for (const chip of facetButtons) {
       const key = chip.dataset.facet;
       const selected = applied[key];
       const label = facets.find(entry => entry[0] === key)[1];
-      chip.textContent = selected.length === 1 ? selected[0] : label + (selected.length ? ' (' + selected.length + ')' : '');
+      chip.textContent =
+        selected.length === 1 ? selected[0] : label + (selected.length ? ' (' + selected.length + ')' : '');
       chip.classList.toggle('has-filters', Boolean(selected.length));
-      chip.setAttribute('aria-label', 'Filter by ' + label.toLowerCase() + (selected.length ? ': ' + selected.join(', ') : ''));
+      chip.setAttribute(
+        'aria-label',
+        'Filter by ' + label.toLowerCase() + (selected.length ? ': ' + selected.join(', ') : ''),
+      );
     }
     for (const view of viewButtons) view.setAttribute('aria-pressed', String(view.dataset.view === applied.view));
     grid.dataset.view = applied.view;
@@ -225,8 +295,11 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
     form.classList.toggle('has-query', Boolean(applied.query));
     get('empty-state').hidden = !loaded || Boolean(visible.length);
     get('clear-filters').hidden = !narrowed;
-    get('empty-message').textContent = cards.length ? 'No cards match these filters.'
-      : signedIn ? 'The vault is empty. Add the first card.' : 'The vault is empty. Sign in to add the first card.';
+    get('empty-message').textContent = cards.length
+      ? 'No cards match these filters.'
+      : signedIn
+        ? 'The vault is empty. Add the first card.'
+        : 'The vault is empty. Sign in to add the first card.';
 
     const nodes = visible.map(card => {
       if (!tiles.has(card.id)) tiles.set(card.id, makeTile(card, openCard));
@@ -244,7 +317,8 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
   function updateDraft() {
     const count = matchingCards(cards, draft).length;
     get('apply-filters').textContent = 'Show ' + countCards(count);
-    for (const chip of sheet.querySelectorAll('[data-type]')) chip.setAttribute('aria-pressed', String(draft.types.includes(chip.dataset.type)));
+    for (const chip of sheet.querySelectorAll('[data-type]'))
+      chip.setAttribute('aria-pressed', String(draft.types.includes(chip.dataset.type)));
   }
 
   function drawFacet(key, label, plural) {
@@ -256,9 +330,10 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
       const value = text(card[key]);
       if (value) counts.set(value, (counts.get(value) || 0) + 1);
     }
-    const values = [...counts].sort(([a], [b]) => key === 'year' ? Number(b) - Number(a) : collator.compare(a, b));
+    const values = [...counts].sort(([a], [b]) => (key === 'year' ? Number(b) - Number(a) : collator.compare(a, b)));
     const shown = expanded.has(key) ? values : values.filter(([value], i) => i < 4 || draft[key].includes(value));
-    for (const [value, count] of shown) group.append(choice(value, value, 'checkbox', key, draft[key].includes(value), count));
+    for (const [value, count] of shown)
+      group.append(choice(value, value, 'checkbox', key, draft[key].includes(value), count));
     if (!values.length) group.append(element('p', 'facet-empty', 'No ' + plural + ' in the collection.'));
     if (values.length > 4) {
       const more = button(expanded.has(key) ? 'Show fewer ' + plural : 'Show all ' + values.length + ' ' + plural);
@@ -271,16 +346,24 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
   }
 
   function drawSheet() {
-    fillOptions(sortOptions.map(([key, label]) => choice(label, key, 'radio', 'sort', draft.sort === key)), get('sheet-sort'));
+    fillOptions(
+      sortOptions.map(([key, label]) => choice(label, key, 'radio', 'sort', draft.sort === key)),
+      get('sheet-sort'),
+    );
     const toggles = types.map(([key, label, matches]) => {
       const chip = button(label + ' ');
       chip.append(element('span', '', String(cards.filter(matches).length)));
       chip.dataset.type = key;
       return chip;
     });
-    get('sheet-types').querySelector('.sheet-chips').replaceChildren(...toggles);
+    get('sheet-types')
+      .querySelector('.sheet-chips')
+      .replaceChildren(...toggles);
     facetHost.replaceChildren(...facets.map(args => drawFacet(...args)));
-    fillOptions(views.map(([key, label]) => choice(label, key, 'radio', 'view', draft.view === key)), get('sheet-view'));
+    fillOptions(
+      views.map(([key, label]) => choice(label, key, 'radio', 'view', draft.view === key)),
+      get('sheet-view'),
+    );
     updateDraft();
   }
 
@@ -320,7 +403,8 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
     if (!clicked) return;
     if (clicked === sheetTrigger || clicked.dataset.facet) return showSheet(clicked.dataset.facet);
     if (clicked.dataset.view) applied.view = clicked.dataset.view;
-    else if (clicked.dataset.quick === 'all') applied = { ...defaultFilters(), query: applied.query, sort: applied.sort, view: applied.view };
+    else if (clicked.dataset.quick === 'all')
+      applied = { ...defaultFilters(), query: applied.query, sort: applied.sort, view: applied.view };
     else if (clicked.dataset.quick) applied.types = toggle(applied.types, clicked.dataset.quick);
     else return;
     renderGallery();
@@ -332,7 +416,10 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
   });
   get('dismiss-filters').addEventListener('click', () => sheet.close());
   sheet.addEventListener('click', event => {
-    if (event.target === sheet) { sheet.close(); return; }
+    if (event.target === sheet) {
+      sheet.close();
+      return;
+    }
     const clicked = event.target.closest('button');
     if (clicked?.dataset.type) {
       draft.types = toggle(draft.types, clicked.dataset.type);
@@ -340,7 +427,8 @@ export function createCollectionGallery({ root, imageUrl, quoteFor, owns, inspec
     }
     if (clicked?.dataset.expand) {
       const key = clicked.dataset.expand;
-      if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+      if (expanded.has(key)) expanded.delete(key);
+      else expanded.add(key);
       const group = drawFacet(...facets.find(([field]) => field === key));
       clicked.closest('fieldset').replaceWith(group);
       group.querySelector('.facet-expand').focus({ preventScroll: true });

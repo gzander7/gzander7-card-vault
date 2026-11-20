@@ -6,3 +6,4 @@ playwright-report/
 supabase/functions/_shared/
 *.sql
 *.svg
+*.html

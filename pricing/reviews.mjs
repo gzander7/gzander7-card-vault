@@ -1,13 +1,23 @@
 import { identityKey } from './identity.mjs';
 
-export const exclusionReasons = ['Wrong parallel', 'Wrong autograph', 'Wrong grade', 'Different card', 'Not a completed sale'];
+export const exclusionReasons = [
+  'Wrong parallel',
+  'Wrong autograph',
+  'Wrong grade',
+  'Different card',
+  'Not a completed sale',
+];
 const DAY = 86400000;
 const MAX_SALES = 5;
 const ebayMarket = /^(?:(?:www|m)\.)?ebay\.(?:com(?:\.au)?|co\.uk|ca|de|fr|it|es)$/i;
 
 export function saleUrl(value) {
   let url;
-  try { url = new URL(String(value).trim()); } catch { /* Validated below. */ }
+  try {
+    url = new URL(String(value).trim());
+  } catch {
+    /* Validated below. */
+  }
   if (!url || url.protocol !== 'https:' || url.username || url.password || url.port || !url.hostname.includes('.')) {
     throw new Error('Enter the HTTPS link to the completed sale.');
   }
@@ -24,7 +34,8 @@ export function saleUrl(value) {
     if (/^(?:utm_|fbclid$|gclid$)/i.test(key)) url.searchParams.delete(key);
   }
   url.searchParams.sort();
-  if (url.pathname === '/' && !url.search) throw new Error('Use the individual sale page, including its listing or lot number.');
+  if (url.pathname === '/' && !url.search)
+    throw new Error('Use the individual sale page, including its listing or lot number.');
   if (url.href.length > 1800) throw new Error('Use a shorter direct link to the sale.');
   return url.href;
 }
@@ -80,7 +91,11 @@ export function estimateSales(orderedEligibleSales) {
   return { valueCents, confidence, range, sales, unusual };
 }
 
-const normalizedParallel = text => String(text || 'Base').trim().toLowerCase().replace(/\s+/g, ' ') || 'base';
+const normalizedParallel = text =>
+  String(text || 'Base')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ') || 'base';
 
 function manualSale(card, input, now) {
   const url = saleUrl(input.url);
@@ -100,7 +115,15 @@ function manualSale(card, input, now) {
   if (exact && normalizedParallel(parallel) !== normalizedParallel(card.parallel)) {
     throw new Error('The parallel differs from your card. Save it as a reference or correct the parallel.');
   }
-  return {url, soldAt: day, priceCents: cents, title: card.player + ' · ' + parallel, parallel, exact, identity: identityKey(card)};
+  return {
+    url,
+    soldAt: day,
+    priceCents: cents,
+    title: card.player + ' · ' + parallel,
+    parallel,
+    exact,
+    identity: identityKey(card),
+  };
 }
 
 // Edits to independent receipts merge by key. A removal or restoration remains
@@ -131,7 +154,10 @@ export function changeReview(card, entries, quote, command, now) {
     const oldKey = command.key;
     if (oldKey && !entries[oldKey]?.manual) throw new Error('That saved sale has changed. Reopen Sold comps.');
     const oldFlag = oldKey ? entries[oldKey].flag : null;
-    if (oldKey !== manual.url && (entries[manual.url]?.manual || quote?.evidence?.some(row => row.url === manual.url))) {
+    if (
+      oldKey !== manual.url &&
+      (entries[manual.url]?.manual || quote?.evidence?.some(row => row.url === manual.url))
+    ) {
       throw new Error('This sale is already in Sold comps.');
     }
     const changes = { [manual.url]: write(manual.url, manual, oldKey === manual.url ? oldFlag : null) };
@@ -141,11 +167,13 @@ export function changeReview(card, entries, quote, command, now) {
   const url = saleUrl(command.url);
   const entry = entries[url];
   const row = quote?.evidence?.find(sale => sale.url === url);
-  if (command.type === 'remove' && entry?.manual) return { [url]: write(url, null, row?.automatic ? entry.flag : null) };
-  if (command.type === 'restore' && entry?.flag?.identity === identity) return { [url]: write(url, entry.manual, null) };
+  if (command.type === 'remove' && entry?.manual)
+    return { [url]: write(url, null, row?.automatic ? entry.flag : null) };
+  if (command.type === 'restore' && entry?.flag?.identity === identity)
+    return { [url]: write(url, entry.manual, null) };
   if (command.type === 'exclude' && row && exclusionReasons.includes(command.reason)) {
-    const receipt = {url, title: row.title, soldAt: row.soldAt, priceCents: row.priceCents};
-    return { [url]: write(url, entry?.manual ?? null, {identity, reason: command.reason, receipt}) };
+    const receipt = { url, title: row.title, soldAt: row.soldAt, priceCents: row.priceCents };
+    return { [url]: write(url, entry?.manual ?? null, { identity, reason: command.reason, receipt }) };
   }
   throw new Error('This sale changed. Reopen Sold comps and try again.');
 }
@@ -156,7 +184,11 @@ export function reviewedQuote(card, automatic, entries, now) {
   const receipts = new Map();
   for (const receipt of [...(base?.sales || []), ...(base?.extraSales || [])]) {
     let url;
-    try { url = saleUrl(receipt.url); } catch { continue; }
+    try {
+      url = saleUrl(receipt.url);
+    } catch {
+      continue;
+    }
     if (!receipts.has(url)) receipts.set(url, { ...receipt, url, automatic: true });
   }
   for (const [url, entry] of Object.entries(entries || {})) {
@@ -186,8 +218,19 @@ export function reviewedQuote(card, automatic, entries, now) {
   const { sales, unusual, valueCents, confidence, range } = estimateSales(eligible);
   for (const row of unusual) row.reason = 'Unusual price';
   for (const row of eligible.slice(MAX_SALES)) row.reason = 'Outside the latest five';
-  const message = sales.length === 1 ? 'One matching sale. A second is needed for an estimate.'
-    : 'Two matching sales within 90 days are needed for an estimate.';
-  return { ...base, identity, status: valueCents === null ? 'insufficient' : 'valued',
-    valueCents, confidence, range, sales, evidence, message };
+  const message =
+    sales.length === 1
+      ? 'One matching sale. A second is needed for an estimate.'
+      : 'Two matching sales within 90 days are needed for an estimate.';
+  return {
+    ...base,
+    identity,
+    status: valueCents === null ? 'insufficient' : 'valued',
+    valueCents,
+    confidence,
+    range,
+    sales,
+    evidence,
+    message,
+  };
 }

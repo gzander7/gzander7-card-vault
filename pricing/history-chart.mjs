@@ -1,7 +1,12 @@
 const DAY = 86400000;
 const svgNamespace = 'http://www.w3.org/2000/svg';
 const axisDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-const axisDateWithYear = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
+const axisDateWithYear = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
 
 function hasPrice(day) {
   return day.priced > 0 && Number.isSafeInteger(day.valueCents) && day.valueCents >= 0;
@@ -10,7 +15,8 @@ function hasPrice(day) {
 export function chartSeries(history, range, now = Date.now()) {
   const today = Math.floor(now / DAY) * DAY;
   const cutoff = range === 'all' ? -Infinity : today - (Number(range) - 1) * DAY;
-  const sorted = history.map(record => ({ ...record, time: Date.parse(record.date + 'T00:00:00Z') }))
+  const sorted = history
+    .map(record => ({ ...record, time: Date.parse(record.date + 'T00:00:00Z') }))
     .filter(day => day.time <= today)
     .sort((a, b) => a.time - b.time);
   const days = [];
@@ -24,7 +30,10 @@ export function chartSeries(history, range, now = Date.now()) {
     }
     days.push(day);
     if (hasPrice(day)) {
-      if (!segment) { segment = []; segments.push(segment); }
+      if (!segment) {
+        segment = [];
+        segments.push(segment);
+      }
       segment.push(day);
     } else {
       segment = null;
@@ -37,12 +46,13 @@ export function chartSeries(history, range, now = Date.now()) {
 
 export function priceTicks(amounts) {
   if (!amounts.length) return [];
-  let low = amounts[0], high = amounts[0];
+  let low = amounts[0],
+    high = amounts[0];
   for (const amount of amounts) {
     low = Math.min(low, amount);
     high = Math.max(high, amount);
   }
-  const padding = high === low ? Math.max(50, high * .06) : Math.max(1, (high - low) * .08);
+  const padding = high === low ? Math.max(50, high * 0.06) : Math.max(1, (high - low) * 0.08);
   const bottom = Math.max(0, low - padding);
   const top = high + padding;
   const target = Math.max(1, (top - bottom) / 3);
@@ -73,9 +83,14 @@ export function createHistoryChart(figure, { money, dateText, changeText, datePi
   const change = figure.querySelector('.history-change');
   const changeAmount = change.querySelector('strong');
   const help = figure.querySelector('#history-help');
-  let records = [], range = 'all', selectedDate = null;
-  let series = chartSeries(records, range), index = -1;
-  let positions = [], guide, marker;
+  let records = [],
+    range = 'all',
+    selectedDate = null;
+  let series = chartSeries(records, range),
+    index = -1;
+  let positions = [],
+    guide,
+    marker;
 
   function positionMarker() {
     if (!positions[index]) return;
@@ -113,9 +128,10 @@ export function createHistoryChart(figure, { money, dateText, changeText, datePi
     const labels = ticks.map(tick => money(tick).replace(/\.00$/, ''));
     const left = Math.max(...labels.map(label => label.length)) * 7 + 10;
     const right = Math.max(left + 1, width - 8);
-    const top = 12, bottom = height - 26;
+    const top = 12,
+      bottom = height - 26;
     const { start, end } = series;
-    const x = time => start === end ? (left + right) / 2 : left + (right - left) * ((time - start) / (end - start));
+    const x = time => (start === end ? (left + right) / 2 : left + (right - left) * ((time - start) / (end - start)));
     const y = cents => bottom - (bottom - top) * ((cents - ticks[0]) / (ticks.at(-1) - ticks[0]));
     const nodes = [];
     ticks.forEach((tick, i) => {
@@ -137,7 +153,12 @@ export function createHistoryChart(figure, { money, dateText, changeText, datePi
       const vertices = coords.map(p => p.x.toFixed(2) + ',' + p.y.toFixed(2));
       if (coords.length > 1) {
         const path = 'M' + vertices.join(' L');
-        nodes.push(svgNode('path', { fill: 'url(#history-gold)', d: path + ' L' + coords.at(-1).x + ',' + bottom + ' H' + coords[0].x + ' Z' }));
+        nodes.push(
+          svgNode('path', {
+            fill: 'url(#history-gold)',
+            d: path + ' L' + coords.at(-1).x + ',' + bottom + ' H' + coords[0].x + ' Z',
+          }),
+        );
         nodes.push(svgNode('path', { class: 'history-line', d: path }));
       }
       if (coords.length === 1 || series.points.length <= 90) {
@@ -170,26 +191,34 @@ export function createHistoryChart(figure, { money, dateText, changeText, datePi
     readout.hidden = !days.length;
     plot.hidden = !points.length;
     change.hidden = points.length < 2;
-    const first = points[0], last = points.at(-1);
+    const first = points[0],
+      last = points.at(-1);
     if (!days.length) {
       selectedDate = null;
       index = -1;
       date.textContent = amount.textContent = coverage.textContent = changeAmount.textContent = '';
-      for (const attr of ['aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext']) plot.removeAttribute(attr);
-      help.textContent = range === 'all' ? 'Your chart starts with your first priced card.' : 'No dates were recorded in this range.';
+      for (const attr of ['aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext'])
+        plot.removeAttribute(attr);
+      help.textContent =
+        range === 'all' ? 'Your chart starts with your first priced card.' : 'No dates were recorded in this range.';
       onSelect(null, null, records.length > 0);
       return;
     }
     if (points.length > 1) {
       const delta = last.valueCents - first.valueCents;
-      changeAmount.textContent = changeText({ change: delta, percent: first.valueCents ? delta / first.valueCents * 100 : null });
+      changeAmount.textContent = changeText({
+        change: delta,
+        percent: first.valueCents ? (delta / first.valueCents) * 100 : null,
+      });
       changeAmount.dataset.direction = String(Math.sign(delta));
     } else {
       changeAmount.textContent = '';
     }
-    help.textContent = !points.length ? 'No priced estimates in this range. Choose a recorded date below to inspect the vault.'
-      : points.length === 1 ? 'One priced date in this range. A second priced date will show a trend.'
-      : 'Hover, tap, or use the arrow keys to inspect a date.';
+    help.textContent = !points.length
+      ? 'No priced estimates in this range. Choose a recorded date below to inspect the vault.'
+      : points.length === 1
+        ? 'One priced date in this range. A second priced date will show a trend.'
+        : 'Hover, tap, or use the arrow keys to inspect a date.';
     plot.setAttribute('aria-valuemin', 1);
     plot.setAttribute('aria-valuemax', days.length);
     const previous = days.findIndex(point => point.date === selectedDate);
@@ -218,24 +247,35 @@ export function createHistoryChart(figure, { money, dateText, changeText, datePi
   datePicker.addEventListener('change', () => select(series.days.length - 1 - datePicker.selectedIndex));
   plot.addEventListener('keydown', event => {
     const last = series.days.length - 1;
-    const targets = { ArrowLeft: index - 1, ArrowDown: index - 1, ArrowRight: index + 1, ArrowUp: index + 1, Home: 0, End: last };
+    const targets = {
+      ArrowLeft: index - 1,
+      ArrowDown: index - 1,
+      ArrowRight: index + 1,
+      ArrowUp: index + 1,
+      Home: 0,
+      End: last,
+    };
     if (!Object.hasOwn(targets, event.key)) return;
     event.preventDefault();
     select(Math.max(0, Math.min(last, targets[event.key])));
   });
-  for (const button of buttons) button.addEventListener('click', () => {
-    if (range === button.dataset.range) return;
-    range = button.dataset.range;
-    selectedDate = null;
-    refresh();
-  });
+  for (const button of buttons)
+    button.addEventListener('click', () => {
+      if (range === button.dataset.range) return;
+      range = button.dataset.range;
+      selectedDate = null;
+      refresh();
+    });
   details.addEventListener('toggle', draw);
   if (typeof ResizeObserver === 'function') new ResizeObserver(draw).observe(plot);
   else window.addEventListener('resize', draw);
   return {
     update(history, reset = false) {
       if (history === records && !reset) return;
-      if (reset) { range = 'all'; selectedDate = null; }
+      if (reset) {
+        range = 'all';
+        selectedDate = null;
+      }
       records = history;
       refresh();
     },

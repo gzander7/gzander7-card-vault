@@ -84,11 +84,15 @@ function photoPanel(photo, title) {
     image.alt = (key === 'front' ? 'Front' : 'Back') + ' of ' + title;
     image.dataset.side = key;
     image.draggable = false;
-    image.addEventListener('error', () => {
-      delete photos[key];
-      image.remove();
-      sync();
-    }, { once: true });
+    image.addEventListener(
+      'error',
+      () => {
+        delete photos[key];
+        image.remove();
+        sync();
+      },
+      { once: true },
+    );
     photos[key] = image;
     film.append(image);
     image.src = url;
@@ -105,13 +109,14 @@ function photoPanel(photo, title) {
     if (!wasDragged && Math.abs(delta) < 8) return;
     wasDragged = true;
     stage.classList.add('is-turning');
-    const turn = Math.max(-180, Math.min(180, delta / Math.max(1, stage.clientWidth) * 240));
+    const turn = Math.max(-180, Math.min(180, (delta / Math.max(1, stage.clientWidth)) * 240));
     angle = drag.angle + turn;
     film.style.transform = 'rotateY(' + angle + 'deg)';
   });
   function release(event) {
     if (event.pointerId !== drag?.id) return;
-    const flipped = event.type === 'pointerup' && Math.abs(event.clientX - drag.x) > Math.min(48, stage.clientWidth / 4);
+    const flipped =
+      event.type === 'pointerup' && Math.abs(event.clientX - drag.x) > Math.min(48, stage.clientWidth / 4);
     drag = null;
     stage.classList.remove('is-turning');
     select(flipped ? (side === 'front' ? 'back' : 'front') : side);
@@ -152,9 +157,10 @@ function metadata(card) {
   return copy;
 }
 
-export function openCardDetail({
-  card, photoFor, owns, getCard, getTrigger, editCard, addToCase, deleteCard, valuation,
-}, trigger = document.activeElement) {
+export function openCardDetail(
+  { card, photoFor, owns, getCard, getTrigger, editCard, addToCase, deleteCard, valuation },
+  trigger = document.activeElement,
+) {
   const existing = document.getElementById('card-detail');
   if (existing?.open) return existing;
   const dialog = element('dialog');
@@ -176,16 +182,23 @@ export function openCardDetail({
     if (!owns(current)) return;
     const editor = editCard(current, purchase);
     if (!editor?.open) return;
-    editor.addEventListener('close', () => {
-      if (!dialog.open) return;
-      const fresh = getCard();
-      if (!fresh) { dialog.close(); return; }
-      if (fresh === current) return;
-      current = fresh;
-      renderCard();
-      const returnControl = purchase ? secondary.querySelector('button') : toolbar.querySelector('.detail-edit');
-      (returnControl || header.querySelector('h2')).focus({ preventScroll: true });
-    }, { once: true });
+    editor.addEventListener(
+      'close',
+      () => {
+        if (!dialog.open) return;
+        const fresh = getCard();
+        if (!fresh) {
+          dialog.close();
+          return;
+        }
+        if (fresh === current) return;
+        current = fresh;
+        renderCard();
+        const returnControl = purchase ? secondary.querySelector('button') : toolbar.querySelector('.detail-edit');
+        (returnControl || header.querySelector('h2')).focus({ preventScroll: true });
+      },
+      { once: true },
+    );
   }
 
   const editButton = action('Edit', 'edit', 'detail-edit', () => edit());
@@ -198,10 +211,16 @@ export function openCardDetail({
   const menu = element('div', 'detail-more-options');
   menu.id = 'detail-more-options';
   menu.hidden = true;
-  const toggle = action('More card actions', 'more', 'detail-more-toggle', () => {
-    showMenu(menu.hidden);
-    if (!menu.hidden) remove.focus();
-  }, true);
+  const toggle = action(
+    'More card actions',
+    'more',
+    'detail-more-toggle',
+    () => {
+      showMenu(menu.hidden);
+      if (!menu.hidden) remove.focus();
+    },
+    true,
+  );
   toggle.setAttribute('aria-controls', menu.id);
   toggle.setAttribute('aria-expanded', 'false');
   const remove = button('Delete card', 'detail-delete', () => {
@@ -223,7 +242,13 @@ export function openCardDetail({
     if (!more.contains(event.target)) showMenu(false);
     if (event.target === dialog) {
       const box = dialog.getBoundingClientRect();
-      if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+      if (
+        event.clientX < box.left ||
+        event.clientX > box.right ||
+        event.clientY < box.top ||
+        event.clientY > box.bottom
+      )
+        dialog.close();
     }
   });
   more.addEventListener('focusout', event => {
@@ -275,13 +300,17 @@ export function openCardDetail({
   renderCard();
   phone.addEventListener('change', placeToolbar);
   document.body.append(dialog);
-  dialog.addEventListener('close', () => {
-    phone.removeEventListener('change', placeToolbar);
-    dialog.remove();
-    if (!restoreFocus) return;
-    const destination = trigger?.isConnected ? trigger : getTrigger();
-    destination?.focus({ preventScroll: true });
-  }, { once: true });
+  dialog.addEventListener(
+    'close',
+    () => {
+      phone.removeEventListener('change', placeToolbar);
+      dialog.remove();
+      if (!restoreFocus) return;
+      const destination = trigger?.isConnected ? trigger : getTrigger();
+      destination?.focus({ preventScroll: true });
+    },
+    { once: true },
+  );
   dialog.showModal();
   header.querySelector('h2').focus({ preventScroll: true });
   return dialog;

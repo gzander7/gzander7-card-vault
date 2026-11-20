@@ -13,7 +13,7 @@ function parseCents(price) {
   return cents;
 }
 
-export function parsePurchase({amount, date, source, acquisitionType, boxName = ''}, today = localDay()) {
+export function parsePurchase({ amount, date, source, acquisitionType, boxName = '' }, today = localDay()) {
   const price = amount.trim();
   const purchasedOn = date.trim();
   const from = source.trim();
@@ -25,17 +25,24 @@ export function parsePurchase({amount, date, source, acquisitionType, boxName = 
   const cents = price ? parseCents(price) : null;
   if (purchasedOn) {
     const day = new Date(purchasedOn + 'T00:00:00Z');
-    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(purchasedOn) || !Number.isFinite(+day)
-        || day.toISOString().slice(0, 10) !== purchasedOn || purchasedOn < '0001-01-01' || purchasedOn > today) {
-      throw new Error(pulled ? 'Choose a valid pull date on or before today.' : 'Choose a valid purchase date on or before today.');
+    if (
+      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(purchasedOn) ||
+      !Number.isFinite(+day) ||
+      day.toISOString().slice(0, 10) !== purchasedOn ||
+      purchasedOn < '0001-01-01' ||
+      purchasedOn > today
+    ) {
+      throw new Error(
+        pulled ? 'Choose a valid pull date on or before today.' : 'Choose a valid purchase date on or before today.',
+      );
     }
   }
   if (from.length > 160) throw new Error('Keep the purchase source to 160 characters.');
-  const record = {amount_cents:cents, purchased_on:purchasedOn || null, source:from || null};
+  const record = { amount_cents: cents, purchased_on: purchasedOn || null, source: from || null };
   if (!pulled) return record;
   const box = boxName.trim();
   if (box.length > 160) throw new Error('Keep the box name to 160 characters.');
-  return {...record, acquisition_type:'pulled', box_name:box || null};
+  return { ...record, acquisition_type: 'pulled', box_name: box || null };
 }
 
 export function hasPurchaseDetails(row) {
@@ -46,7 +53,11 @@ const hasCost = cents => Number.isSafeInteger(cents) && cents >= 0;
 const hasMarketValue = cents => Number.isSafeInteger(cents) && cents > 0;
 
 export function purchaseTotals(cards, records, valueFor) {
-  let tracked = 0, spent = 0, compared = 0, comparedCost = 0, comparedValue = 0;
+  let tracked = 0,
+    spent = 0,
+    compared = 0,
+    comparedCost = 0,
+    comparedValue = 0;
   for (const card of cards) {
     const cost = records[card.id]?.amount_cents;
     if (!hasCost(cost)) continue;
@@ -59,12 +70,14 @@ export function purchaseTotals(cards, records, valueFor) {
     comparedValue += value;
   }
   const change = compared ? comparedValue - comparedCost : null;
-  const percent = comparedCost ? 100 * change / comparedCost : null;
-  return {tracked, spent, compared, comparedCost, comparedValue, change, percent};
+  const percent = comparedCost ? (100 * change) / comparedCost : null;
+  return { tracked, spent, compared, comparedCost, comparedValue, change, percent };
 }
 
 export function bookValueTotals(cards, records, valueFor) {
-  let atMarket = 0, atCost = 0, total = 0;
+  let atMarket = 0,
+    atCost = 0,
+    total = 0;
   for (const card of cards) {
     const market = valueFor(card);
     if (hasMarketValue(market)) {
@@ -80,13 +93,16 @@ export function bookValueTotals(cards, records, valueFor) {
   }
   const missing = cards.length - atMarket - atCost;
   // A null ledger means private costs could not yet be checked.
-  if (!records && missing) return {valueCents:null, atMarket, atCost:null, missing:null};
+  if (!records && missing) return { valueCents: null, atMarket, atCost: null, missing: null };
   const valueCents = atMarket + atCost > 0 && Number.isSafeInteger(total) ? total : null;
-  return {valueCents, atMarket, atCost, missing};
+  return { valueCents, atMarket, atCost, missing };
 }
 
 export function createPurchaseLedger(read, onChange = () => {}) {
-  let session = null, records = {}, status = 'idle', pending = null;
+  let session = null,
+    records = {},
+    status = 'idle',
+    pending = null;
   let hasSnapshot = false;
   function setSession(next) {
     if (session?.user?.id !== next?.user?.id) {
@@ -101,14 +117,14 @@ export function createPurchaseLedger(read, onChange = () => {}) {
     if (!session?.user?.id) return Promise.reject(new Error('Sign in to view purchases.'));
     if (pending) return pending.job;
     if (!force && status === 'ready') return Promise.resolve();
-    const request = {edits:{}};
+    const request = { edits: {} };
     pending = request;
     if (status !== 'ready') status = 'loading';
     request.job = (async () => {
       try {
         const rows = await read(session);
         if (pending !== request) return;
-        records = {...rows, ...request.edits};
+        records = { ...rows, ...request.edits };
         hasSnapshot = true;
         status = 'ready';
       } catch (error) {
@@ -126,10 +142,22 @@ export function createPurchaseLedger(read, onChange = () => {}) {
   }
   function accept(owner, id, row) {
     if (owner !== session?.user?.id) return;
-    records = {...records, [id]:row};
+    records = { ...records, [id]: row };
     if (pending) pending.edits[id] = row;
     onChange();
   }
-  return {setSession, load, accept, get records() { return records; }, get status() { return status; },
-    get hasSnapshot() { return hasSnapshot; }};
+  return {
+    setSession,
+    load,
+    accept,
+    get records() {
+      return records;
+    },
+    get status() {
+      return status;
+    },
+    get hasSnapshot() {
+      return hasSnapshot;
+    },
+  };
 }

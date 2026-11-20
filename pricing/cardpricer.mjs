@@ -14,10 +14,17 @@ const requests = [];
 let backoffUntil = 0;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const text = value => String(value ?? '').trim();
-const normalize = value => text(value).normalize('NFKD').replace(/\p{M}/gu, '')
-  .toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const normalize = value =>
+  text(value)
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 const idNumber = value => normalize(value).replace(/ /g, '');
-const validTime = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? Date.parse(value) : NaN;
+const validTime = value =>
+  typeof value === 'string' && /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? Date.parse(value) : NaN;
 
 function providerError(message, code, status = null) {
   return Object.assign(new Error(message), { name: 'CardPricerError', code, status });
@@ -34,7 +41,7 @@ function rateDelay(header, now) {
 }
 
 function limited(retryAfterMs) {
-  return Object.assign(providerError('CardPricer is rate limited.', 'rate_limited', 429), {retryAfterMs});
+  return Object.assign(providerError('CardPricer is rate limited.', 'rate_limited', 429), { retryAfterMs });
 }
 
 async function waitForSlot(signal) {
@@ -55,12 +62,20 @@ async function waitForSlot(signal) {
       return;
     }
     if (backoffUntil > now || delay > MINUTE) throw limited(delay);
-    await new Promise(/** @param {(value?: void) => void} resolve */ (resolve, reject) => {
-      const finish = () => { signal?.removeEventListener('abort', cancel); resolve(); };
-      const timer = setTimeout(finish, delay);
-      const cancel = () => { clearTimeout(timer); reject(signal.reason); };
-      signal?.addEventListener('abort', cancel, {once:true});
-    });
+    await new Promise(
+      /** @param {(value?: void) => void} resolve */ (resolve, reject) => {
+        const finish = () => {
+          signal?.removeEventListener('abort', cancel);
+          resolve();
+        };
+        const timer = setTimeout(finish, delay);
+        const cancel = () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        };
+        signal?.addEventListener('abort', cancel, { once: true });
+      },
+    );
   }
 }
 
@@ -103,8 +118,12 @@ function directoryPlayers(player) {
   const base = playerSearchName(player);
   const input = text(player);
   const terms = base.split(' ');
-  const pieces = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])(?=[A-Z][a-z])/g, '$1 ')
-    .toLowerCase().match(/[a-z0-9]+/g) || [];
+  const pieces =
+    input
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z])(?=[A-Z][a-z])/g, '$1 ')
+      .toLowerCase()
+      .match(/[a-z0-9]+/g) || [];
   const whole = pieces.filter(piece => terms.includes(piece));
   const fragments = whole.length ? whole : pieces.filter(piece => terms.some(term => term.includes(piece)));
   const fragment = fragments.sort((a, b) => b.length - a.length)[0] || base;
@@ -122,22 +141,33 @@ function specificPlayer(known, compatible) {
 function listingMismatch(card, row, catalog) {
   if (typeof row.title !== 'string' || !row.title.trim()) return 'missing_title';
   if (!gradeMatches(card, row.grade)) return 'wrong_grade';
-  return saleMismatchReason(card, {title:row.title, grade:row.grade, year:catalog.year, cardNumber:catalog.cardNumber});
+  return saleMismatchReason(card, {
+    title: row.title,
+    grade: row.grade,
+    year: catalog.year,
+    cardNumber: catalog.cardNumber,
+  });
 }
 
 function saleLink(value) {
   // Only link to a documented marketplace sale or transaction. Tracking parameters
   // are unnecessary; credentials, redirect URLs, and arbitrary hosts have no place here.
   let url;
-  try { url = new URL(value); } catch { return null; }
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
   if (url.protocol !== 'https:' || url.port || url.username || url.password) return null;
   const hostname = url.hostname.replace(/^www\./, '');
   if (hostname === 'ebay.com') {
     const match = /^\/itm\/(?:[^/]+\/)?(\d{9,16})\/?$/.exec(url.pathname);
     return match ? 'https://www.ebay.com/itm/' + match[1] : null;
   }
-  if (hostname === 'polygonscan.com' && /^\/tx\/0x[\da-f]{64}$/i.test(url.pathname)) return 'https://polygonscan.com' + url.pathname;
-  if (hostname === 'solscan.io' && /^\/tx\/[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(url.pathname)) return 'https://solscan.io' + url.pathname;
+  if (hostname === 'polygonscan.com' && /^\/tx\/0x[\da-f]{64}$/i.test(url.pathname))
+    return 'https://polygonscan.com' + url.pathname;
+  if (hostname === 'solscan.io' && /^\/tx\/[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(url.pathname))
+    return 'https://solscan.io' + url.pathname;
   return null;
 }
 
@@ -146,16 +176,18 @@ function tapeMismatch(card, row, catalogId, url) {
   if (row.cardId !== catalogId || row.card?.id !== catalogId) return 'wrong_card';
   const identity = catalogMismatch(card, row.card);
   if (identity) return identity;
-  const reason = listingMismatch({...card, player:specificPlayer(card.player, row.card.player)}, row, row.card);
+  const reason = listingMismatch({ ...card, player: specificPlayer(card.player, row.card.player) }, row, row.card);
   if (reason) return reason;
   if (!url) return 'invalid_link';
   // CardPricer's v1 tape omits currency. It explicitly documents USDC amounts for
   // these physical-card venues. For other sources require an explicit USD code.
   // https://cardpricer.co/ecosystem and https://cardpricer.co/methodology
   const source = normalize(row.source);
-  const dollarSettled = (source === 'courtyard' && url.startsWith('https://polygonscan.com/')) ||
+  const dollarSettled =
+    (source === 'courtyard' && url.startsWith('https://polygonscan.com/')) ||
     (['collector crypt', 'collectorcrypt', 'magic eden'].includes(source) && url.startsWith('https://solscan.io/'));
-  if (row.currency !== 'USD' && !(dollarSettled && (row.currency == null || row.currency === 'USDC'))) return 'unsupported_currency';
+  if (row.currency !== 'USD' && !(dollarSettled && (row.currency == null || row.currency === 'USDC')))
+    return 'unsupported_currency';
   const priceCents = Math.round(row.price * 100);
   if (typeof row.price !== 'number' || !Number.isSafeInteger(priceCents) || priceCents < 1) return 'invalid_price';
   return null;
@@ -165,10 +197,20 @@ function tapeMismatch(card, row, catalogId, url) {
  * @param {any} card
  * @param {{ fetchImpl?: typeof fetch, now?: Date, signal?: AbortSignal, excludedUrls?: Set<string> }} [options]
  */
-export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), signal, excludedUrls = new Set() } = {}) {
+export async function lookupComps(
+  card,
+  { fetchImpl = fetch, now = new Date(), signal, excludedUrls = new Set() } = {},
+) {
   signal?.throwIfAborted();
   const checkedAt = now.toISOString();
-  const result = (status, message, sales = [], valueCents = null) => ({status, valueCents, sales, checkedAt, message, source: 'CardPricer'});
+  const result = (status, message, sales = [], valueCents = null) => ({
+    status,
+    valueCents,
+    sales,
+    checkedAt,
+    message,
+    source: 'CardPricer',
+  });
   const issue = needsDetails(card);
   if (issue) return result('needs_details', issue);
 
@@ -180,22 +222,26 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
     signal?.throwIfAborted();
     const controller = new AbortController();
     const cancel = () => controller.abort(signal.reason);
-    signal?.addEventListener('abort', cancel, {once:true});
+    signal?.addEventListener('abort', cancel, { once: true });
     const timer = setTimeout(() => controller.abort(), 12000);
     let body;
     try {
-      const response = await fetchImpl(url, {signal: controller.signal, credentials: 'omit', redirect: 'error'});
+      const response = await fetchImpl(url, { signal: controller.signal, credentials: 'omit', redirect: 'error' });
       if (!response.ok) {
         if (response.status === 429) {
           const retryAfter = response.headers?.get?.('Retry-After') || null;
           const retryAfterMs = rateDelay(retryAfter, Date.now());
           if (shared) backoffUntil = Math.max(backoffUntil, Date.now() + retryAfterMs);
-          throw Object.assign(limited(retryAfterMs), {retryAfter});
+          throw Object.assign(limited(retryAfterMs), { retryAfter });
         }
         throw providerError('CardPricer returned HTTP ' + response.status + '.', 'unavailable', response.status);
       }
-      try { body = await response.json(); }
-      catch (error) { if (controller.signal.aborted) throw error; throw invalid(); }
+      try {
+        body = await response.json();
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        throw invalid();
+      }
     } catch (error) {
       signal?.throwIfAborted();
       if (error?.name === 'CardPricerError') throw error;
@@ -213,16 +259,32 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
   for (const player of directoryPlayers(card.player)) {
     let offset = 0;
     for (;;) {
-      if (pages >= MAX_PAGES) return result('needs_details', 'The catalogue search is too broad to identify a unique card.');
-      const {data, meta} = await get('cards', {
-        player, year:text(card.year), q:text(card.card_number).replace(/^#\s*/, ''), limit:'200', offset:String(offset)
+      if (pages >= MAX_PAGES)
+        return result('needs_details', 'The catalogue search is too broad to identify a unique card.');
+      const { data, meta } = await get('cards', {
+        player,
+        year: text(card.year),
+        q: text(card.card_number).replace(/^#\s*/, ''),
+        limit: '200',
+        offset: String(offset),
       });
       pages++;
       const paging = meta?.pagination;
-      if (!Array.isArray(data) || !paging || !Number.isSafeInteger(paging.total) || paging.total < 0 ||
-          !('nextOffset' in paging) || data.some(row => !row || !UUID.test(row.id) || !('cardNumber' in row) || !('grade' in row) || !('set' in row))) throw invalid();
+      if (
+        !Array.isArray(data) ||
+        !paging ||
+        !Number.isSafeInteger(paging.total) ||
+        paging.total < 0 ||
+        !('nextOffset' in paging) ||
+        data.some(row => !row || !UUID.test(row.id) || !('cardNumber' in row) || !('grade' in row) || !('set' in row))
+      )
+        throw invalid();
       for (const row of data) if (!catalogMismatch(card, row)) candidates.set(row.id, row);
-      if (candidates.size > 1) return result('needs_details', 'Multiple catalogue entries match this card. Confirm its set, number, and variation.');
+      if (candidates.size > 1)
+        return result(
+          'needs_details',
+          'Multiple catalogue entries match this card. Confirm its set, number, and variation.',
+        );
       if (paging.nextOffset === null) break;
       if (!Number.isSafeInteger(paging.nextOffset) || paging.nextOffset <= offset) throw invalid();
       offset = paging.nextOffset;
@@ -232,23 +294,28 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
     // when the entered name was plain "Oneal". Check that broader spelling too.
     if (match && (player !== playerSearchName(card.player) || directoryPlayers(match.player)[0] === player)) break;
   }
-  if (!candidates.size) return result('insufficient', 'CardPricer has no exact catalogue match for this card and grade.');
+  if (!candidates.size)
+    return result('insufficient', 'CardPricer has no exact catalogue match for this card and grade.');
 
   const [candidate] = candidates.values();
   const { data } = await get('cards/' + candidate.id + '/provenance');
   if (data?.card?.id !== candidate.id || !Array.isArray(data?.comps?.recent)) throw invalid();
   const observations = data.comps.recent;
-  if (observations.some(obs => !obs || typeof obs.id !== 'string' || !obs.id || !Number.isFinite(validTime(obs.soldDate)))) throw invalid();
+  if (
+    observations.some(obs => !obs || typeof obs.id !== 'string' || !obs.id || !Number.isFinite(validTime(obs.soldDate)))
+  )
+    throw invalid();
 
   let player = specificPlayer(card.player, candidate.player);
   if (text(data.card.player)) {
     if (!playersMatch(player, data.card.player)) throw invalid();
     player = specificPlayer(player, data.card.player);
   }
-  const catalogCard = {...card, player};
+  const catalogCard = { ...card, player };
   const at = now.getTime();
   const inWindow = time => time <= at && time >= at - 90 * DAY;
-  const ordered = observations.map(obs => ({obs, time:validTime(obs.soldDate)}))
+  const ordered = observations
+    .map(obs => ({ obs, time: validTime(obs.soldDate) }))
     .sort((a, b) => Number(inWindow(b.time)) - Number(inWindow(a.time)) || b.time - a.time);
   const confirmed = [];
   const seenIds = new Set();
@@ -259,9 +326,10 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
   // completed sale takes precedence, then a pending check, then a rejection.
   function record(key, outcome) {
     const previous = outcomes.get(key);
-    if (!previous || outcome === 'verified' || (previous !== 'verified' && outcome === 'unchecked')) outcomes.set(key, outcome);
+    if (!previous || outcome === 'verified' || (previous !== 'verified' && outcome === 'unchecked'))
+      outcomes.set(key, outcome);
   }
-  for (const {obs, time} of ordered) {
+  for (const { obs, time } of ordered) {
     if (seenIds.has(obs.id)) continue;
     seenIds.add(obs.id);
     const key = saleLink(obs.url) || 'id:' + obs.id;
@@ -280,11 +348,26 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
       continue;
     }
     if (!tape.has(time)) {
-      const params = { include: 'sale', since: new Date(time - 1000).toISOString(), until: new Date(time + 1000).toISOString(), limit: '200' };
+      const params = {
+        include: 'sale',
+        since: new Date(time - 1000).toISOString(),
+        until: new Date(time + 1000).toISOString(),
+        limit: '200',
+      };
       if (candidate.sport) params.sport = candidate.sport;
       const feed = await get('sales', params);
-      if (!Array.isArray(feed.data) || feed.data.some(row => !row || typeof row.id !== 'string' ||
-          !('observationType' in row) || !('cardId' in row) || !('price' in row))) throw invalid();
+      if (
+        !Array.isArray(feed.data) ||
+        feed.data.some(
+          row =>
+            !row ||
+            typeof row.id !== 'string' ||
+            !('observationType' in row) ||
+            !('cardId' in row) ||
+            !('price' in row),
+        )
+      )
+        throw invalid();
       tape.set(time, feed);
     }
     const feed = tape.get(time);
@@ -296,7 +379,7 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
       continue;
     }
     const url = saleLink(row.sourceUrl);
-    const linkedCard = {...catalogCard, player:listingPlayer(catalogCard.player, obs.title)};
+    const linkedCard = { ...catalogCard, player: listingPlayer(catalogCard.player, obs.title) };
     const tapeReason = tapeMismatch(linkedCard, row, candidate.id, url);
     if (tapeReason) {
       record(url || key, tapeReason);
@@ -304,19 +387,26 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
     }
     if (outcomes.get(url) === 'verified') continue;
     record(url, 'verified');
-    confirmed.push({id:row.id, title:row.title.trim(), soldAt:new Date(time).toISOString(), priceCents:Math.round(row.price * 100), url});
+    confirmed.push({
+      id: row.id,
+      title: row.title.trim(),
+      soldAt: new Date(time).toISOString(),
+      priceCents: Math.round(row.price * 100),
+      url,
+    });
     if (!excludedUrls.has(url)) eligible++;
   }
-  const diagnostics = {found:outcomes.size, verified:confirmed.length, unchecked:0, rejected:{}};
+  const diagnostics = { found: outcomes.size, verified: confirmed.length, unchecked: 0, rejected: {} };
   for (const reason of outcomes.values()) {
     if (reason === 'unchecked') diagnostics.unchecked++;
     else if (reason !== 'verified') diagnostics.rejected[reason] = (diagnostics.rejected[reason] || 0) + 1;
   }
-  const {sales, valueCents, confidence, range} = estimateSales(confirmed.filter(sale => !excludedUrls.has(sale.url)));
-  const quote = valueCents === null
-    ? result('insufficient', 'Two recent, verified sales of this exact card are needed for an estimate.', sales)
-    : result('valued', 'Median of recent verified sales of this card.', sales, valueCents);
-  Object.assign(quote, {confidence, range, diagnostics});
+  const { sales, valueCents, confidence, range } = estimateSales(confirmed.filter(sale => !excludedUrls.has(sale.url)));
+  const quote =
+    valueCents === null
+      ? result('insufficient', 'Two recent, verified sales of this exact card are needed for an estimate.', sales)
+      : result('valued', 'Median of recent verified sales of this card.', sales, valueCents);
+  Object.assign(quote, { confidence, range, diagnostics });
   const extraSales = confirmed.filter(sale => !sales.includes(sale));
   if (extraSales.length) quote.extraSales = extraSales;
   return quote;

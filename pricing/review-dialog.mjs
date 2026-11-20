@@ -20,21 +20,41 @@ export function createReviewDialog(commit) {
   }
 
   function show(mode, card, sale) {
-    draft = {mode, card, sale};
+    draft = { mode, card, sale };
     const entry = sale?.manual;
     const editing = mode === 'save';
     form.reset();
     field('error').textContent = '';
-    field('title').textContent = editing ? (entry ? 'Edit sold comp' : 'Add sold comp')
-      : mode === 'exclude' ? 'Flag a wrong match' : 'Remove saved sale?';
-    field('card').textContent = [card.player, card.year, card.set_name, card.card_number && '#' + card.card_number,
-      card.parallel || 'Base', card.serial, card.is_auto && 'Autograph', card.is_relic && 'Relic',
-      [card.grader, card.grade].filter(Boolean).join(' ') || 'Raw'].filter(Boolean).join(' · ');
+    field('title').textContent = editing
+      ? entry
+        ? 'Edit sold comp'
+        : 'Add sold comp'
+      : mode === 'exclude'
+        ? 'Flag a wrong match'
+        : 'Remove saved sale?';
+    field('card').textContent = [
+      card.player,
+      card.year,
+      card.set_name,
+      card.card_number && '#' + card.card_number,
+      card.parallel || 'Base',
+      card.serial,
+      card.is_auto && 'Autograph',
+      card.is_relic && 'Relic',
+      [card.grader, card.grade].filter(Boolean).join(' ') || 'Raw',
+    ]
+      .filter(Boolean)
+      .join(' · ');
     field('fields').hidden = field('fields').disabled = !editing;
     field('flag-fields').hidden = field('flag-fields').disabled = mode !== 'exclude';
     field('detail').hidden = !sale || editing;
-    field('detail').textContent = sale ? sale.title + ' · ' + new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(sale.priceCents / 100)
-      + ' · ' + sale.soldAt.slice(0,10) : '';
+    field('detail').textContent = sale
+      ? sale.title +
+        ' · ' +
+        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sale.priceCents / 100) +
+        ' · ' +
+        sale.soldAt.slice(0, 10)
+      : '';
     field('url').value = entry?.url || '';
     field('price').value = entry ? (entry.priceCents / 100).toFixed(2) : '';
     field('date').max = new Date().toISOString().slice(0, 10);
@@ -52,7 +72,9 @@ export function createReviewDialog(commit) {
   }
 
   close.addEventListener('click', () => dialog.close());
-  remove.addEventListener('click', () => { if (draft && !saving) show('remove', draft.card, draft.sale); });
+  remove.addEventListener('click', () => {
+    if (draft && !saving) show('remove', draft.card, draft.sale);
+  });
   dialog.addEventListener('close', () => {
     if (dialog.open) return;
     draft = null;
@@ -63,11 +85,21 @@ export function createReviewDialog(commit) {
     event.preventDefault();
     if (!draft || saving) return;
     const current = draft;
-    const {mode, card, sale} = current;
-    const command = mode === 'save' ? {type:mode, key:sale?.url, input:{
-      url:field('url').value, price:field('price').value, date:field('date').value,
-      parallel:field('parallel').value, exact:field('exact').checked,
-    }} : {type:mode, url:sale.url, reason:reason.value};
+    const { mode, card, sale } = current;
+    const command =
+      mode === 'save'
+        ? {
+            type: mode,
+            key: sale?.url,
+            input: {
+              url: field('url').value,
+              price: field('price').value,
+              date: field('date').value,
+              parallel: field('parallel').value,
+              exact: field('exact').checked,
+            },
+          }
+        : { type: mode, url: sale.url, reason: reason.value };
     saving = true;
     save.disabled = remove.disabled = true;
     const idleText = save.textContent;
@@ -84,5 +116,10 @@ export function createReviewDialog(commit) {
       if (draft === current) save.textContent = idleText;
     }
   });
-  return { show, close() { if (dialog.open) dialog.close(); } };
+  return {
+    show,
+    close() {
+      if (dialog.open) dialog.close();
+    },
+  };
 }

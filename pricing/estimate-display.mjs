@@ -1,4 +1,8 @@
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', trailingZeroDisplay: 'stripIfInteger' });
+const usd = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  trailingZeroDisplay: 'stripIfInteger',
+});
 const confidenceLabels = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' };
 const rejectionLabels = {
   incomplete_card: 'with incomplete card details',
@@ -31,10 +35,17 @@ export function estimateEvidenceText(quote) {
   if (quote?.status !== 'valued') return '';
   const confidence = Object.hasOwn(confidenceLabels, quote.confidence) && confidenceLabels[quote.confidence];
   const { lowCents, highCents } = quote.range || {};
-  if (!confidence || !Number.isSafeInteger(lowCents) || !Number.isSafeInteger(highCents) || lowCents <= 0 || highCents < lowCents) {
+  if (
+    !confidence ||
+    !Number.isSafeInteger(lowCents) ||
+    !Number.isSafeInteger(highCents) ||
+    lowCents <= 0 ||
+    highCents < lowCents
+  ) {
     return 'Confidence unavailable';
   }
-  const range = lowCents === highCents ? 'All sales ' + money(lowCents) : 'Sale range ' + money(lowCents) + '–' + money(highCents);
+  const range =
+    lowCents === highCents ? 'All sales ' + money(lowCents) : 'Sale range ' + money(lowCents) + '–' + money(highCents);
   return confidence + ' · ' + range;
 }
 
@@ -43,14 +54,23 @@ export function listingDiagnosticsText(diagnostics) {
   const { found, verified, rejected, unchecked } = diagnostics;
   const reasons = Object.entries(rejected || {});
   const counts = [found, verified, unchecked, ...reasons.map(([, count]) => count)];
-  if (!counts.every(count => Number.isSafeInteger(count) && count >= 0)
-      || found !== reasons.reduce((total, [, count]) => total + count, verified + unchecked)) return '';
+  if (
+    !counts.every(count => Number.isSafeInteger(count) && count >= 0) ||
+    found !== reasons.reduce((total, [, count]) => total + count, verified + unchecked)
+  )
+    return '';
   if (found === 0) return 'CardPricer found no listings for this card.';
   const labels = [verified + ' verified'];
   for (const [reason, count] of reasons.sort(([, a], [, b]) => b - a)) {
     if (!count) continue;
-    const label = reason === 'lot' ? (count === 1 ? 'lot' : 'lots')
-      : Object.hasOwn(rejectionLabels, reason) ? rejectionLabels[reason] : reason.replaceAll('_', ' ');
+    const label =
+      reason === 'lot'
+        ? count === 1
+          ? 'lot'
+          : 'lots'
+        : Object.hasOwn(rejectionLabels, reason)
+          ? rejectionLabels[reason]
+          : reason.replaceAll('_', ' ');
     labels.push(count + ' ' + label);
   }
   if (unchecked) labels.push(unchecked + ' unchecked');

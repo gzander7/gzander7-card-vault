@@ -27,10 +27,15 @@ function cardTile(card, index) {
     frame.setAttribute('aria-haspopup', 'dialog');
     frame.append(element('span', 'case-view-label', action));
     frame.addEventListener('click', () => {
-      openCardViewer({
-        title: card.name, detail: [card.meta, card.detail, ...card.tags].filter(Boolean).join(' · '),
-        frontUrl: card.frontUrl, backUrl: card.backUrl,
-      }, frame);
+      openCardViewer(
+        {
+          title: card.name,
+          detail: [card.meta, card.detail, ...card.tags].filter(Boolean).join(' · '),
+          frontUrl: card.frontUrl,
+          backUrl: card.backUrl,
+        },
+        frame,
+      );
     });
   }
   const copy = element('div', 'case-card-copy');
@@ -86,5 +91,7 @@ async function showCase() {
 }
 
 retry.addEventListener('click', showCase);
-window.addEventListener('pageshow', event => { if (event.persisted) void showCase(); });
+window.addEventListener('pageshow', event => {
+  if (event.persisted) void showCase();
+});
 void showCase();

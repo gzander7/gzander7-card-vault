@@ -5,11 +5,16 @@ export { detectCard };
 // Points are normalized against the full, orientation-corrected photo and
 // run clockwise from the top left. A convex outline has four positive turns.
 export function validCropCorners(points) {
-  if (!Array.isArray(points) || points.length !== 4 || points.some(p =>
-    !Number.isFinite(p?.x) || !Number.isFinite(p?.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)) return false;
+  if (
+    !Array.isArray(points) ||
+    points.length !== 4 ||
+    points.some(p => !Number.isFinite(p?.x) || !Number.isFinite(p?.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)
+  )
+    return false;
   return points.every((a, i) => {
-    const b = points[(i + 1) % 4], c = points[(i + 2) % 4];
-    return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x) > .0004;
+    const b = points[(i + 1) % 4],
+      c = points[(i + 2) % 4];
+    return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x) > 0.0004;
   });
 }
 
@@ -23,14 +28,20 @@ export function moveCropCorner(points, index, { x, y }) {
 // Project each output pixel back into the photographed plane and interpolate
 // its color. This straightens converging sides without changing their order.
 export function rectify(source, target, corners) {
-  const [a,b,c,d] = corners;
-  const dx1 = b.x - c.x, dx2 = d.x - c.x, dx3 = a.x - b.x + c.x - d.x;
-  const dy1 = b.y - c.y, dy2 = d.y - c.y, dy3 = a.y - b.y + c.y - d.y;
+  const [a, b, c, d] = corners;
+  const dx1 = b.x - c.x,
+    dx2 = d.x - c.x,
+    dx3 = a.x - b.x + c.x - d.x;
+  const dy1 = b.y - c.y,
+    dy2 = d.y - c.y,
+    dy3 = a.y - b.y + c.y - d.y;
   const determinant = dx1 * dy2 - dx2 * dy1;
   const g = (dx3 * dy2 - dx2 * dy3) / determinant;
   const h = (dx1 * dy3 - dx3 * dy1) / determinant;
-  const xx = b.x - a.x + g * b.x, xy = d.x - a.x + h * d.x;
-  const yx = b.y - a.y + g * b.y, yy = d.y - a.y + h * d.y;
+  const xx = b.x - a.x + g * b.x,
+    xy = d.x - a.x + h * d.x;
+  const yx = b.y - a.y + g * b.y,
+    yy = d.y - a.y + h * d.y;
   const { width, height, data } = source;
   for (let y = 0, out = 0; y < target.height; y++) {
     const v = y / (target.height - 1);
@@ -39,11 +50,13 @@ export function rectify(source, target, corners) {
       const divisor = 1 + g * u + h * v;
       const sx = Math.min(width - 1, Math.max(0, (xx * u + xy * v + a.x) / divisor));
       const sy = Math.min(height - 1, Math.max(0, (yx * u + yy * v + a.y) / divisor));
-      const ix = Math.floor(sx), iy = Math.floor(sy);
+      const ix = Math.floor(sx),
+        iy = Math.floor(sy);
       const p = 4 * (iy * width + ix);
       const q = ix + 1 < width ? p + 4 : p;
       const down = iy + 1 < height ? width * 4 : 0;
-      const fx = sx - ix, fy = sy - iy;
+      const fx = sx - ix,
+        fy = sy - iy;
       for (let k = 0; k < 3; k++) {
         const top = (1 - fx) * data[p + k] + fx * data[q + k];
         const bottom = (1 - fx) * data[p + down + k] + fx * data[q + down + k];
@@ -74,8 +87,10 @@ export function croppedCanvas(image, maxEdge, corners = detectPhotoCorners(image
   const canvas = document.createElement('canvas');
   try {
     const points = corners.map(p => ({ x: p.x * (image.naturalWidth - 1), y: p.y * (image.naturalHeight - 1) }));
-    const xs = points.map(p => p.x), ys = points.map(p => p.y);
-    const left = Math.floor(Math.min(...xs)), top = Math.floor(Math.min(...ys));
+    const xs = points.map(p => p.x),
+      ys = points.map(p => p.y);
+    const left = Math.floor(Math.min(...xs)),
+      top = Math.floor(Math.min(...ys));
     const boxWidth = Math.ceil(Math.max(...xs)) - left + 1;
     const boxHeight = Math.ceil(Math.max(...ys)) - top + 1;
     const sampleScale = Math.min(1, maxEdge / Math.max(boxWidth, boxHeight));
@@ -86,8 +101,8 @@ export function croppedCanvas(image, maxEdge, corners = detectPhotoCorners(image
     ctx.drawImage(image, left, top, boxWidth, boxHeight, 0, 0, canvas.width, canvas.height);
     const source = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const local = points.map(p => ({
-      x: (p.x - left) * (canvas.width - 1) / (boxWidth - 1),
-      y: (p.y - top) * (canvas.height - 1) / (boxHeight - 1),
+      x: ((p.x - left) * (canvas.width - 1)) / (boxWidth - 1),
+      y: ((p.y - top) * (canvas.height - 1)) / (boxHeight - 1),
     }));
     const length = (i, j) => Math.hypot(local[i].x - local[j].x, local[i].y - local[j].y);
     const width = (length(0, 1) + length(3, 2)) / 2;

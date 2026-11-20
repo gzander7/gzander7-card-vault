@@ -6,8 +6,14 @@ function inventory(day) {
   let priced = 0;
   let sum = 0;
   for (const card of day.cards) {
-    if (typeof card?.id !== 'string' || !card.id || cards.has(card.id) ||
-        typeof card.label !== 'string' || !card.label.trim()) return null;
+    if (
+      typeof card?.id !== 'string' ||
+      !card.id ||
+      cards.has(card.id) ||
+      typeof card.label !== 'string' ||
+      !card.label.trim()
+    )
+      return null;
     if (card.valueCents !== null) {
       if (!Number.isSafeInteger(card.valueCents) || card.valueCents < 0) return null;
       priced++;
@@ -15,8 +21,8 @@ function inventory(day) {
     }
     cards.set(card.id, card);
   }
-  const matchesValue = priced > 0 ? day.valueCents === sum
-    : day.valueCents === null || (cards.size === 0 && day.valueCents === 0);
+  const matchesValue =
+    priced > 0 ? day.valueCents === sum : day.valueCents === null || (cards.size === 0 && day.valueCents === 0);
   return matchesValue && priced === day.priced && Number.isSafeInteger(sum) ? cards : null;
 }
 
@@ -46,10 +52,18 @@ export function compareDays(previous, current) {
     if (!kind) continue;
     const beforeCents = from?.valueCents ?? null;
     const afterCents = to?.valueCents ?? null;
-    changes.push({ id, label: (to || from).label, kind, beforeCents, afterCents,
-      deltaCents: (afterCents ?? 0) - (beforeCents ?? 0) });
+    changes.push({
+      id,
+      label: (to || from).label,
+      kind,
+      beforeCents,
+      afterCents,
+      deltaCents: (afterCents ?? 0) - (beforeCents ?? 0),
+    });
   }
-  changes.sort((a, b) => Math.abs(b.deltaCents) - Math.abs(a.deltaCents)
-    || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  changes.sort(
+    (a, b) =>
+      Math.abs(b.deltaCents) - Math.abs(a.deltaCents) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id),
+  );
   return { status: 'ready', netCents: (current.valueCents ?? 0) - (previous.valueCents ?? 0), changes };
 }

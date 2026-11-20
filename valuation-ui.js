@@ -7,18 +7,43 @@ import { bookValueTotals, createPurchaseLedger, hasPurchaseDetails, purchaseTota
 import { createHistoryChart } from './pricing/history-chart.mjs';
 import { createHistoryComparison } from './pricing/history-changes-ui.mjs';
 
-const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', trailingZeroDisplay:'stripIfInteger', signDisplay:'exceptZero' });
-const percent = new Intl.NumberFormat('en-US', { style:'percent', maximumFractionDigits:1, signDisplay:'exceptZero' });
+const signedUsd = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  trailingZeroDisplay: 'stripIfInteger',
+  signDisplay: 'exceptZero',
+});
+const percent = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+  signDisplay: 'exceptZero',
+});
 const calendarDate = new Intl.DateTimeFormat('en-US', {
-  month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
 });
 const monthDay = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const renderedSales = new WeakMap();
 const sparkKeys = new WeakMap();
 const salesHosts = [
-  'ebay.com', 'ebay.ca', 'ebay.co.uk', 'ebay.com.au', 'ebay.de', 'ebay.fr', 'ebay.it',
-  'cardpricer.co', 'collectorcrypt.com', 'magiceden.io', 'fanaticscollect.com', 'polygonscan.com', 'solscan.io',
-  'goldin.co', 'ha.com', 'tcgplayer.com',
+  'ebay.com',
+  'ebay.ca',
+  'ebay.co.uk',
+  'ebay.com.au',
+  'ebay.de',
+  'ebay.fr',
+  'ebay.it',
+  'cardpricer.co',
+  'collectorcrypt.com',
+  'magiceden.io',
+  'fanaticscollect.com',
+  'polygonscan.com',
+  'solscan.io',
+  'goldin.co',
+  'ha.com',
+  'tcgplayer.com',
 ];
 
 function element(tag, value) {
@@ -45,8 +70,12 @@ function saleLink(sale) {
   } catch {
     return element('span', sale.title);
   }
-  if (url.protocol !== 'https:' || url.username || url.password ||
-      (!sale.manual && !sale.flag && !salesHosts.some(host => url.hostname === host || url.hostname.endsWith('.' + host)))) {
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    (!sale.manual && !sale.flag && !salesHosts.some(host => url.hostname === host || url.hostname.endsWith('.' + host)))
+  ) {
     return element('span', sale.title);
   }
   const link = element('a', sale.title);
@@ -62,9 +91,20 @@ function hasValue(quote) {
 
 function soldSearch(card) {
   const printRun = String(card.serial || '').match(/\/\s*(\d+)\s*$/)?.[1];
-  const search = [card.year, card.set_name, card.player, card.card_number, card.parallel,
-    printRun && '/' + printRun, card.is_auto && 'auto', card.is_relic && 'relic', card.grader, card.grade]
-    .filter(Boolean).join(' ');
+  const search = [
+    card.year,
+    card.set_name,
+    card.player,
+    card.card_number,
+    card.parallel,
+    printRun && '/' + printRun,
+    card.is_auto && 'auto',
+    card.is_relic && 'relic',
+    card.grader,
+    card.grade,
+  ]
+    .filter(Boolean)
+    .join(' ');
   const url = new URL('https://www.ebay.com/sch/i.html');
   url.search = new URLSearchParams({ _nkw: search, LH_Sold: '1', LH_Complete: '1' }).toString();
   const link = element('a', 'Check eBay sold listings');
@@ -99,26 +139,35 @@ function drawSpark(host, records) {
   host.replaceChildren();
   host.hidden = values.length < 2;
   if (host.hidden) return;
-  const low = Math.min(...values), high = Math.max(...values);
-  const width = 152, height = 42;
+  const low = Math.min(...values),
+    high = Math.max(...values);
+  const width = 152,
+    height = 42;
   function svg(tag, attrs) {
     const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
     for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
     return node;
   }
   const chart = svg('svg', { viewBox: '0 0 152 42', 'aria-hidden': 'true', focusable: 'false' });
-  let penDown = false, path = '', last;
+  let penDown = false,
+    path = '',
+    last;
   for (const [index, day] of recent.entries()) {
-    if (!Number.isSafeInteger(day.valueCents)) { penDown = false; continue; }
-    const x = 3 + (width - 6) * (times[index] - times[0]) / (times.at(-1) - times[0] || 1);
-    const y = high === low ? height / 2 : 3 + (height - 6) * (high - day.valueCents) / (high - low);
+    if (!Number.isSafeInteger(day.valueCents)) {
+      penDown = false;
+      continue;
+    }
+    const x = 3 + ((width - 6) * (times[index] - times[0])) / (times.at(-1) - times[0] || 1);
+    const y = high === low ? height / 2 : 3 + ((height - 6) * (high - day.valueCents)) / (high - low);
     path += (penDown ? ' L' : ' M') + x.toFixed(2) + ' ' + y.toFixed(2);
-    if (!penDown) chart.append(svg('circle', { cx:x, cy:y, r:1.2, fill:'currentColor' }));
+    if (!penDown) chart.append(svg('circle', { cx: x, cy: y, r: 1.2, fill: 'currentColor' }));
     penDown = true;
-    last = { cx:x, cy:y };
+    last = { cx: x, cy: y };
   }
-  chart.append(svg('path', { d:path, fill:'none', stroke:'currentColor', 'stroke-width':2, 'stroke-linejoin':'round' }),
-    svg('circle', {...last, r:2.5, fill:'currentColor' }));
+  chart.append(
+    svg('path', { d: path, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linejoin': 'round' }),
+    svg('circle', { ...last, r: 2.5, fill: 'currentColor' }),
+  );
   host.append(chart);
 }
 
@@ -129,8 +178,15 @@ function saleRow(sale, card, onAction) {
   date.title = dateText(sale.soldAt);
   const listing = element('td');
   const match = element('td');
-  const title = sale.flag ? 'Excluded' : sale.reason === 'Unusual price' ? 'Left out: unusual price'
-    : sale.reason === 'Reference only' ? 'Reference' : sale.reason ? 'Unused' : 'Exact';
+  const title = sale.flag
+    ? 'Excluded'
+    : sale.reason === 'Unusual price'
+      ? 'Left out: unusual price'
+      : sale.reason === 'Reference only'
+        ? 'Reference'
+        : sale.reason
+          ? 'Unused'
+          : 'Exact';
   const badge = element('span', title);
   badge.className = 'comp-badge';
   badge.dataset.exact = String(!sale.flag && !sale.reason);
@@ -140,7 +196,10 @@ function saleRow(sale, card, onAction) {
   const price = element('td', money(sale.priceCents));
   price.className = 'comp-price';
   const source = sale.manual ? (sale.automatic ? 'CardPricer and your entry' : 'Entered by you') : 'CardPricer';
-  const mobileMeta = element('span', [shortDate(sale.soldAt), title === 'Exact' ? 'Exact match' : title].filter(Boolean).join(' · '));
+  const mobileMeta = element(
+    'span',
+    [shortDate(sale.soldAt), title === 'Exact' ? 'Exact match' : title].filter(Boolean).join(' · '),
+  );
   mobileMeta.className = 'comp-mobile-meta';
   listing.append(saleLink(sale), mobileMeta);
   const review = element('details');
@@ -150,10 +209,13 @@ function saleRow(sale, card, onAction) {
   toggle.title = 'Sale information and actions';
   const actions = element('div');
   actions.className = 'comp-row-actions';
-  actions.append(element('small', [source, sale.flag ? 'Excluded · ' + sale.flag : sale.reason].filter(Boolean).join(' · ')));
+  actions.append(
+    element('small', [source, sale.flag ? 'Excluded · ' + sale.flag : sale.reason].filter(Boolean).join(' · ')),
+  );
   if (sale.manual) actions.append(actionButton('Edit sale', () => onAction('save', card, sale)));
   if (sale.flag) actions.append(actionButton('Restore sale', button => onAction('restore', card, sale, button)));
-  else if (!sale.reason || sale.automatic) actions.append(actionButton('Flag wrong match', () => onAction('exclude', card, sale)));
+  else if (!sale.reason || sale.automatic)
+    actions.append(actionButton('Flag wrong match', () => onAction('exclude', card, sale)));
   review.append(toggle, actions);
   listing.append(review);
   row.append(date, listing, match, price);
@@ -214,10 +276,16 @@ export function createVaultValue(openPurchase, reloadInventory) {
   const historyDetails = document.getElementById('value-history');
   const historyRows = document.getElementById('value-history-rows');
   const showComparison = createHistoryComparison(historyDetails.querySelector('.history-changes'), {
-    dateText, money, signedMoney: cents => signedUsd.format(cents / 100),
+    dateText,
+    money,
+    signedMoney: cents => signedUsd.format(cents / 100),
   });
   const historyChart = createHistoryChart(historyDetails.querySelector('.history-chart'), {
-    money, dateText, changeText, datePicker: document.getElementById('history-day'), onSelect: showComparison,
+    money,
+    dateText,
+    changeText,
+    datePicker: document.getElementById('history-day'),
+    onSelect: showComparison,
   });
   const spent = document.getElementById('purchase-spent');
   const gain = document.getElementById('purchase-gain');
@@ -253,7 +321,10 @@ export function createVaultValue(openPurchase, reloadInventory) {
       for (const listener of listeners) listener();
     });
   }
-  const purchases = createPurchaseLedger(readCloudPurchases, () => { paint(); notify(); });
+  const purchases = createPurchaseLedger(readCloudPurchases, () => {
+    paint();
+    notify();
+  });
 
   async function commitReview(card, command) {
     const session = activeSession;
@@ -262,19 +333,37 @@ export function createVaultValue(openPurchase, reloadInventory) {
     if (inventoryFailed) throw new Error('Refresh your collection with Check for updates, then try again.');
     const next = await reviewSale(session, cards, card, command);
     if (owner !== session.user.id || !byId.has(card.id)) return;
-    const action = {save:'Sale saved', exclude:'Sale excluded', restore:'Sale restored', remove:'Saved sale removed'}[command.type];
-    const location = next.reviewStorage === 'cloud' ? ' and synced.' : next.reviewStorage === 'session' ? ' for this session only.' : ' on this device.';
+    const action = {
+      save: 'Sale saved',
+      exclude: 'Sale excluded',
+      restore: 'Sale restored',
+      remove: 'Saved sale removed',
+    }[command.type];
+    const location =
+      next.reviewStorage === 'cloud'
+        ? ' and synced.'
+        : next.reviewStorage === 'session'
+          ? ' for this session only.'
+          : ' on this device.';
     feedback.set(card.id, action + location);
     apply(next);
     paint();
   }
 
   async function handleAction(mode, card, sale, button) {
-    if (mode !== 'restore') { editor.show(mode, card, sale); return; }
+    if (mode !== 'restore') {
+      editor.show(mode, card, sale);
+      return;
+    }
     button.disabled = true;
-    try { await commitReview(card, {type:'restore', url:sale.url}); }
-    catch (error) { feedback.set(card.id, error.message); paint(); }
-    finally { button.disabled = false; }
+    try {
+      await commitReview(card, { type: 'restore', url: sale.url });
+    } catch (error) {
+      feedback.set(card.id, error.message);
+      paint();
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function owns(card) {
@@ -289,10 +378,12 @@ export function createVaultValue(openPurchase, reloadInventory) {
 
   function historyFor(card) {
     if (!owns(card)) return [];
-    return history.flatMap(day => {
-      const entry = day.cards?.find(item => item.id === card.id);
-      return entry ? [{ date:day.date, valueCents:entry.valueCents }] : [];
-    }).sort((a, b) => a.date.localeCompare(b.date));
+    return history
+      .flatMap(day => {
+        const entry = day.cards?.find(item => item.id === card.id);
+        return entry ? [{ date: day.date, valueCents: entry.valueCents }] : [];
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
   }
 
   function estimatedCents(card) {
@@ -310,10 +401,23 @@ export function createVaultValue(openPurchase, reloadInventory) {
     evidence.hidden = !isPriced;
     evidence.textContent = isPriced ? estimateEvidenceText(quote) : '';
     const checked = shortDate(quote?.checkedAt);
-    const method = isPriced ? (sales.length >= 2 ? 'Median of ' + sales.length + ' matching sales in 90 days' : 'Saved estimate')
-      : quote?.message || (failed ? 'Sale data is temporarily unavailable.' : loading ? 'Checking for matching sales…' : 'Two matching sales in 90 days are needed for an estimate.');
-    section.querySelector('.estimate-method').textContent = [method, checked && 'checked ' + checked,
-      quote?.refreshFailed && 'Latest lookup unavailable'].filter(Boolean).join(' · ');
+    const method = isPriced
+      ? sales.length >= 2
+        ? 'Median of ' + sales.length + ' matching sales in 90 days'
+        : 'Saved estimate'
+      : quote?.message ||
+        (failed
+          ? 'Sale data is temporarily unavailable.'
+          : loading
+            ? 'Checking for matching sales…'
+            : 'Two matching sales in 90 days are needed for an estimate.');
+    section.querySelector('.estimate-method').textContent = [
+      method,
+      checked && 'checked ' + checked,
+      quote?.refreshFailed && 'Latest lookup unavailable',
+    ]
+      .filter(Boolean)
+      .join(' · ');
     const gain = section.querySelector('.estimate-gain');
     const totals = purchaseTotals([card], purchases.records, estimatedCents);
     gain.hidden = totals.change === null;
@@ -326,18 +430,26 @@ export function createVaultValue(openPurchase, reloadInventory) {
 
   function cardDetails(card) {
     const details = element('section');
-    if (!owns(card)) { details.hidden = true; return details; }
+    if (!owns(card)) {
+      details.hidden = true;
+      return details;
+    }
     details.className = 'value-card';
     details.dataset.cardId = card.id;
     const estimate = element('div');
     estimate.className = 'value-estimate';
     const title = element('h3', 'Estimated value');
     title.className = 'finance-label';
-    const amount = element('strong'); amount.className = 'estimate-amount';
-    const evidence = element('p'); evidence.className = 'estimate-evidence';
-    const method = element('p'); method.className = 'estimate-method';
-    const gain = element('span'); gain.className = 'estimate-gain';
-    const spark = element('span'); spark.className = 'estimate-spark';
+    const amount = element('strong');
+    amount.className = 'estimate-amount';
+    const evidence = element('p');
+    evidence.className = 'estimate-evidence';
+    const method = element('p');
+    method.className = 'estimate-method';
+    const gain = element('span');
+    gain.className = 'estimate-gain';
+    const spark = element('span');
+    spark.className = 'estimate-spark';
     spark.setAttribute('aria-hidden', 'true');
     estimate.append(title, amount, evidence, method, spark, gain);
     const salesHead = element('div');
@@ -345,7 +457,8 @@ export function createVaultValue(openPurchase, reloadInventory) {
     const add = actionButton('Add a sale', () => editor.show('save', card));
     add.classList.add('comp-add');
     salesHead.append(element('h3', 'Recent sales'), add);
-    const body = element('div'); body.className = 'comp-evidence';
+    const body = element('div');
+    body.className = 'comp-evidence';
     const message = element('p');
     message.className = 'comp-feedback';
     message.setAttribute('role', 'status');
@@ -364,7 +477,8 @@ export function createVaultValue(openPurchase, reloadInventory) {
     row.querySelector('.finance-label').textContent = pulled ? 'Your pull · Private' : 'Your purchase · Private';
     const headline = record && [amount, source].filter(Boolean).join(' · ');
     const waiting = purchases.status === 'error' ? 'Purchase records unavailable' : 'Loading purchase…';
-    row.querySelector('.purchase-record').textContent = headline || (recorded ? 'Pulled card' : purchases.hasSnapshot ? 'No purchase recorded' : waiting);
+    row.querySelector('.purchase-record').textContent =
+      headline || (recorded ? 'Pulled card' : purchases.hasSnapshot ? 'No purchase recorded' : waiting);
     const date = dateText(record?.purchased_on);
     const gain = row.querySelector('.card-purchase-gain');
     const timing = row.querySelector('.card-purchase-date');
@@ -379,16 +493,29 @@ export function createVaultValue(openPurchase, reloadInventory) {
 
   function cardPurchase(card, onEdit = openPurchase) {
     const row = element('section');
-    if (!owns(card)) { row.hidden = true; return row; }
+    if (!owns(card)) {
+      row.hidden = true;
+      return row;
+    }
     row.className = 'card-purchase';
     row.dataset.cardId = card.id;
-    const label = element('h3'); label.className = 'finance-label';
-    const summary = element('p'); summary.className = 'purchase-record';
-    const note = element('p'); note.className = 'purchase-record-note';
-    const date = element('span'); date.className = 'card-purchase-date';
-    const gain = element('strong'); gain.className = 'card-purchase-gain';
+    const label = element('h3');
+    label.className = 'finance-label';
+    const summary = element('p');
+    summary.className = 'purchase-record';
+    const note = element('p');
+    note.className = 'purchase-record-note';
+    const date = element('span');
+    date.className = 'card-purchase-date';
+    const gain = element('strong');
+    gain.className = 'card-purchase-gain';
     note.append(date, gain);
-    row.append(label, summary, note, actionButton('Edit', () => onEdit(card)));
+    row.append(
+      label,
+      summary,
+      note,
+      actionButton('Edit', () => onEdit(card)),
+    );
     drawPurchase(row, card);
     return row;
   }
@@ -405,25 +532,43 @@ export function createVaultValue(openPurchase, reloadInventory) {
       const state = purchases.status === 'error' ? 'Purchase costs unavailable' : 'Loading purchase costs…';
       bookCoverage.replaceChildren(marketCount, ' · ' + state);
     } else {
-      bookCoverage.replaceChildren(marketCount, ' · ', element('span', book.atCost + ' at cost'),
-        ' · ', element('span', book.missing + ' missing'));
+      bookCoverage.replaceChildren(
+        marketCount,
+        ' · ',
+        element('span', book.atCost + ' at cost'),
+        ' · ',
+        element('span', book.missing + ' missing'),
+      );
     }
     const totals = purchaseTotals(cards || [], purchases.records, valueFor);
     spent.textContent = ready && totals.tracked ? money(totals.spent) : '—';
     gain.textContent = ready && totals.change !== null ? signedUsd.format(totals.change / 100) : '—';
     gain.dataset.direction = ready && totals.change !== null ? String(Math.sign(totals.change)) : '';
     if (ready) {
-      costCoverage.textContent = totals.tracked + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' with a recorded cost';
+      costCoverage.textContent =
+        totals.tracked + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') + ' with a recorded cost';
       if (purchases.status === 'error') costCoverage.textContent += ' · Showing the last loaded costs.';
       const comparisonCount = totals.compared + (totals.compared === 1 ? ' card' : ' cards');
       const rate = totals.percent === null ? '' : percent.format(totals.percent / 100) + ' on ';
-      gainCoverage.textContent = totals.compared ? rate + comparisonCount + ' with a cost and an estimate'
-        : totals.tracked ? 'Awaiting a matching estimate' : 'No costs recorded';
-      expandedCost.textContent = [totals.tracked && 'Spent ' + money(totals.spent),
-        totals.change !== null && 'Gain / loss ' + changeText(totals) + ' across ' + comparisonCount].filter(Boolean).join(' · ');
+      gainCoverage.textContent = totals.compared
+        ? rate + comparisonCount + ' with a cost and an estimate'
+        : totals.tracked
+          ? 'Awaiting a matching estimate'
+          : 'No costs recorded';
+      expandedCost.textContent = [
+        totals.tracked && 'Spent ' + money(totals.spent),
+        totals.change !== null && 'Gain / loss ' + changeText(totals) + ' across ' + comparisonCount,
+      ]
+        .filter(Boolean)
+        .join(' · ');
     } else {
-      costCoverage.textContent = !owner ? '' : purchases.status === 'error' ? 'Purchases unavailable. Check for updates to retry.' : 'Loading purchase records…';
-      gainCoverage.textContent = purchases.status === 'error' ? 'Purchase records unavailable' : 'Loading purchase records…';
+      costCoverage.textContent = !owner
+        ? ''
+        : purchases.status === 'error'
+          ? 'Purchases unavailable. Check for updates to retry.'
+          : 'Loading purchase records…';
+      gainCoverage.textContent =
+        purchases.status === 'error' ? 'Purchase records unavailable' : 'Loading purchase records…';
       expandedCost.textContent = '';
     }
     for (const row of document.querySelectorAll('.card-purchase')) {
@@ -437,7 +582,8 @@ export function createVaultValue(openPurchase, reloadInventory) {
     section.hidden = !owner;
     refresh.disabled = !owner || Boolean(inventoryRequest) || loading;
     const marketValues = new Map();
-    let priced = 0, totalCents = 0;
+    let priced = 0,
+      totalCents = 0;
     for (const card of cards || []) {
       const cents = estimatedCents(card);
       if (cents === null) continue;
@@ -446,8 +592,10 @@ export function createVaultValue(openPurchase, reloadInventory) {
       totalCents += cents;
     }
     total.textContent = priced ? money(totalCents) : '—';
-    coverage.textContent = cards ? priced + ' of ' + cards.length + (cards.length === 1 ? ' card priced' : ' cards priced') : 'Loading collection…';
-    coverageBar.style.width = (cards?.length ? 100 * priced / cards.length : 0) + '%';
+    coverage.textContent = cards
+      ? priced + ' of ' + cards.length + (cards.length === 1 ? ' card priced' : ' cards priced')
+      : 'Loading collection…';
+    coverageBar.style.width = (cards?.length ? (100 * priced) / cards.length : 0) + '%';
     const today = new Date().toISOString().slice(0, 10);
     const prior = history.filter(day => day.date < today).at(-1);
     const comparable = priced && prior?.priced > 0 && Number.isSafeInteger(prior.valueCents);
@@ -473,26 +621,37 @@ export function createVaultValue(openPurchase, reloadInventory) {
     else if (inventoryRequest) status.textContent = 'Refreshing your collection…';
     else if (inventoryFailed) status.textContent = 'Could not refresh your collection. Check for updates to retry.';
     else if (!cards) status.textContent = 'Waiting for your collection.';
-    else if (failed) status.textContent = 'Sale data is temporarily unavailable. Existing estimates keep their last checked date.';
+    else if (failed)
+      status.textContent = 'Sale data is temporarily unavailable. Existing estimates keep their last checked date.';
     else if (loading && cards.length) status.textContent = 'Checking sold comps…';
     else if (!cards.length) status.textContent = 'Add a card to start tracking your vault.';
     else if (!priced) status.textContent = 'Open a card to see its matching details and recent sales.';
     else status.textContent = '';
-    const persistence = storage === 'session' ? 'Sold comps and history are available for this session only.'
-      : storage === 'device' || storage === 'device-offline' ? 'Sold comps and history are saved on this device.'
-      : storage === 'cloud' && reviewStorage === 'device' ? 'History syncs across devices. Manual sold comps are saved on this device.' : '';
+    const persistence =
+      storage === 'session'
+        ? 'Sold comps and history are available for this session only.'
+        : storage === 'device' || storage === 'device-offline'
+          ? 'Sold comps and history are saved on this device.'
+          : storage === 'cloud' && reviewStorage === 'device'
+            ? 'History syncs across devices. Manual sold comps are saved on this device.'
+            : '';
     storageNote.textContent = owner ? [persistence, notice].filter(Boolean).join(' ') : '';
     paintPurchases(card => marketValues.get(card));
 
     const rows = [...history].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    historyRows.replaceChildren(...rows.map(record => {
-      const row = element('tr');
-      const date = element('th', dateText(record.date));
-      date.scope = 'row';
-      row.append(date, element('td', record.priced > 0 ? money(record.valueCents) : '—'),
-        element('td', record.priced + ' / ' + record.total));
-      return row;
-    }));
+    historyRows.replaceChildren(
+      ...rows.map(record => {
+        const row = element('tr');
+        const date = element('th', dateText(record.date));
+        date.scope = 'row';
+        row.append(
+          date,
+          element('td', record.priced > 0 ? money(record.valueCents) : '—'),
+          element('td', record.priced + ' / ' + record.total),
+        );
+        return row;
+      }),
+    );
     historyRows.closest('.table-wrap').hidden = !rows.length;
     historyChart.update(history);
     for (const details of document.querySelectorAll('.value-card')) {
@@ -544,7 +703,10 @@ export function createVaultValue(openPurchase, reloadInventory) {
       paint();
       return;
     }
-    if (inventoryRequest || inventoryFailed) { paint(); return; }
+    if (inventoryRequest || inventoryFailed) {
+      paint();
+      return;
+    }
     // The signature ignores filters, notes, photos, and Hall of Fame selection.
     const identities = cards.map(card => [card.id, identityKey(card), historyCardLabel(card)]);
     identities.sort(([left], [right]) => String(left).localeCompare(String(right)));
@@ -613,11 +775,16 @@ export function createVaultValue(openPurchase, reloadInventory) {
     let available = true;
     try {
       if (reloadInventory) available = await reloadInventory();
-    } catch { available = false; }
+    } catch {
+      available = false;
+    }
     if (inventoryRequest !== request || owner !== request.owner) return;
     inventoryRequest = null;
     inventoryFailed = !available;
-    if (!available || !cards) { paint(); return; }
+    if (!available || !cards) {
+      paint();
+      return;
+    }
     if (!force) void purchases.load(true).catch(() => {});
     sync(activeSession, cards, force);
   }
@@ -628,12 +795,19 @@ export function createVaultValue(openPurchase, reloadInventory) {
     if (!owner) return;
     historyDetails.open = true;
     const toggle = historyDetails.querySelector('summary');
-    toggle.focus({ preventScroll:true });
-    section.scrollIntoView({ block:'start' });
+    toggle.focus({ preventScroll: true });
+    section.scrollIntoView({ block: 'start' });
   }
 
   return {
-    sync, resume: () => refreshFromInventory(false), openHistory, quoteFor, historyFor, cardDetails, cardPurchase, purchases,
+    sync,
+    resume: () => refreshFromInventory(false),
+    openHistory,
+    quoteFor,
+    historyFor,
+    cardDetails,
+    cardPurchase,
+    purchases,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

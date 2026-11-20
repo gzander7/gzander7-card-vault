@@ -46,10 +46,17 @@ export function presentCard(card) {
   const detail = [number && '#' + number.replace(/^#/, ''), clean(card.parallel)].filter(Boolean).join(' · ');
   const grade = [clean(card.grader), clean(card.grade)].filter(Boolean).join(' ');
   const serial = clean(card.serial);
-  const tags = [card.is_auto === true && 'Autograph', card.is_relic === true && 'Relic',
-    serial && 'Serial ' + serial, grade].filter(Boolean);
+  const tags = [
+    card.is_auto === true && 'Autograph',
+    card.is_relic === true && 'Relic',
+    serial && 'Serial ' + serial,
+    grade,
+  ].filter(Boolean);
   return {
-    name, meta, detail, tags,
+    name,
+    meta,
+    detail,
+    tags,
     label: [name, meta, detail, ...tags].filter(Boolean).join(', '),
     frontUrl: photoUrl(card.image_path),
     backUrl: photoUrl(backPhotoPath(card.image_path)),

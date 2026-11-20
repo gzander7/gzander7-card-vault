@@ -71,8 +71,10 @@ export async function readCardPhotos({ front, back }, { signal, onProgress } = {
   signal?.throwIfAborted();
   const sides = Object.entries({ front, back }).filter(([, photo]) => photo);
   for (const [side, photo] of sides) {
-    if (!(photo instanceof Blob) || !photo.size || (photo.type && !photo.type.startsWith('image/'))) throw badPhoto(side);
-    if (photo.size > MAX_BYTES) throw new Error('The ' + side + ' photo is too large to scan. Choose a photo under 32 MB.');
+    if (!(photo instanceof Blob) || !photo.size || (photo.type && !photo.type.startsWith('image/')))
+      throw badPhoto(side);
+    if (photo.size > MAX_BYTES)
+      throw new Error('The ' + side + ' photo is too large to scan. Choose a photo under 32 MB.');
   }
   const controller = new AbortController();
   const cancel = () => controller.abort(new DOMException('Scan cancelled.', 'AbortError'));
@@ -85,7 +87,8 @@ export async function readCardPhotos({ front, back }, { signal, onProgress } = {
   let closed = false;
   let side = null;
   let reported = -1;
-  const startupError = () => new Error('The text reader could not start. Check your connection and try scanning again.');
+  const startupError = () =>
+    new Error('The text reader could not start. Check your connection and try scanning again.');
   function report(progress) {
     const tenth = Math.floor(Math.max(0, Math.min(1, progress)) * 10);
     if (closed || controller.signal.aborted || tenth <= reported) return;
@@ -133,9 +136,14 @@ export async function readCardPhotos({ front, back }, { signal, onProgress } = {
       allowTime(90000, new Error('Reading the ' + name + ' took too long. Try a closer, upright photo.'));
       const { pixels, width, height } = await preparePhoto(photo, name, controller.signal);
       controller.signal.throwIfAborted();
-      const { data } = await worker.recognize(pixels, {
-        tessedit_pageseg_mode: engine.PSM.SPARSE_TEXT, rotateAuto: true,
-      }, { text: true, blocks: true });
+      const { data } = await worker.recognize(
+        pixels,
+        {
+          tessedit_pageseg_mode: engine.PSM.SPARSE_TEXT,
+          rotateAuto: true,
+        },
+        { text: true, blocks: true },
+      );
       controller.signal.throwIfAborted();
       readings[name] = resultFor(data, width, height);
       report(1);

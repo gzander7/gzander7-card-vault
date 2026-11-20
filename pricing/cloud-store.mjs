@@ -24,8 +24,8 @@ async function callVaultRpc(session, name, body, fetchImpl) {
 
     if (!response.ok) {
       const problem = await response.json().catch(() => null);
-      if ((problem?.code === 'PGRST202' || problem?.code === '42883')
-          && String(problem.message).includes(name)) return null;
+      if ((problem?.code === 'PGRST202' || problem?.code === '42883') && String(problem.message).includes(name))
+        return null;
       /** @type {Error & { status?: number }} */
       const error = new Error(`Vault value sync failed (HTTP ${response.status}).`);
       error.status = response.status;
@@ -41,8 +41,8 @@ export async function readCloud(session, fetchImpl = fetch) {
   const result = await callVaultRpc(session, 'vault_prices_read', {}, fetchImpl);
   if (result === null) return null;
   const { data } = result;
-  if (!data?.quotes || typeof data.quotes !== 'object' || Array.isArray(data.quotes)
-      || !Array.isArray(data.history)) throw new Error('Invalid vault value sync response.');
+  if (!data?.quotes || typeof data.quotes !== 'object' || Array.isArray(data.quotes) || !Array.isArray(data.history))
+    throw new Error('Invalid vault value sync response.');
   return data;
 }
 
@@ -62,6 +62,7 @@ export async function writeCloud(session, updates, entries, fetchImpl = fetch) {
 export async function writeCloudReviews(session, changes, fetchImpl = fetch) {
   const result = await callVaultRpc(session, 'vault_comp_reviews_write', { changes }, fetchImpl);
   if (result === null) return null;
-  if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data)) throw new Error('Invalid sold comp sync response.');
+  if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data))
+    throw new Error('Invalid sold comp sync response.');
   return result.data;
 }

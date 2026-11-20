@@ -8,9 +8,21 @@ test('the gallery finishes reading capped pages before exposing an inventory for
   const pages = () => {
     let cursor = '';
     return {
-      gt(key, id) { assert.equal(key, 'id'); cursor = id; return this; },
-      order() { return this; }, limit() { return this; },
-      abortSignal() { calls++; return { data: rows.filter(row => row.id > cursor).slice(0, 1), count: null }; },
+      gt(key, id) {
+        assert.equal(key, 'id');
+        cursor = id;
+        return this;
+      },
+      order() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      abortSignal() {
+        calls++;
+        return { data: rows.filter(row => row.id > cursor).slice(0, 1), count: null };
+      },
     };
   };
   assert.deepEqual(await readCardPages(pages), rows);
@@ -19,8 +31,18 @@ test('the gallery finishes reading capped pages before exposing an inventory for
 
 test('a single page with an exact count returns all cards in one request', async () => {
   let calls = 0;
-  const page = { order() { return this; }, limit() { return this; },
-    abortSignal() { calls++; return { data: [{ id: 'a' }], count: 1 }; } };
+  const page = {
+    order() {
+      return this;
+    },
+    limit() {
+      return this;
+    },
+    abortSignal() {
+      calls++;
+      return { data: [{ id: 'a' }], count: 1 };
+    },
+  };
   assert.deepEqual(await readCardPages(() => page), [{ id: 'a' }]);
   assert.equal(calls, 1);
 });

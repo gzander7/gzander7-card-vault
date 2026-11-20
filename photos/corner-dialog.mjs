@@ -1,14 +1,25 @@
 import { moveCropCorner, validCropCorners } from './crop.mjs';
 import { prepareAdjustedCrop } from './prepare.mjs';
 
-const fullFrame = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+const fullFrame = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+];
 const arrows = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
 
 export function createCornerDialog() {
   const item = name => document.getElementById('crop-' + name);
-  const dialog = item('dialog'), title = item('title'), surface = item('surface'), image = item('image');
-  const shade = item('shade'), outline = item('outline'), apply = item('apply');
-  const status = item('status'), position = item('position');
+  const dialog = item('dialog'),
+    title = item('title'),
+    surface = item('surface'),
+    image = item('image');
+  const shade = item('shade'),
+    outline = item('outline'),
+    apply = item('apply');
+  const status = item('status'),
+    position = item('position');
   const handles = Array.from(surface.querySelectorAll('[data-corner]'));
   const parent = document.getElementById('card-dialog');
   let session = null;
@@ -20,8 +31,13 @@ export function createCornerDialog() {
   function describe() {
     const { selected, corners } = session;
     const { x, y } = corners[selected];
-    const message = handles[selected].getAttribute('aria-label') + ', ' +
-      (Math.round(x * 1000) / 10) + '% from left, ' + (Math.round(y * 1000) / 10) + '% from top.';
+    const message =
+      handles[selected].getAttribute('aria-label') +
+      ', ' +
+      Math.round(x * 1000) / 10 +
+      '% from left, ' +
+      Math.round(y * 1000) / 10 +
+      '% from top.';
     if (position.textContent !== message) position.textContent = message;
   }
 
@@ -34,12 +50,12 @@ export function createCornerDialog() {
 
   function draw() {
     const { corners } = session;
-    const points = corners.map(({ x, y }) => (x * 100) + ',' + (y * 100));
+    const points = corners.map(({ x, y }) => x * 100 + ',' + y * 100);
     shade.setAttribute('d', 'M0 0 H100 V100 H0 Z M' + points.join(' L') + ' Z');
     outline.setAttribute('points', points.join(' '));
     handles.forEach((handle, i) => {
-      handle.style.left = (corners[i].x * 100) + '%';
-      handle.style.top = (corners[i].y * 100) + '%';
+      handle.style.left = corners[i].x * 100 + '%';
+      handle.style.top = corners[i].y * 100 + '%';
     });
   }
 
@@ -75,8 +91,14 @@ export function createCornerDialog() {
   async function open({ side, loadPreview, original, corners, onApply }) {
     close();
     const job = {
-      side, original, onApply, controller: new AbortController(), selected: 0,
-      corners: validCropCorners(corners) ? corners : fullFrame, ready: false, drag: null,
+      side,
+      original,
+      onApply,
+      controller: new AbortController(),
+      selected: 0,
+      corners: validCropCorners(corners) ? corners : fullFrame,
+      ready: false,
+      drag: null,
     };
     session = job;
     title.textContent = 'Adjust ' + side + ' corners';
@@ -105,7 +127,8 @@ export function createCornerDialog() {
       job.ready = true;
       if (document.activeElement === title) handles[0].focus({ preventScroll: true });
     } catch {
-      if (current(job)) status.textContent = 'Could not open this photo. Cancel and try again, or choose another photo.';
+      if (current(job))
+        status.textContent = 'Could not open this photo. Cancel and try again, or choose another photo.';
     }
   }
 
@@ -171,20 +194,27 @@ export function createCornerDialog() {
     handle.addEventListener('focus', () => select(index));
     handle.addEventListener('click', () => select(index));
     handle.addEventListener('keydown', event => {
-      if (!session?.ready || event.altKey || event.ctrlKey || event.metaKey || !Object.hasOwn(arrows, event.key)) return;
+      if (!session?.ready || event.altKey || event.ctrlKey || event.metaKey || !Object.hasOwn(arrows, event.key))
+        return;
       event.preventDefault();
       select(index);
       const rect = surface.getBoundingClientRect();
-      const [dx, dy] = arrows[event.key], step = event.shiftKey ? 10 : 1;
+      const [dx, dy] = arrows[event.key],
+        step = event.shiftKey ? 10 : 1;
       const point = session.corners[index];
-      move({ x: point.x + dx * step / rect.width, y: point.y + dy * step / rect.height });
+      move({ x: point.x + (dx * step) / rect.width, y: point.y + (dy * step) / rect.height });
       describe();
     });
   });
 
   apply.addEventListener('click', accept);
   item('cancel').addEventListener('click', () => close());
-  dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
-  dialog.addEventListener('close', () => { if (!dialog.open) dispose(); });
+  dialog.addEventListener('cancel', event => {
+    event.preventDefault();
+    close();
+  });
+  dialog.addEventListener('close', () => {
+    if (!dialog.open) dispose();
+  });
   return { open, close };
 }

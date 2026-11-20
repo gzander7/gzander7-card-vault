@@ -3,9 +3,17 @@ import { hasPurchaseDetails, localDay, parsePurchase } from './purchases.mjs';
 export function createPurchaseEditor(ledger) {
   const section = document.getElementById('card-purchase');
   const field = name => document.getElementById('purchase-' + name);
-  const amount = field('amount'), date = field('date'), source = field('source');
-  const purchased = field('purchased'), pulled = field('pulled'), box = field('box'), boxField = field('box-field');
-  const fields = field('fields'), status = field('form-status'), clear = field('clear'), retry = field('retry');
+  const amount = field('amount'),
+    date = field('date'),
+    source = field('source');
+  const purchased = field('purchased'),
+    pulled = field('pulled'),
+    box = field('box'),
+    boxField = field('box-field');
+  const fields = field('fields'),
+    status = field('form-status'),
+    clear = field('clear'),
+    retry = field('retry');
   let draft = null;
 
   function updateBox() {
@@ -39,8 +47,13 @@ export function createPurchaseEditor(ledger) {
       if (draft !== current) return;
       const row = ledger.records[current.card.id] || null;
       current.original = row;
-      fill({amount:row?.amount_cents != null ? (row.amount_cents / 100).toFixed(2) : '',
-        date:row?.purchased_on, source:row?.source, acquisitionType:row?.acquisition_type, boxName:row?.box_name});
+      fill({
+        amount: row?.amount_cents != null ? (row.amount_cents / 100).toFixed(2) : '',
+        date: row?.purchased_on,
+        source: row?.source,
+        acquisitionType: row?.acquisition_type,
+        boxName: row?.box_name,
+      });
       clear.hidden = !hasPurchaseDetails(row);
       current.ready = true;
       fields.disabled = false;
@@ -56,7 +69,7 @@ export function createPurchaseEditor(ledger) {
   }
 
   function open(card, focus = false, savedDraft = null) {
-    draft = {card, focus, ready:!card, original:null};
+    draft = { card, focus, ready: !card, original: null };
     section.open = !card && savedDraft ? savedDraft.open : focus;
     date.max = localDay();
     fill(card ? null : savedDraft);
@@ -78,22 +91,39 @@ export function createPurchaseEditor(ledger) {
       amount.focus();
       throw error;
     }
-    const record = {amount_cents:null, purchased_on:null, source:null, acquisition_type:null, box_name:null, ...value};
+    const record = {
+      amount_cents: null,
+      purchased_on: null,
+      source: null,
+      acquisition_type: null,
+      box_name: null,
+      ...value,
+    };
     const original = draft.original;
     if (Object.keys(record).every(key => record[key] === (original?.[key] ?? null))) return null;
-    return {...record, expected_revision:original?.revision ?? null, revision:crypto.randomUUID()};
+    return { ...record, expected_revision: original?.revision ?? null, revision: crypto.randomUUID() };
   }
 
   purchased.addEventListener('change', updateBox);
   pulled.addEventListener('change', updateBox);
-  retry.addEventListener('click', () => { if (draft?.card) void load(draft); });
+  retry.addEventListener('click', () => {
+    if (draft?.card) void load(draft);
+  });
   clear.addEventListener('click', () => {
     fill(null);
     status.textContent = 'Save changes to clear this purchase.';
     amount.focus();
   });
-  section.addEventListener('input', () => { if (draft?.ready) status.textContent = ''; });
-  section.addEventListener('invalid', () => { section.open = true; }, true);
+  section.addEventListener('input', () => {
+    if (draft?.ready) status.textContent = '';
+  });
+  section.addEventListener(
+    'invalid',
+    () => {
+      section.open = true;
+    },
+    true,
+  );
   function close() {
     draft = null;
     fill(null);
@@ -101,8 +131,14 @@ export function createPurchaseEditor(ledger) {
     section.open = false;
   }
   function snapshot() {
-    return {amount:amount.value, date:date.value, source:source.value,
-      acquisitionType:pulled.checked ? 'pulled' : null, boxName:box.value, open:section.open};
+    return {
+      amount: amount.value,
+      date: date.value,
+      source: source.value,
+      acquisitionType: pulled.checked ? 'pulled' : null,
+      boxName: box.value,
+      open: section.open,
+    };
   }
-  return {open, close, change, snapshot};
+  return { open, close, change, snapshot };
 }

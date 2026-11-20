@@ -66,14 +66,15 @@
         <details id="value-history">
           <summary class="value-strip" aria-description="View value history and purchase totals">
             <span class="value-cell value-primary">
-              <span class="value-label">Vault value</span>
+              <span class="value-label">Market value</span>
               <span class="value-primary-line"><strong id="value-total">—</strong><span id="value-change"></span></span>
-              <span class="value-mobile-coverage"></span>
-            </span>
-            <span class="value-cell value-priced">
-              <span class="value-label">Priced</span>
-              <strong id="value-coverage">—</strong>
+              <span class="value-caption" id="value-coverage"></span>
               <span class="value-track" aria-hidden="true"><span></span></span>
+            </span>
+            <span class="value-cell value-book">
+              <span class="value-label">Book value</span>
+              <strong id="value-book">—</strong>
+              <span class="value-caption" id="value-book-coverage"></span>
             </span>
             <span class="value-cell value-cost">
               <span class="value-label">Spent · Gain</span>
@@ -95,6 +96,7 @@
             <p id="value-storage"></p>
             <p id="purchase-cost-coverage" class="value-caption"></p>
             <p id="value-expanded-cost" class="value-caption"></p>
+            <p class="value-method">Book value uses each card’s current market estimate when available and its recorded cost otherwise. Cards missing both are excluded.</p>
             <figure class="history-chart" aria-label="Vault value over time">
               <div class="history-chart-head">
                 <div class="history-readout" hidden>
@@ -147,7 +149,8 @@
                 <tbody id="value-history-rows"></tbody>
               </table>
             </div>
-            <p class="value-method">Estimates use the median of the latest two to five matching sales within 90 days. Automatic sales come from <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">CardPricer</a>.</p>
+            <p class="value-method">Estimates show the median and range of the latest two to five matching sales within 90 days. With at least four sales, prices above 2.5 times the median or below 40% of it are left out. Automatic sales come from <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">CardPricer</a>.</p>
+            <p>High confidence takes at least four counted sales spanning two weeks, with the highest price under twice the lowest. Two sales, or a highest price at least twice the lowest, give low confidence. Other estimates have medium confidence.</p>
           </div>
         </details>
       </section>

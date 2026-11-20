@@ -117,9 +117,10 @@ export function createPricingClient({
   function cardQuotes(state) {
     const quotes = { ...state.data.quotes };
     for (const [id, f] of Object.entries(state.data.failures)) {
-      if (quotes[id]?.identity === f.identity && !newer(f.failedAt, quotes[id].checkedAt)) continue;
-      if (quotes[id]?.identity === f.identity && (quotes[id].status === 'valued' || quotes[id].sales?.length)) {
-        quotes[id] = { ...quotes[id], refreshFailed: true };
+      const last = quotes[id];
+      if (last?.identity === f.identity && !newer(f.failedAt, last.checkedAt)) continue;
+      if (last?.identity === f.identity && (last.status === 'valued' || last.sales?.length || last.extraSales?.length || last.diagnostics)) {
+        quotes[id] = { ...last, refreshFailed: true };
         continue;
       }
       quotes[id] = { status: 'unavailable', identity: f.identity, valueCents: null, sales: [],

@@ -50,9 +50,64 @@ export function identityKey(card) {
 }
 
 const hasPhrase = (title, phrase) => (' ' + title + ' ').includes(' ' + phrase + ' ');
+const wordOrInitials = /\p{L}(?:[.．]\p{L}){1,2}(?![\p{L}\p{M}\p{N}’'])|[\p{L}\p{M}\p{N}’']+/gu;
+const afterName = before => /[\p{L}\p{M}\p{N}][\s,.()\p{Pd}]+$/u.test(before.normalize('NFKC'));
+const generations = new Set(['jr', 'sr', 'ii', 'iii']);
+function generation(token) {
+  const word = normalize(token).replaceAll(' ', '');
+  return generations.has(word) ? word : '';
+}
+
+function playerParts(player) {
+  const name = fields(player);
+  const last = Array.from(name.matchAll(wordOrInitials)).at(-1);
+  const suffix = last && generation(last[0]);
+  if (suffix && !normalize(name.slice(last.index + last[0].length))) {
+    const before = name.slice(0, last.index);
+    if (afterName(before)) return { base: normalize(before), suffix };
+  }
+  return { base: normalize(name), suffix: '' };
+}
+
+export function playerSearchName(player) {
+  return playerParts(player).base;
+}
+
+export function playersMatch(left, right) {
+  const a = playerParts(left);
+  const b = playerParts(right);
+  return Boolean(a.base && a.base === b.base && (!a.suffix || !b.suffix || a.suffix === b.suffix));
+}
+
+// Remove a suffix only where the listing actually attaches it to this name.
+// Its position matters: "#III" can be a card number and "Series II" a set.
+function listingPlayerEvidence(player, title) {
+  const { base, suffix } = playerParts(player);
+  const full = fields(title);
+  if (!base || !hasPhrase(normalize(full), base)) return null;
+  const suffixes = new Set(suffix ? [suffix] : []);
+  const remainder = full.replace(wordOrInitials, (token, offset) => {
+    const observed = generation(token);
+    if (!observed) return token;
+    const before = full.slice(0, offset);
+    if (!afterName(before) || !(' ' + normalize(before)).endsWith(' ' + base)) return token;
+    suffixes.add(observed);
+    return ' ';
+  });
+  if (suffixes.size > 1) return null;
+  return { base, name: [base, ...suffixes].join(' '), title: remainder };
+}
+
+export function listingPlayer(player, title) {
+  return listingPlayerEvidence(player, title)?.name ?? null;
+}
+
 const autograph = /\b(?:auto|autos|autograph(?:s|ed)?|signed|signature(?:s)?|rpa)\b/;
 const relic = /\b(?:patch(?:es)?|jersey|relic(?:s)?|memorabilia|swatch(?:es)?|rpa)\b/;
-const unsafeTitle = /\b(?:lot|bundle|repack|mystery|sealed|reprint|rp|facsimile|replica|custom|digital|proxy|fake|proof|novelty|damaged|creased|crease|trimmed|altered|restored|redemption|authentic\s+altered|non\s+auto|no\s+auto|not\s+auto|auto\s+grade|autograph\s+grade|psa\s+dna|contender\s+for|you\s+pick|pick\s+your|complete\s+set|case\s+break|pack\s+fresh\s+lot|in\s+person|ip\s+auto|ttm)\b/;
+const lotTitle = /\b(?:lot|bundle|complete\s+set)\b/;
+const unsafeTitle = /\b(?:repack|mystery|sealed|reprint|rp|facsimile|replica|custom|digital|proxy|fake|proof|novelty|damaged|creased|crease|trimmed|altered|restored|redemption|authentic\s+altered|non\s+auto|no\s+auto|not\s+auto|auto\s+grade|autograph\s+grade|psa\s+dna|contender\s+for|you\s+pick|pick\s+your|case\s+break|in\s+person|ip\s+auto|ttm)\b/;
+const parallelDescriptors = new Set(('aqua black blue bronze copper emerald gold green orange pink platinum purple red silver teal white yellow ' +
+  'wave disco shimmer scope laser holo ice cracked foil foilboard pulsar refractor superfractor rainbow').split(' '));
 const listingWords = new Set(('a an the and of by from card cards trading sports sport baseball basketball football hockey soccer ' +
   'nfl nba mlb nhl wnba ncaa qb rb wr te db lb panini topps fleer donruss rookie rookies rc base ungraded raw no number ' +
   'nm mt mint near on sticker hard hand autograph autographed autographs auto autos signature signatures signed ' +
@@ -100,43 +155,48 @@ function gradeMatches(card, row, full) {
 
 // The caller has already resolved a unique catalogue identity. Inspect the sale
 // title independently: its reported card/grade can still disagree with the card.
-export function matchesSale(card, row) {
-  if (!card || !row || needsDetails(card)) return false;
-  const full = fields(row.title);
+export function saleMismatchReason(card, row) {
+  if (!card || needsDetails(card)) return 'incomplete_card';
+  const full = fields(row?.title);
   const title = normalize(full);
-  if (!title || unsafeTitle.test(title) || !gradeMatches(card, row, full)) return false;
+  if (!title) return 'missing_title';
+  if (lotTitle.test(title)) return 'lot';
+  if (unsafeTitle.test(title)) return 'unsafe_listing';
+  if (!gradeMatches(card, row, full)) return 'wrong_grade';
   const label = normalize(fields(row.grade) + ' ' + title);
-  if (/\b(?:black label|pristine|perfect|qualifier|off center|auto(?:graph)? (?:grade )?10)\b/.test(label)) return false;
-  const player = normalize(card.player);
+  if (/\b(?:black label|pristine|perfect|qualifier|off center|auto(?:graph)? (?:grade )?10)\b/.test(label)) return 'wrong_grade';
+  const player = listingPlayerEvidence(card.player, full);
+  if (!player) return 'wrong_player';
+  const cardTitle = normalize(player.title);
   const set = normalize(card.set_name);
+  if (!words(set).every(w => hasPhrase(cardTitle, w))) return 'wrong_set';
+  if (!hasPhrase(title, fields(card.year)) || (row.year && String(row.year) !== fields(card.year))) return 'wrong_year';
   const parallel = normalize(card.parallel);
-  if (!hasPhrase(title, player) || !words(set).every(w => hasPhrase(title, w)) || !hasPhrase(title, fields(card.year))) return false;
   // “Blue” inside “Toronto Blue Jays”, the player name, or the set name is
   // insufficient evidence of a Blue parallel. Require a separate designation.
-  let variantEvidence = ' ' + title + ' ';
-  for (const phrase of [...teamPhrases, player, set]) variantEvidence = variantEvidence.replaceAll(' ' + phrase + ' ', ' ');
+  let variantEvidence = ' ' + cardTitle + ' ';
+  for (const phrase of [...teamPhrases, player.base, set]) variantEvidence = variantEvidence.replaceAll(' ' + phrase + ' ', ' ');
   const variantWords = words(parallel).filter(w => !words(set).includes(w));
-  if (parallel && parallel !== 'base' && (!variantWords.length || !variantWords.every(w => hasPhrase(variantEvidence.trim(), w)))) return false;
-  if (row.year && String(row.year) !== fields(card.year)) return false;
-  if (autograph.test(title) !== Boolean(card.is_auto) || relic.test(title) !== Boolean(card.is_relic)) return false;
+  const missingParallel = parallel && parallel !== 'base' && (!variantWords.length || !variantWords.every(w => hasPhrase(variantEvidence, w)));
+  if (missingParallel && hasPhrase(variantEvidence, 'base')) return 'wrong_parallel';
+  if (autograph.test(title) !== Boolean(card.is_auto)) return 'wrong_autograph';
+  if (relic.test(title) !== Boolean(card.is_relic)) return 'wrong_relic';
 
   const number = cardNumber(card.card_number);
   const components = fields(card.card_number).replace(/^\s*(?:#|no\.?\s+|number\s+)/i, '').match(/[a-z]+|\d+/gi) || [];
   const numberPattern = components.map(escapeRE).join('[\\s.\\-/]*');
-  if (!numberPattern) return false;
+  if (!numberPattern) return 'wrong_card_number';
   const tagged = new RegExp('(?:#|\\b(?:no\\.?|number|card)\\s+)\\s*' + numberPattern + '(?![a-z0-9/])', 'i');
   const standalone = new RegExp('(?<![a-z0-9/])' + numberPattern + '(?![a-z0-9/])', 'i');
-  if (row.cardNumber && cardNumber(row.cardNumber) !== number) return false;
+  if (row.cardNumber && cardNumber(row.cardNumber) !== number) return 'wrong_card_number';
   const serialPattern = /(?:\d+\s*)?\/\s*\d+|\b\d+\s+of\s+\d+\b/gi;
-  const bareEvidence = full.replace(gradeClaim, ' ').replace(serialPattern, ' ').replace(/\b(?:18|19|20)\d{2}\b/g, ' ');
-  if (!tagged.test(full) && !(standalone.test(bareEvidence) && (row.cardNumber || /[a-z]/i.test(number)))) return false;
+  const bareEvidence = player.title.replace(gradeClaim, ' ').replace(serialPattern, ' ').replace(/\b(?:18|19|20)\d{2}\b/g, ' ');
+  const taggedNumber = tagged.test(player.title);
+  if (!taggedNumber && !(standalone.test(bareEvidence) && (row.cardNumber || /[a-z]/i.test(number)))) return 'wrong_card_number';
 
   const expectedRun = printRun(card.serial);
-  const withoutNumber = tagged.test(full) ? full.replace(tagged, ' ') : full.replace(standalone, ' ');
+  const withoutNumber = player.title.replace(taggedNumber ? tagged : standalone, ' ');
   const textRuns = Array.from(withoutNumber.matchAll(/(?:\d+\s*)?\/\s*(\d+)\b|\b\d+\s+of\s+(\d+)\b/gi), m => Number(m[1] || m[2]));
-  if ((row.printRun != null && Number(row.printRun) !== expectedRun) ||
-      textRuns.some(n => n !== expectedRun) ||
-      (expectedRun !== null && Number(row.printRun) !== expectedRun && !textRuns.includes(expectedRun))) return false;
   const unnumberedTitle = withoutNumber.replace(gradeClaim, ' ').replace(serialPattern, ' ');
   let residual = ' ' + normalize(unnumberedTitle) + ' ';
   for (const phrase of teamPhrases) residual = residual.replaceAll(' ' + phrase + ' ', ' ');
@@ -145,6 +205,16 @@ export function matchesSale(card, row) {
   if (words(residual).some(word => teamNouns.has(word)) || teamPhrases.some(team => hasPhrase(title, team))) {
     for (const city of cities) residual = residual.replaceAll(' ' + city + ' ', ' ');
   }
-  const allowed = new Set([...words(player), ...words(set), ...words(parallel), fields(card.year)]);
-  return words(residual).every(w => allowed.has(w) || listingWords.has(w) || teamNouns.has(w));
+  const allowed = new Set([...words(player.base), ...words(set), ...words(parallel), fields(card.year)]);
+  const unknown = words(residual).filter(w => !allowed.has(w) && !listingWords.has(w) && !teamNouns.has(w));
+  if (unknown.length && unknown.every(w => parallelDescriptors.has(w))) return 'wrong_parallel';
+  if (missingParallel) return 'missing_parallel';
+  if ((row.printRun != null && Number(row.printRun) !== expectedRun) ||
+      textRuns.some(n => n !== expectedRun) ||
+      (expectedRun !== null && Number(row.printRun) !== expectedRun && !textRuns.includes(expectedRun))) return 'wrong_print_run';
+  return unknown.length ? 'unknown_title_words' : null;
+}
+
+export function matchesSale(card, row) {
+  return saleMismatchReason(card, row) === null;
 }

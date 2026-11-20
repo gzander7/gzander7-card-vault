@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePurchase, purchaseTotals, createPurchaseLedger } from './purchases.mjs';
+import { bookValueTotals, createPurchaseLedger, parsePurchase, purchaseTotals } from './purchases.mjs';
 
 test('purchase inputs preserve exact cents, optional details and a zero-cost acquisition', () => {
   const parse = (amount, date = '', source = '') => parsePurchase({amount, date, source}, '2026-11-18');
@@ -42,6 +42,56 @@ test('spending includes unpriced cards and gains use only cards with both amount
   assert.equal(purchaseTotals([cards[1]], purchases, () => null).change, null);
   assert.equal(purchaseTotals([cards[2]], purchases, () => 400).percent, null);
   assert.equal(purchaseTotals([cards[0]], purchases, () => 800).percent, -20);
+});
+
+test('book value uses the market estimate first and the recorded cost of remaining cards once', () => {
+  const cards = ['both', 'market-only', 'paid-pull', 'gift', 'box-only', 'unknown'].map(id => ({id}));
+  const records = {
+    both:{amount_cents:12000}, 'paid-pull':{acquisition_type:'pulled', amount_cents:4135},
+    gift:{amount_cents:0}, 'box-only':{acquisition_type:'pulled', amount_cents:null, box_name:'Hobby'},
+    removed:{amount_cents:80000},
+  };
+  const marketValues = {both:2000, 'market-only':1505};
+  assert.deepEqual(bookValueTotals(cards, records, card => marketValues[card.id]), {
+    valueCents:7640, atMarket:2, atCost:2, missing:2,
+  });
+});
+
+test('a recorded free card gives a zero book value while an empty or uncovered vault has no amount', () => {
+  const card = {id:'one'};
+  const noEstimate = () => null;
+  assert.deepEqual(bookValueTotals([card], {one:{amount_cents:0}}, noEstimate), {
+    valueCents:0, atMarket:0, atCost:1, missing:0,
+  });
+  for (const amount_cents of [undefined, null, -1, '0', 1.5]) {
+    assert.deepEqual(bookValueTotals([card], {one:{amount_cents}}, noEstimate), {
+      valueCents:null, atMarket:0, atCost:0, missing:1,
+    });
+  }
+  assert.deepEqual(bookValueTotals([], null, noEstimate), {
+    valueCents:null, atMarket:0, atCost:0, missing:0,
+  });
+});
+
+test('an unread purchase ledger leaves fallback coverage unknown unless every card has a market estimate', () => {
+  const cards = [{id:'one'}, {id:'two'}];
+  assert.deepEqual(bookValueTotals(cards, null, card => card.id === 'one' ? 1250 : null), {
+    valueCents:null, atMarket:1, atCost:null, missing:null,
+  });
+  assert.deepEqual(bookValueTotals(cards, null, card => card.id === 'one' ? 1250 : 1950), {
+    valueCents:3200, atMarket:2, atCost:0, missing:0,
+  });
+});
+
+test('invalid market amounts fall back to cost and an unrepresentable total has no dollar amount', () => {
+  const cards = [{id:'one'}, {id:'two'}];
+  const records = {one:{amount_cents:6}, two:{amount_cents:5}};
+  for (const invalid of [0, -5, '100', 1.5, Infinity]) {
+    assert.deepEqual(bookValueTotals(cards, records, () => invalid), {
+      valueCents:11, atMarket:0, atCost:2, missing:0,
+    });
+  }
+  assert.equal(bookValueTotals(cards, records, () => Number.MAX_SAFE_INTEGER).valueCents, null);
 });
 
 test('a late cloud read cannot replace an acknowledged edit or expose another account', async () => {

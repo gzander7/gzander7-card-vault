@@ -1,3 +1,5 @@
+import { estimateEvidenceText, money } from './pricing/estimate-display.mjs';
+
 const types = [
   ['auto', 'Autos', card => card.is_auto],
   ['graded', 'Graded', card => Boolean(text(card.grader) || text(card.grade))],
@@ -8,7 +10,6 @@ const types = [
 const facets = [['player', 'Player', 'players'], ['set_name', 'Set', 'sets'], ['year', 'Year', 'years']];
 const sorts = [['newest', 'Newest first'], ['value', 'Highest value'], ['year', 'Year, newest to oldest'], ['player', 'Player, A to Z']];
 const views = [['grid', 'Grid'], ['list', 'List']];
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 const text = value => String(value ?? '').trim();
 const searchable = value => text(value).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -131,12 +132,15 @@ function fillTile(tile, card, src) {
 function fillEstimate(tile, quote, isOwner) {
   tile.price.hidden = !isOwner;
   const cents = estimateCents(quote);
-  const summary = !isOwner ? '' : cents !== null ? money.format(cents / 100)
+  const summary = !isOwner ? '' : cents !== null ? money(cents)
     : quote?.status === 'needs_details' ? 'Needs details to price' : 'Unpriced';
-  if (tile.summary === summary) return;
+  const evidence = isOwner && cents !== null ? estimateEvidenceText(quote) : '';
+  if (tile.summary === summary && tile.evidence === evidence) return;
   tile.summary = summary;
+  tile.evidence = evidence;
   tile.price.replaceChildren();
-  if (cents !== null && isOwner) tile.price.append(element('strong', '', summary), element('span', 'estimate-label', ' est.'));
+  if (cents !== null && isOwner) tile.price.append(element('strong', '', summary), element('span', 'estimate-label', ' est.'),
+    element('span', 'tile-evidence', evidence));
   else tile.price.textContent = summary;
 }
 

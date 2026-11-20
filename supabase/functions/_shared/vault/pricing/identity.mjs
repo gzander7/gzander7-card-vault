@@ -22,7 +22,7 @@ const graderName = value => {
   return name.toUpperCase();
 };
 
-function printRun(serial) {
+export function printRun(serial) {
   const value = fields(serial);
   if (!value) return null;
   const match = /^#?\s*(?:(\d+)\s*)?(?:\/|of\s+)\s*(\d+)$/i.exec(value);

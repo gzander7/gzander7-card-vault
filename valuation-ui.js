@@ -1,5 +1,5 @@
 import { historyCardLabel, loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
-import { identityKey } from './pricing/identity.mjs';
+import { identityKey, printRun } from './pricing/identity.mjs';
 import { estimateEvidenceText, listingDiagnosticsText, money } from './pricing/estimate-display.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
 import { readCloudPurchases } from './pricing/cloud-store.mjs';
@@ -89,15 +89,21 @@ function hasValue(quote) {
   return quote?.status === 'valued' && Number.isSafeInteger(quote.valueCents) && quote.valueCents > 0;
 }
 
-function soldSearch(card) {
-  const printRun = String(card.serial || '').match(/\/\s*(\d+)\s*$/)?.[1];
+function ebaySoldSearchUrl(card) {
+  const run = printRun(card.serial);
+  const parallel = card.parallel?.trim();
+  const variant = parallel && parallel.toLowerCase() !== 'base' ? parallel : '';
+  // Sellers often omit the checklist number on numbered parallels. For an
+  // unnumbered auto or relic, the checklist number identifies the design even
+  // when sellers use different names for the finish.
+  const useInsertNumber = !run && card.card_number && (card.is_auto || card.is_relic);
   const search = [
     card.year,
     card.set_name,
     card.player,
-    card.card_number,
-    card.parallel,
-    printRun && '/' + printRun,
+    !(run && variant) && card.card_number,
+    !useInsertNumber && variant,
+    run && '/' + run,
     card.is_auto && 'auto',
     card.is_relic && 'relic',
     card.grader,
@@ -107,11 +113,7 @@ function soldSearch(card) {
     .join(' ');
   const url = new URL('https://www.ebay.com/sch/i.html');
   url.search = new URLSearchParams({ _nkw: search, LH_Sold: '1', LH_Complete: '1' }).toString();
-  const link = element('a', 'Check eBay sold listings');
-  link.href = url.href;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  return link;
+  return url.href;
 }
 
 function actionButton(text, onClick) {
@@ -224,9 +226,8 @@ function saleRow(sale, card, onAction) {
 
 function drawSales(body, card, quote, loading, onAction) {
   const sales = quote?.evidence || quote?.sales || [];
-  const showSearch = !hasValue(quote) && !loading && Boolean(card.player);
   const diagnostics = listingDiagnosticsText(quote?.diagnostics);
-  const key = JSON.stringify([sales, diagnostics, showSearch, loading && !quote, identityKey(card)]);
+  const key = JSON.stringify([sales, diagnostics, loading && !quote, identityKey(card)]);
   if (renderedSales.get(body) === key) return;
   renderedSales.set(body, key);
   const contents = [];
@@ -256,7 +257,6 @@ function drawSales(body, card, quote, loading, onAction) {
   } else if (!diagnostics) {
     contents.push(element('p', loading && !quote ? 'Checking sold listings…' : 'No sales recorded.'));
   }
-  if (showSearch) contents.push(soldSearch(card));
   body.replaceChildren(...contents);
 }
 
@@ -424,6 +424,10 @@ export function createVaultValue(openPurchase, reloadInventory) {
     gain.textContent = gain.hidden ? '' : signedUsd.format(totals.change / 100) + ' vs. cost';
     gain.dataset.direction = gain.hidden ? '' : String(Math.sign(totals.change));
     drawSpark(section.querySelector('.estimate-spark'), historyFor(card));
+    const search = section.querySelector('.comp-search');
+    search.hidden = !card.player?.trim();
+    if (search.hidden) search.removeAttribute('href');
+    else search.href = ebaySoldSearchUrl(card);
     drawSales(section.querySelector('.comp-evidence'), card, quote, loading, handleAction);
     section.querySelector('.comp-feedback').textContent = feedback.get(card.id) || '';
   }
@@ -454,9 +458,17 @@ export function createVaultValue(openPurchase, reloadInventory) {
     estimate.append(title, amount, evidence, method, spark, gain);
     const salesHead = element('div');
     salesHead.className = 'comp-head';
+    const actions = element('div');
+    actions.className = 'comp-head-actions';
+    const search = element('a', 'Find sold comps');
+    search.className = 'link-button comp-search';
+    search.target = '_blank';
+    search.rel = 'noopener noreferrer';
+    search.setAttribute('aria-label', 'Find sold comps on eBay (opens in a new tab)');
     const add = actionButton('Add a sale', () => editor.show('save', card));
     add.classList.add('comp-add');
-    salesHead.append(element('h3', 'Recent sales'), add);
+    actions.append(search, add);
+    salesHead.append(element('h3', 'Recent sales'), actions);
     const body = element('div');
     body.className = 'comp-evidence';
     const message = element('p');

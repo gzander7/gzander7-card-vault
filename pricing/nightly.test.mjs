@@ -50,14 +50,14 @@ test('every owner gets a fresh estimate and one snapshot for the night', async (
   });
   assert.deepEqual(looked.sort(), ['a1', 'a2', 'b1']);
   assert.deepEqual(
-    result.owners.map(({ owner, cards, priced, valueCents, date }) => [owner, cards, priced, valueCents, date]),
+    result.owners.map(({ owner, cards, priced, valueCents, date }) => [owner, cards, priced, valueCents, date]).sort(),
     [
       [alice, 2, 2, 2000, '2026-11-20'],
       [bob, 1, 1, 1000, '2026-11-20'],
     ],
   );
   const days = db.writes.flatMap(write => write.entries.map(entry => [write.owner, entry.date]));
-  assert.deepEqual(days, [
+  assert.deepEqual(days.sort(), [
     [alice, '2026-11-20'],
     [bob, '2026-11-20'],
   ]);
@@ -105,13 +105,10 @@ test('when the lookup budget runs out, snapshots are still recorded for everyone
     clock: clockAt('2026-11-20T09:17:00Z'),
   });
   assert.equal(result.lookupsStopped, true);
-  assert.deepEqual(
-    result.owners.map(({ owner, priced, date }) => [owner, priced, date]),
-    [
-      [alice, 0, '2026-11-20'],
-      [bob, 0, '2026-11-20'],
-    ],
-  );
+  assert.deepEqual(result.owners.map(({ owner, priced, date }) => [owner, priced, date]).sort(), [
+    [alice, 0, '2026-11-20'],
+    [bob, 0, '2026-11-20'],
+  ]);
   assert.match(result.owners[0].notice, /budget/);
 });
 
@@ -185,7 +182,7 @@ test('one owner failing does not stop the remaining owners', async () => {
     log: message => logs.push(message),
   });
   assert.deepEqual(
-    result.owners.map(({ owner, priced, date }) => [owner, priced, date]),
+    result.owners.map(({ owner, priced, date }) => [owner, priced, date]).sort(),
     [
       [alice, 1, '2026-11-20'],
       [carol, 1, '2026-11-20'],
@@ -195,10 +192,7 @@ test('one owner failing does not stop the remaining owners', async () => {
   assert.deepEqual(result.failures, [
     { owner: bob, cards: 1, error: 'permission denied for function vault_prices_read_for' },
   ]);
-  assert.deepEqual(
-    db.writes.map(write => write.owner),
-    [alice, carol],
-  );
+  assert.deepEqual(db.writes.map(write => write.owner).sort(), [alice, carol]);
   assert.ok(logs.some(line => line.includes(bob) && line.includes('failed')));
 });
 
@@ -237,5 +231,52 @@ test('the run still fails as a whole when the cards cannot be listed', async () 
       writePrices: async () => {},
     }),
     /connection refused/,
+  );
+});
+
+test('daily sparse checks share a tight nightly budget across owners and prioritise their oldest cards', async () => {
+  const owned = [card('a1', alice), card('a2', alice), card('b1', bob), card('b2', bob)];
+  const db = fakeDatabase();
+  for (const c of owned) {
+    if (!db.stored.has(c.owner)) db.stored.set(c.owner, { quotes: {}, reviews: {}, history: [] });
+    db.stored.get(c.owner).quotes[c.id] = {
+      identity: identityKey(c),
+      lookupVersion: 2,
+      status: 'insufficient',
+      valueCents: null,
+      sales: [],
+      checkedAt: '2026-10-01T00:00:00Z',
+    };
+  }
+  const completed = new Set();
+  for (let day = 20; day <= 23; day++) {
+    let first = true;
+    const result = await runNightlyValuations({
+      ...db,
+      listCards: async () => owned,
+      clock: clockAt('2026-11-' + day + 'T09:17:00Z'),
+      lookupBudgetMs: 35,
+      lookup: async (c, { now, signal }) => {
+        if (!first) {
+          await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
+          throw signal.reason;
+        }
+        first = false;
+        completed.add(c.id);
+        return {
+          status: 'insufficient',
+          sales: [],
+          valueCents: null,
+          checkedAt: now.toISOString(),
+          nextLookupAt: +now + 86400000,
+        };
+      },
+    });
+    assert.equal(result.failures.length, 0);
+    assert.equal(result.owners.length, 2);
+  }
+  assert.deepEqual(
+    [...completed].sort(),
+    owned.map(c => c.id),
   );
 });

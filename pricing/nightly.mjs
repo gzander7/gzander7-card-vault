@@ -55,7 +55,11 @@ export async function runNightlyValuations({
   const summary = [];
   const failures = [];
   try {
-    for (const [owner, owned] of owners) {
+    // Give each owner a turn at the start of the budget even if a previous
+    // owner's slow provider request used the entire window without finishing.
+    const ordered = [...owners].sort(([left], [right]) => left.localeCompare(right));
+    const first = Math.floor(started / 86_400_000) % (ordered.length || 1);
+    for (const [owner, owned] of [...ordered.slice(first), ...ordered.slice(0, first)]) {
       // One owner's failure (a bad record, a database error) must not cost the
       // remaining owners their nightly refresh and snapshot.
       try {

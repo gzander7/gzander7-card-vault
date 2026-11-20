@@ -343,8 +343,11 @@ export function createPricingClient({
     const started = clock();
     const timestamp = started.toISOString();
     let notice = '';
-    const priority = card => (state.data.quotes[card.id]?.identity === identityKey(card) ? 1 : 0);
-    owned.sort((a, b) => priority(a) - priority(b));
+    const lastCheck = card => {
+      const quote = state.data.quotes[card.id];
+      return quote?.identity === identityKey(card) ? Date.parse(quote.checkedAt) || 0 : 0;
+    };
+    owned.sort((a, b) => lastCheck(a) - lastCheck(b));
     for (const id of [...Object.keys(state.data.quotes), ...Object.keys(state.data.failures)]) {
       if (!ids.has(id)) {
         delete state.data.quotes[id];

@@ -10,7 +10,7 @@ Once a day, for every owner:
 2. It looks up sold comps for new or edited cards, cards with fewer than two recent automatic matches once per UTC day, and other cards every seven days. It uses exactly the code the browser uses (`pricing-client.js`), so matching rules, manual comps and flags apply the same way.
 3. It records that day's snapshot through `vault_prices_write_for`.
 
-Lookups stop after a time budget (100 seconds by default) so the function finishes within Supabase's limits. Snapshots are still recorded for every owner from the estimates already saved; remaining cards are looked up on a later night. The function never changes sold comps that you entered or flagged.
+Lookups stop after a time budget (100 seconds by default) so the function finishes within Supabase's limits. Snapshots are still recorded for every owner from the estimates already saved; remaining cards are looked up on a later night. Each owner gets a turn at the start of the search window, and each collection’s oldest checks go first. The function never changes sold comps that you entered or flagged.
 
 If one owner's refresh or snapshot fails (a database error, a record the database rejects), the job logs that owner's error and carries on with the rest. The run's summary lists those owners under `failures`. A manual run with `?wait=1` then returns HTTP 500, and a scheduled run logs "Nightly valuations failed for some owners". Only a failure to read the card list stops the whole run.
 

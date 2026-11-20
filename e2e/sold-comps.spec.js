@@ -39,7 +39,11 @@ test('a numbered card opens eBay sold results for any copy, keeping the vault op
     .click();
   const detail = page.getByRole('dialog', { name: 'CeeDee Lamb' });
   const find = detail.getByRole('link', { name: /Find sold comps/ });
+  const add = detail.getByRole('button', { name: 'Add a sale' });
   await expect(find).toBeVisible();
+  await find.scrollIntoViewIfNeeded();
+  await expect(find).toBeInViewport({ ratio: 1 });
+  await expect(add).toBeInViewport({ ratio: 1 });
 
   const opened = page.waitForEvent('popup');
   await find.click();
@@ -50,7 +54,7 @@ test('a numbered card opens eBay sold results for any copy, keeping the vault op
   expect(url.searchParams.get('LH_Sold')).toBe('1');
   expect(url.searchParams.get('LH_Complete')).toBe('1');
   await results.close();
-  await detail.getByRole('button', { name: 'Add a sale' }).click();
+  await add.click();
   const form = page.getByRole('dialog', { name: 'Add sold comp' });
   await expect(form.getByLabel('Sale link')).toHaveValue('');
   await expect(form.getByLabel('Count as an exact match')).not.toBeChecked();

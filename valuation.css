@@ -175,6 +175,41 @@
 .value-method {
   margin-top: 16px;
 }
+.value-backup {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #684a3b;
+  color: #dec8af;
+  font:
+    400 0.9rem/1.45 system-ui,
+    sans-serif;
+}
+.value-backup h3 {
+  margin: 0 0 4px;
+  color: #f3e2c8;
+  font:
+    500 1.25rem/1.2 Georgia,
+    serif;
+}
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 6px;
+}
+.backup-actions .link-button {
+  min-height: 44px;
+  padding: 4px 0;
+  font-weight: 600;
+  color: #edca8d;
+}
+.backup-actions .link-button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+#backup-status:not(:empty) {
+  margin-top: 4px;
+}
 .value-method a {
   color: #edca8d;
 }

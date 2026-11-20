@@ -15,6 +15,7 @@ import { createScanFields } from './scanning/fields.mjs';
 import { findSimilarCard } from './scanning/duplicates.mjs';
 import { createBatchDialog, createScanQueue } from './scanning/batch.mjs';
 import { createNavigation } from './navigation.mjs';
+import { bindVaultBackup } from './backup-ui.mjs';
 import { backPhotoPath, removeStoredCard, savePhotoRevision } from './photos/storage.mjs';
 
 const SPOTLIGHT_MS = 5000;
@@ -458,6 +459,12 @@ function createSpotlight() {
 const spotlight = createSpotlight();
 const vaultValue = createVaultValue(card => openEditor(card, true), loadCards);
 vaultValue.subscribe(() => renderGrid());
+bindVaultBackup({
+  getSession: () => session,
+  getOwnedCards: () => (inventoryReady && !loadError ? cards.filter(owns) : null),
+  purchases: vaultValue.purchases,
+  photoUrls: path => ({ front: imageUrl(path), back: imageUrl(backPhotoPath(path)) }),
+});
 const purchaseEditor = createPurchaseEditor(vaultValue.purchases);
 const batchQueue = createScanQueue();
 function batchButtonText() {

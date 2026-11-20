@@ -416,7 +416,23 @@ export function createPricingClient({
     return snapshot(state);
   }
 
-  return { loadVaultPrices, refreshVaultPrices, recordVaultSnapshot, reviewSale, forgetCardReviews };
+  // Everything the owner's backup needs: the estimates shown in the vault,
+  // owner-entered sold comps and flags, and the daily history.
+  async function backupVaultPrices(session, cards) {
+    await loadVaultPrices(session, cards);
+    const state = stateFor(session);
+    return structuredClone({ quotes: cardQuotes(state), reviews: state.data.reviews, history: state.data.history });
+  }
+
+  return {
+    loadVaultPrices,
+    refreshVaultPrices,
+    recordVaultSnapshot,
+    backupVaultPrices,
+    reviewSale,
+    forgetCardReviews,
+  };
 }
 
-export const { loadVaultPrices, refreshVaultPrices, reviewSale, forgetCardReviews } = createPricingClient();
+export const { loadVaultPrices, refreshVaultPrices, backupVaultPrices, reviewSale, forgetCardReviews } =
+  createPricingClient();

@@ -149,6 +149,15 @@
                 <tbody id="value-history-rows"></tbody>
               </table>
             </div>
+            <section class="value-backup" aria-labelledby="backup-heading">
+              <h3 id="backup-heading">Back up your vault</h3>
+              <p>Download every card you own with its photo links, purchases, estimates, sold comps and value history.</p>
+              <div class="backup-actions">
+                <button type="button" id="backup-json" class="link-button">Download backup (JSON)</button>
+                <button type="button" id="backup-csv" class="link-button">Download spreadsheet (CSV)</button>
+              </div>
+              <p id="backup-status" role="status"></p>
+            </section>
             <p class="value-method">Estimates show the median and range of the latest two to five matching sales within 90 days. With at least four sales, prices above 2.5 times the median or below 40% of it are left out. Automatic sales come from <a href="https://cardpricer.co/" target="_blank" rel="noopener noreferrer">CardPricer</a>.</p>
             <p>High confidence takes at least four counted sales spanning two weeks, with the highest price under twice the lowest. Two sales, or a highest price at least twice the lowest, give low confidence. Other estimates have medium confidence.</p>
           </div>

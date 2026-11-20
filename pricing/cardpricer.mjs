@@ -1,7 +1,7 @@
 // CardPricer distinguishes sales, asking prices and quotes in its public sales feed.
 // Its card provenance mixes those types, so verify every observation against the feed.
-import { matchesSale, needsDetails } from './identity.mjs';
-import { medianCents } from './reviews.mjs';
+import { listingPlayer, needsDetails, playerSearchName, playersMatch, saleMismatchReason } from './identity.mjs';
+import { estimateSales } from './reviews.mjs';
 
 const API = 'https://cardpricer.co/api/v1/';
 const DAY = 86400000;
@@ -87,17 +87,49 @@ function setMatches(card, name) {
   return false;
 }
 
-function catalogMatch(card, row) {
-  return UUID.test(row.id) && normalize(row.player) === normalize(card.player) &&
-    text(row.year) === text(card.year) && idNumber(row.cardNumber) === idNumber(card.card_number) &&
-    setMatches(card, row.set) && gradeMatches(card, row.grade);
+function catalogMismatch(card, row) {
+  if (!row || !UUID.test(row.id)) return 'wrong_card';
+  if (!playersMatch(card.player, row.player)) return 'wrong_player';
+  if (text(row.year) !== text(card.year)) return 'wrong_year';
+  if (idNumber(row.cardNumber) !== idNumber(card.card_number)) return 'wrong_card_number';
+  if (!setMatches(card, row.set)) return 'wrong_set';
+  if (!gradeMatches(card, row.grade)) return 'wrong_grade';
+  return null;
 }
 
-function saleLink(row) {
+// The directory accepts a canonical slug or a literal name substring. A
+// hyphenated slug can exclude every catalogue spelling with an omitted suffix.
+function directoryPlayers(player) {
+  const base = playerSearchName(player);
+  const input = text(player);
+  const terms = base.split(' ');
+  const pieces = input.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z])(?=[A-Z][a-z])/g, '$1 ')
+    .toLowerCase().match(/[a-z0-9]+/g) || [];
+  const whole = pieces.filter(piece => terms.includes(piece));
+  const fragments = whole.length ? whole : pieces.filter(piece => terms.some(term => term.includes(piece)));
+  const fragment = fragments.sort((a, b) => b.length - a.length)[0] || base;
+  // A narrow full-name search is normally sufficient. A stable component also
+  // reaches O'Neal/ONeal and accented or hyphenated spellings on the directory.
+  const literal = input.toLowerCase().replace(/\s+/g, ' ');
+  const hasFormatting = !literal.includes(base) || /[a-z][A-Z]|[A-Z]{2}[a-z]/.test(input);
+  return [...new Set(hasFormatting ? [fragment, base] : [base, fragment])];
+}
+
+function specificPlayer(known, compatible) {
+  return normalize(known) === playerSearchName(known) ? compatible : known;
+}
+
+function listingMismatch(card, row, catalog) {
+  if (typeof row.title !== 'string' || !row.title.trim()) return 'missing_title';
+  if (!gradeMatches(card, row.grade)) return 'wrong_grade';
+  return saleMismatchReason(card, {title:row.title, grade:row.grade, year:catalog.year, cardNumber:catalog.cardNumber});
+}
+
+function saleLink(value) {
   // Only link to a documented marketplace sale or transaction. Tracking parameters
   // are unnecessary; credentials, redirect URLs, and arbitrary hosts have no place here.
   let url;
-  try { url = new URL(row.sourceUrl); } catch { return null; }
+  try { url = new URL(value); } catch { return null; }
   if (url.protocol !== 'https:' || url.port || url.username || url.password) return null;
   const hostname = url.hostname.replace(/^www\./, '');
   if (hostname === 'ebay.com') {
@@ -109,25 +141,24 @@ function saleLink(row) {
   return null;
 }
 
-function saleFor(card, row, candidate, now) {
-  if (row.cardId !== candidate.id || row.observationType !== 'sale' || !catalogMatch(card, row.card || {}) ||
-      !gradeMatches(card, row.grade) || typeof row.title !== 'string' || !row.title.trim()) return null;
-  const url = saleLink(row);
-  if (!url) return null;
+function tapeMismatch(card, row, catalogId, url) {
+  if (row.observationType !== 'sale') return 'unconfirmed_sale';
+  if (row.cardId !== catalogId || row.card?.id !== catalogId) return 'wrong_card';
+  const identity = catalogMismatch(card, row.card);
+  if (identity) return identity;
+  const reason = listingMismatch({...card, player:specificPlayer(card.player, row.card.player)}, row, row.card);
+  if (reason) return reason;
+  if (!url) return 'invalid_link';
   // CardPricer's v1 tape omits currency. It explicitly documents USDC amounts for
   // these physical-card venues. For other sources require an explicit USD code.
   // https://cardpricer.co/ecosystem and https://cardpricer.co/methodology
   const source = normalize(row.source);
   const dollarSettled = (source === 'courtyard' && url.startsWith('https://polygonscan.com/')) ||
     (['collector crypt', 'collectorcrypt', 'magic eden'].includes(source) && url.startsWith('https://solscan.io/'));
-  if (row.currency !== 'USD' && !(dollarSettled && (row.currency == null || row.currency === 'USDC'))) return null;
-  const time = validTime(row.soldDate);
-  if (!Number.isFinite(time) || time > now || time < now - 90 * DAY) return null;
-  if (typeof row.price !== 'number' || !Number.isFinite(row.price) || row.price <= 0) return null;
+  if (row.currency !== 'USD' && !(dollarSettled && (row.currency == null || row.currency === 'USDC'))) return 'unsupported_currency';
   const priceCents = Math.round(row.price * 100);
-  if (!Number.isSafeInteger(priceCents) || priceCents < 1) return null;
-  if (!matchesSale(card, { title: row.title, grade: row.grade, year: row.card.year, cardNumber: row.card.cardNumber })) return null;
-  return { id: text(row.id), title: row.title.trim(), soldAt: new Date(time).toISOString(), priceCents, url };
+  if (typeof row.price !== 'number' || !Number.isSafeInteger(priceCents) || priceCents < 1) return 'invalid_price';
+  return null;
 }
 
 export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), signal, excludedUrls = new Set() } = {}) {
@@ -174,21 +205,28 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
   }
 
   const candidates = new Map();
-  let offset = 0;
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const { data, meta } = await get('cards', {
-      player: normalize(card.player).replace(/ /g, '-'), year: text(card.year),
-      q: text(card.card_number).replace(/^#\s*/, ''), limit: '200', offset: String(offset)
-    });
-    const paging = meta?.pagination;
-    if (!Array.isArray(data) || !paging || !Number.isSafeInteger(paging.total) || paging.total < 0 ||
-        !('nextOffset' in paging) || data.some(row => !row || !UUID.test(row.id) || !('cardNumber' in row) || !('grade' in row) || !('set' in row))) throw invalid();
-    for (const row of data) if (catalogMatch(card, row)) candidates.set(row.id, row);
-    if (candidates.size > 1) return result('needs_details', 'Multiple catalogue entries match this card. Confirm its set, number, and variation.');
-    if (paging.nextOffset === null) break;
-    if (!Number.isSafeInteger(paging.nextOffset) || paging.nextOffset <= offset) throw invalid();
-    if (page + 1 === MAX_PAGES) return result('needs_details', 'The catalogue search is too broad to identify a unique card.');
-    offset = paging.nextOffset;
+  let pages = 0;
+  for (const player of directoryPlayers(card.player)) {
+    let offset = 0;
+    for (;;) {
+      if (pages >= MAX_PAGES) return result('needs_details', 'The catalogue search is too broad to identify a unique card.');
+      const {data, meta} = await get('cards', {
+        player, year:text(card.year), q:text(card.card_number).replace(/^#\s*/, ''), limit:'200', offset:String(offset)
+      });
+      pages++;
+      const paging = meta?.pagination;
+      if (!Array.isArray(data) || !paging || !Number.isSafeInteger(paging.total) || paging.total < 0 ||
+          !('nextOffset' in paging) || data.some(row => !row || !UUID.test(row.id) || !('cardNumber' in row) || !('grade' in row) || !('set' in row))) throw invalid();
+      for (const row of data) if (!catalogMismatch(card, row)) candidates.set(row.id, row);
+      if (candidates.size > 1) return result('needs_details', 'Multiple catalogue entries match this card. Confirm its set, number, and variation.');
+      if (paging.nextOffset === null) break;
+      if (!Number.isSafeInteger(paging.nextOffset) || paging.nextOffset <= offset) throw invalid();
+      offset = paging.nextOffset;
+    }
+    const [match] = candidates.values();
+    // A directory spelling such as "ONeal" can reveal an alternate form even
+    // when the entered name was plain "Oneal". Check that broader spelling too.
+    if (match && (player !== playerSearchName(card.player) || directoryPlayers(match.player)[0] === player)) break;
   }
   if (!candidates.size) return result('insufficient', 'CardPricer has no exact catalogue match for this card and grade.');
 
@@ -198,44 +236,84 @@ export async function lookupComps(card, { fetchImpl = fetch, now = new Date(), s
   const observations = data.comps.recent;
   if (observations.some(obs => !obs || typeof obs.id !== 'string' || !obs.id || !Number.isFinite(validTime(obs.soldDate)))) throw invalid();
 
+  let player = specificPlayer(card.player, candidate.player);
+  if (text(data.card.player)) {
+    if (!playersMatch(player, data.card.player)) throw invalid();
+    player = specificPlayer(player, data.card.player);
+  }
+  const catalogCard = {...card, player};
   const at = now.getTime();
-  const recent = observations.filter(obs => validTime(obs.soldDate) <= at && validTime(obs.soldDate) >= at - 90 * DAY)
-    .sort((a, b) => validTime(b.soldDate) - validTime(a.soldDate));
-  // Provenance lists the latest observations for this exact catalogue record, but
-  // doesn't currently mark sales vs listings. Check only its relevant titles, newest first.
-  const sales = [];
-  const seen = new Set();
-  const sources = new Set();
+  const inWindow = time => time <= at && time >= at - 90 * DAY;
+  const ordered = observations.map(obs => ({obs, time:validTime(obs.soldDate)}))
+    .sort((a, b) => Number(inWindow(b.time)) - Number(inWindow(a.time)) || b.time - a.time);
+  const confirmed = [];
+  const seenIds = new Set();
+  const outcomes = new Map();
   const tape = new Map();
-  let calls = 0;
   let eligible = 0;
-  for (const obs of recent) {
-    if (seen.has(obs.id)) continue;
-    seen.add(obs.id);
-    if (!gradeMatches(card, obs.grade) || !matchesSale(card, {title: obs.title, grade: obs.grade, year: candidate.year, cardNumber: candidate.cardNumber})) continue;
-    const time = validTime(obs.soldDate);
+  // Multiple provider observations may refer to one marketplace receipt. A
+  // completed sale takes precedence, then a pending check, then a rejection.
+  function record(key, outcome) {
+    const previous = outcomes.get(key);
+    if (!previous || outcome === 'verified' || (previous !== 'verified' && outcome === 'unchecked')) outcomes.set(key, outcome);
+  }
+  for (const {obs, time} of ordered) {
+    if (seenIds.has(obs.id)) continue;
+    seenIds.add(obs.id);
+    const key = saleLink(obs.url) || 'id:' + obs.id;
+    if (outcomes.get(key) === 'verified') continue;
+    if (!inWindow(time)) {
+      record(key, 'outside_window');
+      continue;
+    }
+    const reason = listingMismatch(catalogCard, obs, candidate);
+    if (reason) {
+      record(key, reason);
+      continue;
+    }
+    if (eligible === MAX_SALES || (!tape.has(time) && tape.size >= MAX_OBSERVATIONS)) {
+      record(key, 'unchecked');
+      continue;
+    }
     if (!tape.has(time)) {
-      if (calls >= MAX_OBSERVATIONS) break;
       const params = { include: 'sale', since: new Date(time - 1000).toISOString(), until: new Date(time + 1000).toISOString(), limit: '200' };
       if (candidate.sport) params.sport = candidate.sport;
       const feed = await get('sales', params);
       if (!Array.isArray(feed.data) || feed.data.some(row => !row || typeof row.id !== 'string' ||
           !('observationType' in row) || !('cardId' in row) || !('price' in row))) throw invalid();
-      tape.set(time, feed.data);
-      calls++;
+      tape.set(time, feed);
     }
-    const verified = tape.get(time).find(row => row.id === obs.id && validTime(row.soldDate) === time);
-    if (!verified) continue;
-    const sale = saleFor(card, verified, candidate, at);
-    if (!sale || sources.has(sale.url)) continue;
-    sources.add(sale.url);
-    sales.push(sale);
-    if (!excludedUrls.has(sale.url)) eligible++;
-    if (eligible === MAX_SALES) break;
+    const feed = tape.get(time);
+    const row = feed.data.find(row => row.id === obs.id && validTime(row.soldDate) === time);
+    if (!row) {
+      const paging = feed.meta?.pagination;
+      const truncated = paging && 'nextCursor' in paging ? paging.nextCursor !== null : feed.data.length >= 200;
+      record(key, truncated ? 'unchecked' : 'unconfirmed_sale');
+      continue;
+    }
+    const url = saleLink(row.sourceUrl);
+    const linkedCard = {...catalogCard, player:listingPlayer(catalogCard.player, obs.title)};
+    const tapeReason = tapeMismatch(linkedCard, row, candidate.id, url);
+    if (tapeReason) {
+      record(url || key, tapeReason);
+      continue;
+    }
+    if (outcomes.get(url) === 'verified') continue;
+    record(url, 'verified');
+    confirmed.push({id:row.id, title:row.title.trim(), soldAt:new Date(time).toISOString(), priceCents:Math.round(row.price * 100), url});
+    if (!excludedUrls.has(url)) eligible++;
   }
-  if (sales.length < 2) return result('insufficient', 'Two recent, verified sales of this exact card are needed for an estimate.', sales);
-  const latest = sales.slice(0, MAX_SALES);
-  const quote = result('valued', 'Median of recent verified sales of this card.', latest, medianCents(latest));
-  if (sales.length > MAX_SALES) quote.extraSales = sales.slice(MAX_SALES);
+  const diagnostics = {found:outcomes.size, verified:confirmed.length, unchecked:0, rejected:{}};
+  for (const reason of outcomes.values()) {
+    if (reason === 'unchecked') diagnostics.unchecked++;
+    else if (reason !== 'verified') diagnostics.rejected[reason] = (diagnostics.rejected[reason] || 0) + 1;
+  }
+  const {sales, valueCents, confidence, range} = estimateSales(confirmed.filter(sale => !excludedUrls.has(sale.url)));
+  const quote = valueCents === null
+    ? result('insufficient', 'Two recent, verified sales of this exact card are needed for an estimate.', sales)
+    : result('valued', 'Median of recent verified sales of this card.', sales, valueCents);
+  Object.assign(quote, {confidence, range, diagnostics});
+  const extraSales = confirmed.filter(sale => !sales.includes(sale));
+  if (extraSales.length) quote.extraSales = extraSales;
   return quote;
 }

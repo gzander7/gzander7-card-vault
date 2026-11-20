@@ -1,12 +1,12 @@
 import { historyCardLabel, loadVaultPrices, refreshVaultPrices, reviewSale } from './pricing-client.js';
 import { identityKey } from './pricing/identity.mjs';
+import { estimateEvidenceText, listingDiagnosticsText, money } from './pricing/estimate-display.mjs';
 import { createReviewDialog } from './pricing/review-dialog.mjs';
 import { readCloudPurchases } from './pricing/cloud-store.mjs';
-import { createPurchaseLedger, hasPurchaseDetails, purchaseTotals } from './pricing/purchases.mjs';
+import { bookValueTotals, createPurchaseLedger, hasPurchaseDetails, purchaseTotals } from './pricing/purchases.mjs';
 import { createHistoryChart } from './pricing/history-chart.mjs';
 import { createHistoryComparison } from './pricing/history-changes-ui.mjs';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', trailingZeroDisplay: 'stripIfInteger' });
 const signedUsd = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', trailingZeroDisplay:'stripIfInteger', signDisplay:'exceptZero' });
 const percent = new Intl.NumberFormat('en-US', { style:'percent', maximumFractionDigits:1, signDisplay:'exceptZero' });
 const calendarDate = new Intl.DateTimeFormat('en-US', {
@@ -30,10 +30,6 @@ function element(tag, value) {
 function dateText(isoDate) {
   const date = new Date(isoDate || NaN);
   return Number.isFinite(date.getTime()) ? calendarDate.format(date) : '';
-}
-
-function money(cents) {
-  return Number.isSafeInteger(cents) && cents >= 0 ? usd.format(cents / 100) : '—';
 }
 
 function changeText(result) {
@@ -133,7 +129,8 @@ function saleRow(sale, card, onAction) {
   date.title = dateText(sale.soldAt);
   const listing = element('td');
   const match = element('td');
-  const title = sale.flag ? 'Excluded' : sale.reason === 'Reference only' ? 'Reference' : sale.reason ? 'Unused' : 'Exact';
+  const title = sale.flag ? 'Excluded' : sale.reason === 'Unusual price' ? 'Left out: unusual price'
+    : sale.reason === 'Reference only' ? 'Reference' : sale.reason ? 'Unused' : 'Exact';
   const badge = element('span', title);
   badge.className = 'comp-badge';
   badge.dataset.exact = String(!sale.flag && !sale.reason);
@@ -166,10 +163,16 @@ function saleRow(sale, card, onAction) {
 function drawSales(body, card, quote, loading, onAction) {
   const sales = quote?.evidence || quote?.sales || [];
   const showSearch = !hasValue(quote) && !loading && Boolean(card.player);
-  const key = JSON.stringify([sales, showSearch, identityKey(card)]);
+  const diagnostics = listingDiagnosticsText(quote?.diagnostics);
+  const key = JSON.stringify([sales, diagnostics, showSearch, loading && !quote, identityKey(card)]);
   if (renderedSales.get(body) === key) return;
   renderedSales.set(body, key);
   const contents = [];
+  if (diagnostics) {
+    const report = element('p', diagnostics);
+    report.className = 'comp-diagnostics';
+    contents.push(report);
+  }
   if (sales.length) {
     const table = element('table');
     table.setAttribute('aria-label', 'Recent sold listings');
@@ -188,7 +191,7 @@ function drawSales(body, card, quote, loading, onAction) {
     if (sales.some(sale => /^https:\/\/(?:polygonscan\.com|solscan\.io)\/tx\//.test(sale.url))) {
       contents.push(element('small', 'Vaulted-card sales settled in USDC are counted at $1 per USDC.'));
     }
-  } else {
+  } else if (!diagnostics) {
     contents.push(element('p', loading && !quote ? 'Checking sold listings…' : 'No sales recorded.'));
   }
   if (showSearch) contents.push(soldSearch(card));
@@ -198,9 +201,10 @@ function drawSales(body, card, quote, loading, onAction) {
 export function createVaultValue(openPurchase, reloadInventory) {
   const section = document.getElementById('vault-value');
   const total = document.getElementById('value-total');
+  const bookAmount = document.getElementById('value-book');
+  const bookCoverage = document.getElementById('value-book-coverage');
   const dayChange = document.getElementById('value-change');
   const spark = section.querySelector('.value-spark');
-  const mobileCoverage = section.querySelector('.value-mobile-coverage');
   const coverageBar = section.querySelector('.value-track span');
   const expandedCost = document.getElementById('value-expanded-cost');
   const coverage = document.getElementById('value-coverage');
@@ -302,8 +306,11 @@ export function createVaultValue(openPurchase, reloadInventory) {
     const isPriced = hasValue(quote);
     const amount = section.querySelector('.estimate-amount');
     amount.textContent = isPriced ? money(quote.valueCents) : 'Unpriced';
+    const evidence = section.querySelector('.estimate-evidence');
+    evidence.hidden = !isPriced;
+    evidence.textContent = isPriced ? estimateEvidenceText(quote) : '';
     const checked = shortDate(quote?.checkedAt);
-    const method = isPriced ? 'Median of ' + sales.length + ' matching sales in 90 days'
+    const method = isPriced ? (sales.length >= 2 ? 'Median of ' + sales.length + ' matching sales in 90 days' : 'Saved estimate')
       : quote?.message || (failed ? 'Sale data is temporarily unavailable.' : loading ? 'Checking for matching sales…' : 'Two matching sales in 90 days are needed for an estimate.');
     section.querySelector('.estimate-method').textContent = [method, checked && 'checked ' + checked,
       quote?.refreshFailed && 'Latest lookup unavailable'].filter(Boolean).join(' · ');
@@ -327,11 +334,12 @@ export function createVaultValue(openPurchase, reloadInventory) {
     const title = element('h3', 'Estimated value');
     title.className = 'finance-label';
     const amount = element('strong'); amount.className = 'estimate-amount';
+    const evidence = element('p'); evidence.className = 'estimate-evidence';
     const method = element('p'); method.className = 'estimate-method';
     const gain = element('span'); gain.className = 'estimate-gain';
     const spark = element('span'); spark.className = 'estimate-spark';
     spark.setAttribute('aria-hidden', 'true');
-    estimate.append(title, amount, method, spark, gain);
+    estimate.append(title, amount, evidence, method, spark, gain);
     const salesHead = element('div');
     salesHead.className = 'comp-head';
     const add = actionButton('Add a sale', () => editor.show('save', card));
@@ -385,9 +393,22 @@ export function createVaultValue(openPurchase, reloadInventory) {
     return row;
   }
 
-  function paintPurchases() {
+  function paintPurchases(valueFor) {
     const ready = owner && cards && purchases.hasSnapshot;
-    const totals = purchaseTotals(cards || [], purchases.records, estimatedCents);
+    const records = purchases.status === 'ready' ? purchases.records : null;
+    const book = bookValueTotals(cards || [], records, valueFor);
+    bookAmount.textContent = money(book.valueCents);
+    const marketCount = element('span', book.atMarket + ' at market');
+    if (!cards) {
+      bookCoverage.textContent = owner ? 'Loading collection…' : '';
+    } else if (book.missing === null) {
+      const state = purchases.status === 'error' ? 'Purchase costs unavailable' : 'Loading purchase costs…';
+      bookCoverage.replaceChildren(marketCount, ' · ' + state);
+    } else {
+      bookCoverage.replaceChildren(marketCount, ' · ', element('span', book.atCost + ' at cost'),
+        ' · ', element('span', book.missing + ' missing'));
+    }
+    const totals = purchaseTotals(cards || [], purchases.records, valueFor);
     spent.textContent = ready && totals.tracked ? money(totals.spent) : '—';
     gain.textContent = ready && totals.change !== null ? signedUsd.format(totals.change / 100) : '—';
     gain.dataset.direction = ready && totals.change !== null ? String(Math.sign(totals.change)) : '';
@@ -415,15 +436,21 @@ export function createVaultValue(openPurchase, reloadInventory) {
   function paint() {
     section.hidden = !owner;
     refresh.disabled = !owner || Boolean(inventoryRequest) || loading;
-    const matches = (cards || []).map(quoteFor).filter(hasValue);
-    const totalCents = matches.reduce((sum, quote) => sum + quote.valueCents, 0);
-    total.textContent = matches.length ? money(totalCents) : '—';
-    coverage.textContent = cards ? matches.length + ' of ' + cards.length + (cards.length === 1 ? ' card' : ' cards') : '—';
-    mobileCoverage.textContent = cards ? coverage.textContent + ' priced' : 'Loading collection…';
-    coverageBar.style.width = (cards?.length ? 100 * matches.length / cards.length : 0) + '%';
+    const marketValues = new Map();
+    let priced = 0, totalCents = 0;
+    for (const card of cards || []) {
+      const cents = estimatedCents(card);
+      if (cents === null) continue;
+      marketValues.set(card, cents);
+      priced++;
+      totalCents += cents;
+    }
+    total.textContent = priced ? money(totalCents) : '—';
+    coverage.textContent = cards ? priced + ' of ' + cards.length + (cards.length === 1 ? ' card priced' : ' cards priced') : 'Loading collection…';
+    coverageBar.style.width = (cards?.length ? 100 * priced / cards.length : 0) + '%';
     const today = new Date().toISOString().slice(0, 10);
     const prior = history.filter(day => day.date < today).at(-1);
-    const comparable = matches.length && prior?.priced > 0 && Number.isSafeInteger(prior.valueCents);
+    const comparable = priced && prior?.priced > 0 && Number.isSafeInteger(prior.valueCents);
     const difference = comparable ? totalCents - prior.valueCents : null;
     dayChange.replaceChildren();
     dayChange.dataset.direction = difference === null ? '' : String(Math.sign(difference));
@@ -436,7 +463,7 @@ export function createVaultValue(openPurchase, reloadInventory) {
       const brief = element('span', amount + (yesterday ? ' today' : ' since ' + suffix));
       brief.className = 'value-change-brief';
       dayChange.append(full, brief);
-    } else if (cards && !matches.length) {
+    } else if (cards && !priced) {
       const hint = element('span', loading ? 'Checking estimates…' : 'No priced cards yet');
       hint.className = 'value-change-full';
       dayChange.append(hint);
@@ -449,13 +476,13 @@ export function createVaultValue(openPurchase, reloadInventory) {
     else if (failed) status.textContent = 'Sale data is temporarily unavailable. Existing estimates keep their last checked date.';
     else if (loading && cards.length) status.textContent = 'Checking sold comps…';
     else if (!cards.length) status.textContent = 'Add a card to start tracking your vault.';
-    else if (!matches.length) status.textContent = 'Open a card to see its matching details and recent sales.';
+    else if (!priced) status.textContent = 'Open a card to see its matching details and recent sales.';
     else status.textContent = '';
     const persistence = storage === 'session' ? 'Sold comps and history are available for this session only.'
       : storage === 'device' || storage === 'device-offline' ? 'Sold comps and history are saved on this device.'
       : storage === 'cloud' && reviewStorage === 'device' ? 'History syncs across devices. Manual sold comps are saved on this device.' : '';
     storageNote.textContent = owner ? [persistence, notice].filter(Boolean).join(' ') : '';
-    paintPurchases();
+    paintPurchases(card => marketValues.get(card));
 
     const rows = [...history].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     historyRows.replaceChildren(...rows.map(record => {

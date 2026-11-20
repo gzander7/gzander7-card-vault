@@ -42,15 +42,18 @@ export function hasPurchaseDetails(row) {
   return row?.amount_cents != null || row?.acquisition_type === 'pulled';
 }
 
+const hasCost = cents => Number.isSafeInteger(cents) && cents >= 0;
+const hasMarketValue = cents => Number.isSafeInteger(cents) && cents > 0;
+
 export function purchaseTotals(cards, records, valueFor) {
   let tracked = 0, spent = 0, compared = 0, comparedCost = 0, comparedValue = 0;
   for (const card of cards) {
     const cost = records[card.id]?.amount_cents;
-    if (!Number.isSafeInteger(cost) || cost < 0) continue;
+    if (!hasCost(cost)) continue;
     tracked++;
     spent += cost;
     const value = valueFor(card);
-    if (!Number.isSafeInteger(value) || value <= 0) continue;
+    if (!hasMarketValue(value)) continue;
     compared++;
     comparedCost += cost;
     comparedValue += value;
@@ -58,6 +61,28 @@ export function purchaseTotals(cards, records, valueFor) {
   const change = compared ? comparedValue - comparedCost : null;
   const percent = comparedCost ? 100 * change / comparedCost : null;
   return {tracked, spent, compared, comparedCost, comparedValue, change, percent};
+}
+
+export function bookValueTotals(cards, records, valueFor) {
+  let atMarket = 0, atCost = 0, total = 0;
+  for (const card of cards) {
+    const market = valueFor(card);
+    if (hasMarketValue(market)) {
+      atMarket++;
+      total += market;
+      continue;
+    }
+    const cost = records?.[card.id]?.amount_cents;
+    if (hasCost(cost)) {
+      atCost++;
+      total += cost;
+    }
+  }
+  const missing = cards.length - atMarket - atCost;
+  // A null ledger means private costs could not yet be checked.
+  if (!records && missing) return {valueCents:null, atMarket, atCost:null, missing:null};
+  const valueCents = atMarket + atCost > 0 && Number.isSafeInteger(total) ? total : null;
+  return {valueCents, atMarket, atCost, missing};
 }
 
 export function createPurchaseLedger(read, onChange = () => {}) {

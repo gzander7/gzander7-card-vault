@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPricingClient } from '../pricing-client.js';
+import { identityKey } from './identity.mjs';
 
 const session = { user: { id: 'owner' }, access_token: 'unit-test' };
 const first = { id: 'first', owner: 'owner', player: 'Player A', year: 2025, set_name: 'Sample', card_number: '1' };
@@ -65,6 +66,37 @@ test('refresh retains a dated estimate through an outage and respects the retry 
   const recovered = await f.refreshVaultPrices(session, [first]);
   assert.equal(f.calls.length, 3);
   assert.equal(recovered.quotes.first.refreshFailed, undefined);
+});
+
+test('a pre-upgrade quote is revalued from cached receipts and the next snapshot uses that median', async () => {
+  const checkedAt = '2026-10-31T10:00:00Z';
+  const sales = [100000, 12000, 11000, 10000].map((priceCents, index) => ({
+    priceCents, soldAt: '2026-10-' + (30 - index), url: 'https://example.com/receipt/' + index, title: first.player,
+  }));
+  const legacy = { identity: identityKey(first), checkedAt, status: 'valued', valueCents: 11500, sales };
+  const priorDay = { date: '2026-10-31', observedAt: checkedAt, valueCents: 11500, priced: 1, total: 1 };
+  const f = fixture({ readRemote: async () => ({ quotes: { first: legacy }, history: [priorDay] }) });
+  const next = await f.refreshVaultPrices(session, [first]);
+  assert.deepEqual(f.calls, []);
+  assert.equal(next.quotes.first.confidence, 'medium');
+  assert.deepEqual(next.quotes.first.range, { lowCents: 10000, highCents: 12000 });
+  assert.equal(next.quotes.first.evidence[0].reason, 'Unusual price');
+  assert.deepEqual(next.history.map(day => day.valueCents), [11500, 11000]);
+  assert.equal(next.quotes.first.diagnostics, undefined);
+});
+
+test('rejected-only listing counts keep their original check date during a provider outage', async () => {
+  const diagnostics = { found: 2, verified: 0, unchecked: 0, rejected: { wrong_parallel: 2 } };
+  const checkedAt = '2026-10-29T10:00:00Z';
+  const quote = { identity: identityKey(first), checkedAt, status: 'insufficient', valueCents: null, sales: [], diagnostics };
+  const f = fixture({ readRemote: async () => ({ quotes: { first: quote }, history: [] }) });
+  f.fail(new Error('Provider unavailable'));
+  const next = await f.refreshVaultPrices(session, [first], { force: true });
+  assert.equal(next.quotes.first.status, 'insufficient');
+  assert.equal(next.quotes.first.refreshFailed, true);
+  assert.equal(next.quotes.first.checkedAt, checkedAt);
+  assert.deepEqual(next.quotes.first.diagnostics, diagnostics);
+  assert.equal(next.history[0].priced, 0);
 });
 
 test('an edited or new card with a failed lookup does not borrow a past value', async () => {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { identityKey, matchesSale, needsDetails } from './identity.mjs';
+import { identityKey, listingPlayer, matchesSale, needsDetails, playerSearchName, playersMatch, saleMismatchReason } from './identity.mjs';
 
 const jeanty = { player: 'Ashton Jeanty', year: 2025, set_name: 'Resurgence', card_number: 'NI-AJ', is_auto: true };
 const listing = '2025 Topps Resurgence Ashton Jeanty Rookie RC Auto #NI-AJ Las Vegas Raiders';
@@ -94,4 +94,104 @@ test('recognizes sports clubs without treating their color words as a parallel',
   assert.equal(accepts(bichette,jays+' Blue'),false);
   assert.equal(accepts({...bichette, parallel:'Blue'}, jays),false);
   assert.ok(accepts({...bichette, parallel:'Blue'}, jays+' Blue'));
+});
+
+test('an omitted generational suffix matches in either direction in sold titles', () => {
+  const card = { player:'Ken Griffey', year:1989, set_name:'Upper Deck', card_number:'1' };
+  const title = '1989 Upper Deck Ken Griffey #1';
+  for (const suffix of ['Jr.', 'Sr.', 'II', 'III']) {
+    assert.ok(accepts({ ...card, player:card.player + ', ' + suffix }, title), suffix + ' omitted in title');
+    assert.ok(accepts(card, title.replace('Griffey', 'Griffey, ' + suffix)), suffix + ' omitted on card');
+  }
+});
+
+test('catalogue names tolerate only a missing trailing suffix and keep explicit generations distinct', () => {
+  for (const suffix of ['JR.', 'Sr.', 'II', 'III']) {
+    const name = 'Ronald Acuña, ' + suffix;
+    assert.ok(playersMatch(name, 'RONALD ACUNA'));
+    assert.ok(playersMatch('RONALD ACUNA', name));
+    assert.equal(playerSearchName(name), 'ronald acuna');
+  }
+  assert.ok(playersMatch('Ken Griffey, J.R.', 'Ken Griffey Jr'));
+  for (const [left, right] of [
+    ['Ken Griffey Jr.', 'Ken Griffey Sr.'], ['Ken Griffey II', 'Ken Griffey III'],
+    ['Ken Jr. Griffey', 'Ken Griffey'], ['Jr. Smith', 'Smith'], ['Ken GriffeyIII', 'Ken Griffey'],
+    ['Ken Griffey IV', 'Ken Griffey'], ['Ken Griffey Junior', 'Ken Griffey'],
+    ['Ken Griffey', 'Griffey'], ['Griffey Jr.', 'Other Griffey'], ['', ''], [null, 'Jr.']
+  ]) assert.equal(playersMatch(left, right), false, JSON.stringify([left, right]));
+  assert.notEqual(identityKey({ ...jeanty, player:'Ken Griffey Jr.' }), identityKey({ ...jeanty, player:'Ken Griffey' }));
+});
+
+test('only a suffix attached to the player can resolve a listing or be removed from its title', () => {
+  const card = { player:'Ken Griffey', year:1989, set_name:'Upper Deck', card_number:'1' };
+  const jr = { ...card, player:'Ken Griffey Jr.' };
+  const title = '1989 Upper Deck Ken Griffey #1';
+  assert.equal(listingPlayer(card.player, title.replace('Griffey', 'Griffey, J.R.')), 'ken griffey jr');
+  assert.equal(listingPlayer(jr.player, title), 'ken griffey jr');
+  assert.equal(listingPlayer(jr.player, title.replace('Griffey', 'Griffey Sr.')), null);
+  assert.equal(listingPlayer(card.player, title.replace('Ken', 'Kenny')), null);
+  assert.equal(listingPlayer(card.player, 'Ken Griffey Jr. and Ken Griffey Sr.'), null);
+  for (const bad of [title + ' Jr.', title.replace('Ken', 'Jr. Ken'), title.replace('Griffey', 'GriffeyIII'),
+    title + ' III', title.replace('Griffey', 'Griffey Sr.'), title.replace('Griffey', 'Griffey Jr. III'),
+    title.replace('Griffey', 'Griffey Jr.') + ' Jr.']) {
+    assert.equal(accepts(jr, bad), false, bad);
+  }
+  assert.ok(accepts({ ...jr, card_number:'III' }, title.replace('#1', '#III')));
+  assert.ok(accepts({ ...jr, set_name:'Upper Deck Series II' }, title.replace('Upper Deck', 'Upper Deck Series II')));
+  assert.equal(accepts(jr, title + ' Superfractor'), false);
+});
+
+test('a player suffix cannot supply independent evidence for a card with the same printed number', () => {
+  const card = { player:'Ken Griffey', year:1989, set_name:'Upper Deck', card_number:'II' };
+  const row = { title:'1989 Upper Deck Ken Griffey II', cardNumber:'II' };
+  assert.equal(saleMismatchReason(card, row), 'wrong_card_number');
+  assert.ok(matchesSale(card, { ...row, title:row.title + ' #II' }));
+  assert.ok(matchesSale(card, { ...row, title:'1989 Upper Deck Ken Griffey #II' }));
+});
+
+test('catalogue names and sale titles preserve compatible Unicode spellings of a suffix', () => {
+  const card = { player:'Ken Griffey III', year:1989, set_name:'Upper Deck', card_number:'1' };
+  assert.ok(playersMatch('Ken Griffey Ⅲ', card.player));
+  assert.ok(playersMatch('Ken Griffey, Ｊｒ.', 'Ken Griffey'));
+  assert.ok(accepts(card, '1989 Upper Deck Ken Griffey Ⅲ #1'));
+  assert.equal(listingPlayer(card.player, '1989 Upper Deck Ken Griffey Ⅱ #1'), null);
+});
+
+test('a generational suffix cannot supply a missing series designation', () => {
+  const card = { player:'Ken Griffey', year:1989, set_name:'Upper Deck Series II', card_number:'1' };
+  assert.equal(saleMismatchReason(card, { title:'1989 Upper Deck Series Ken Griffey II #1' }), 'wrong_set');
+  assert.ok(accepts(card, '1989 Upper Deck Series II Ken Griffey II #1'));
+});
+
+test('sale mismatches identify the failed evidence and preserve unfamiliar title words as unknown', () => {
+  const gold = { ...jeanty, parallel:'Gold' };
+  const cases = [
+    [jeanty, { title:listing }, null],
+    [{}, { title:listing }, 'incomplete_card'],
+    [jeanty, {}, 'missing_title'],
+    [jeanty, { title:listing + ' lot of 2 PSA 9' }, 'lot'],
+    [jeanty, { title:listing + ' Bundle' }, 'lot'],
+    [jeanty, { title:listing + ' Reprint' }, 'unsafe_listing'],
+    [psa, { title:listing + ' PSA 10' }, 'wrong_grade'],
+    [psa, { title:listing + ' PSA 9 Black Label' }, 'wrong_grade'],
+    [jeanty, { title:listing.replace('Jeanty', 'Jones') }, 'wrong_player'],
+    [jeanty, { title:listing.replace('Resurgence', 'Heritage') }, 'wrong_set'],
+    [jeanty, { title:listing, year:2024 }, 'wrong_year'],
+    [jeanty, { title:listing.replace('2025', '2024') }, 'wrong_year'],
+    [gold, { title:listing }, 'missing_parallel'],
+    [gold, { title:listing + ' Green' }, 'wrong_parallel'],
+    [gold, { title:listing + ' Base' }, 'wrong_parallel'],
+    [gold, { title:listing + ' Gold Wave' }, 'wrong_parallel'],
+    [jeanty, { title:listing + ' Gold /10' }, 'wrong_parallel'],
+    [jeanty, { title:listing.replace('Auto', '') }, 'wrong_autograph'],
+    [jeanty, { title:listing + ' Relic' }, 'wrong_relic'],
+    [jeanty, { title:listing.replace('#NI-AJ', '#NI-AJA') }, 'wrong_card_number'],
+    [jeanty, { title:listing + ' /10' }, 'wrong_print_run'],
+    [jeanty, { title:listing + ' Eruption' }, 'unknown_title_words'],
+    [jeanty, { title:listing + ' and Jalen Green' }, 'unknown_title_words']
+  ];
+  for (const [card, row, reason] of cases) {
+    assert.equal(saleMismatchReason(card, row), reason, JSON.stringify(row));
+    assert.equal(matchesSale(card, row), reason === null, JSON.stringify(row));
+  }
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPricingClient } from '../pricing-client.js';
 import { identityKey } from './identity.mjs';
-import { changeReview, reviewedQuote } from './reviews.mjs';
+import { changeReview, estimateSales, reviewedQuote } from './reviews.mjs';
 
 const card = { id: 'card', owner: 'owner', player: 'Test Player', year: 2025, card_number: '17', set_name: 'Test set', parallel: 'Silver', is_auto: true };
 const session = { user: { id: card.owner } };
@@ -274,4 +274,118 @@ test('manual precedence respects reference status, exclusions and the card ident
   q = reviewedQuote(changedCard, undefined, entries, now);
   assert.equal(q.sales.length, 0);
   assert.equal(q.evidence[0].reason, 'Card details changed');
+});
+
+function orderedReceipts(prices, dates = []) {
+  return prices.map((priceCents, index) => ({
+    ...auto(sale(index + 1)), priceCents, soldAt: dates[index] ?? `2026-11-${18 - index}`,
+  }));
+}
+
+test('unusual sales on either side of the median leave the latest five without backfilling', () => {
+  const sample = orderedReceipts([251, 102, 39, 100, 98, 99]);
+  const estimate = estimateSales(sample);
+  assert.deepEqual(estimate, {
+    valueCents: 100, confidence: 'medium', range: { lowCents: 98, highCents: 102 },
+    sales: [sample[1], sample[3], sample[4]], unusual: [sample[0], sample[2]],
+  });
+  assert.equal(estimate.sales[0], sample[1]);
+  assert.equal(estimate.unusual[0], sample[0]);
+});
+
+for (const { name, prices, valueCents, confidence, range } of [
+  { name: 'the two exact 2.5× boundaries count', prices: [40, 100, 100, 250],
+    valueCents: 100, confidence: 'low', range: { lowCents: 40, highCents: 250 } },
+  { name: 'four sales use the unrounded initial median', prices: [40, 100, 101, 252],
+    valueCents: 101, confidence: 'low', range: { lowCents: 100, highCents: 101 } },
+  { name: 'cents near the safe-integer limit retain strict guard boundaries',
+    prices: [3_000_000_000_000_001, 3_000_000_000_000_001, 3_000_000_000_000_002, 7_500_000_000_000_004],
+    valueCents: 3_000_000_000_000_001, confidence: 'medium',
+    range: { lowCents: 3_000_000_000_000_001, highCents: 3_000_000_000_000_002 } },
+  { name: 'three widely spread sales all count', prices: [10, 100, 1000],
+    valueCents: 100, confidence: 'low', range: { lowCents: 10, highCents: 1000 } },
+  { name: 'two identical sales still give low confidence', prices: [100, 100],
+    valueCents: 100, confidence: 'low', range: { lowCents: 100, highCents: 100 } },
+  { name: 'one sale stays visible without an estimate', prices: [88],
+    valueCents: null, confidence: null, range: null },
+  { name: 'only one surviving sale leaves the card unpriced', prices: [1, 2, 1000, 9999],
+    valueCents: null, confidence: null, range: null },
+]) {
+  test(name, () => {
+    const q = reviewedQuote(card, quote(orderedReceipts(prices)), {}, now);
+    assert.deepEqual({ valueCents: q.valueCents, confidence: q.confidence, range: q.range },
+      { valueCents, confidence, range });
+  });
+}
+
+test('confidence uses the UTC calendar dates and the strict spread threshold of surviving sales', () => {
+  const newest = '2026-11-17T23:10:00-01:00';
+  const oldest = '2026-11-05T00:59:00+01:00';
+  for (const [oldestSale, highestPrice, confidence] of [
+    [oldest, 199, 'high'], [oldest, 200, 'low'], ['2026-11-05', 199, 'medium'],
+  ]) {
+    const receipts = orderedReceipts([100, 150, 151, highestPrice], [newest, '2026-11-14', '2026-11-09', oldestSale]);
+    const q = reviewedQuote(card, quote(receipts), {}, now);
+    assert.equal(q.confidence, confidence);
+  }
+});
+
+test('owner corrections and flags determine which receipts face the unusual-price check', () => {
+  const [spike, ...others] = orderedReceipts([10000, 1000, 1200, 1010, 1050, 900],
+    ['2026-11-18', '2026-11-17', '2026-11-14', '2026-11-10', '2026-11-04', '2026-11-03']);
+  const automatic = { ...quote(others.slice(0, 4)), extraSales: [spike, others[4]] };
+  const initial = reviewedQuote(card, automatic, {}, now);
+  assert.equal(initial.valueCents, 1030);
+  assert.equal(initial.confidence, 'medium');
+  assert.equal(initial.evidence[0].reason, 'Unusual price');
+  assert.equal(initial.evidence.at(-1).reason, 'Outside the latest five');
+
+  const corrected = changeReview(card, {}, null, { type: 'save', input: sale(1, '10.20', '2026-11-18') }, now);
+  const edited = reviewedQuote(card, automatic, corrected, now);
+  assert.equal(edited.valueCents, 1020);
+  assert.equal(edited.confidence, 'high');
+  assert.equal(edited.evidence[0].reason, undefined);
+  assert.equal(edited.sales[0].priceCents, 1020);
+
+  const flag = changeReview(card, corrected, edited, { type: 'exclude', url: spike.url, reason: 'Wrong grade' }, now);
+  const flagged = reviewedQuote(card, automatic, flag, now);
+  assert.equal(flagged.evidence[0].reason, 'Wrong grade');
+  assert.equal(flagged.sales.at(-1).url, others[4].url);
+  assert.equal(flagged.valueCents, 1010);
+  assert.deepEqual(flagged.range, { lowCents: 900, highCents: 1200 });
+});
+
+test('a saved estimate without receipts keeps its value and has no confidence or range', () => {
+  for (const saved of [[], [null, { url: 'missing', priceCents: 1000 }]]) {
+    const old = { ...quote(saved), status: 'valued', valueCents: 875 };
+    const q = reviewedQuote(card, old, {}, now);
+    assert.equal(q.status, 'valued');
+    assert.equal(q.valueCents, 875);
+    assert.equal(q.confidence, null);
+    assert.equal(q.range, null);
+    assert.deepEqual(q.sales, []);
+  }
+});
+
+test('malformed saved receipts cannot break the vault or count toward an estimate', () => {
+  const [first, ...valid] = orderedReceipts([99, 110, 120, 130, 140, 150]);
+  for (const [invalidFields, reason] of [
+    [{ priceCents: 12.5 }, 'Invalid sale price'], [{ priceCents: 0 }, 'Invalid sale price'],
+    [{ priceCents: '99' }, 'Invalid sale price'], [{ priceCents: Number.MAX_SAFE_INTEGER + 1 }, 'Invalid sale price'],
+    [{ soldAt: null }, 'Invalid sale date'], [{ soldAt: 'unknown' }, 'Invalid sale date'],
+    [{ soldAt: '2026-11' }, 'Invalid sale date'], [{ soldAt: '2026-09-31' }, 'Invalid sale date'],
+    [{ soldAt: '2026-11-15T23:00:00' }, 'Invalid sale date'],
+  ]) {
+    const damaged = { ...first, ...invalidFields };
+    const mixed = reviewedQuote(card, quote([damaged, ...valid]), {}, now);
+    assert.deepEqual(mixed.sales.map(row => row.url), valid.map(row => row.url));
+    assert.equal(mixed.valueCents, 130);
+    assert.equal(mixed.evidence.find(row => row.url === damaged.url).reason, reason);
+
+    const lone = reviewedQuote(card, quote([damaged]), {}, now);
+    assert.equal(lone.status, 'insufficient');
+    assert.equal(lone.valueCents, null);
+    assert.equal(lone.confidence, null);
+    assert.equal(lone.range, null);
+  }
 });

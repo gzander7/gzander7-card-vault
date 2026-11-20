@@ -52,6 +52,29 @@ async function cacheFirst(request) {
   return response;
 }
 
+// The page lists the site files it loaded before this worker took over.
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'cache-urls' || !Array.isArray(event.data.urls)) return;
+  const urls = event.data.urls.filter(url => {
+    try {
+      return new URL(url).origin === self.location.origin;
+    } catch {
+      return false;
+    }
+  });
+  event.waitUntil(
+    caches
+      .open(SITE_CACHE)
+      .then(cache =>
+        Promise.all(
+          urls.map(url =>
+            cache.match(url).then(hit => hit || fetch(url).then(response => response.ok && cache.put(url, response))),
+          ),
+        ).catch(() => {}),
+      ),
+  );
+});
+
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;

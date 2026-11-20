@@ -11,13 +11,24 @@ test('the vault is installable and opens offline after a visit', async ({ page, 
   expect(data).toMatchObject({ display: 'standalone', start_url: './' });
   for (const icon of data.icons) expect((await page.request.get(icon.src)).ok(), icon.src).toBe(true);
 
-  await page.evaluate(() => navigator.serviceWorker.ready);
-  await page.reload();
-  expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+  // A single online visit must be enough: no second online load before going offline.
   await expect(page.locator('#card-grid')).toContainText('Offline Hero');
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const cache = await caches.open('card-vault-site-v1');
+        const cached = new Set((await cache.keys()).map(request => new URL(request.url).pathname));
+        return ['app.js', 'vendor/supabase-js.mjs', 'collection.css'].every(file =>
+          [...cached].some(path => path.endsWith('/' + file)),
+        );
+      }),
+    )
+    .toBe(true);
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1, name: 'Card Vault' })).toBeVisible();
+  // The app's own code and styles load: the gallery renders and its stylesheet applies.
+  await expect(page.locator('#auth-bar').getByRole('button', { name: 'Sign in' })).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
   await context.setOffline(false);
 });

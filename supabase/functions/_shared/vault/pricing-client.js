@@ -419,9 +419,15 @@ export function createPricingClient({
 
   // Everything the owner's backup needs: the estimates shown in the vault,
   // owner-entered sold comps and flags, and the daily history.
+  // A fresh read is required: when the cloud copy cannot be read, this device's
+  // cache may be partial or empty, and a backup must never look complete.
   async function backupVaultPrices(session, cards) {
+    stateFor(session).nextRead = 0;
     await loadVaultPrices(session, cards);
     const state = stateFor(session);
+    if (state.sync !== 'ready' && state.sync !== 'absent') {
+      throw new Error('Vault Value records could not be loaded.');
+    }
     return structuredClone({ quotes: cardQuotes(state), reviews: state.data.reviews, history: state.data.history });
   }
 

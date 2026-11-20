@@ -410,3 +410,30 @@ test('a snapshot without lookups records the day from saved estimates and syncs 
   await f.recordVaultSnapshot(session, [first, blank]);
   assert.equal(writes.length, 1, 'an unchanged day is not written twice');
 });
+
+test('a backup refuses to treat an unreadable cloud copy as an empty vault', async () => {
+  let fail = true;
+  const remote = {
+    quotes: {},
+    reviews: {},
+    history: [{ date: '2026-10-01', valueCents: 500, priced: 1, total: 1, observedAt: '2026-10-01T12:00:00.000Z' }],
+  };
+  const f = fixture({
+    readRemote: async () => {
+      if (fail) throw new Error('offline');
+      return remote;
+    },
+  });
+  await assert.rejects(f.backupVaultPrices(session, [first]), /could not be loaded/);
+  fail = false;
+  const backup = await f.backupVaultPrices(session, [first]);
+  assert.equal(
+    backup.history.length,
+    1,
+    'a successful read is used straight away, without waiting for the retry delay',
+  );
+
+  const local = fixture({ readRemote: async () => null });
+  const empty = await local.backupVaultPrices(session, [first]);
+  assert.deepEqual(empty.history, [], 'without cloud sync installed, this device holds the only copy');
+});

@@ -658,10 +658,17 @@
 }
 .comp-head {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 0 10px;
   align-items: center;
   justify-content: space-between;
   margin-top: 14px;
+}
+.comp-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 1rem;
 }
 .comp-head h3 {
   flex: none;
@@ -680,13 +687,18 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.value-card .comp-add,
+.comp-head-actions .link-button,
 .card-purchase .link-button {
   width: auto;
   padding: 3px 0;
   min-height: 40px;
   font-size: 14px;
   font-weight: 650;
+}
+.comp-head-actions .link-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .comp-evidence {
   color: #49352f;
@@ -705,10 +717,6 @@
 .comp-evidence > small {
   display: block;
   margin-top: 8px;
-}
-.comp-evidence > a {
-  display: inline-block;
-  padding: 6px 0;
 }
 .comp-evidence table {
   width: 100%;

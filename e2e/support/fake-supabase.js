@@ -94,10 +94,11 @@ function uploadedFile(request) {
   return { body, type };
 }
 
-export async function installFakeSupabase(context, { cards = [], cases = [], photos = {} } = {}) {
+export async function installFakeSupabase(context, { cards = [], cases = [], photos = {}, purchases = {} } = {}) {
   const state = {
     cards: cards.map(card => ({ ...card })),
     cases: cases.map(entry => ({ ...entry })),
+    purchases: { ...purchases },
     objects: new Map(Object.entries(photos)),
     requests: [],
   };
@@ -172,7 +173,7 @@ export async function installFakeSupabase(context, { cards = [], cases = [], pho
       });
     }
     if (!signedIn(request)) return json(route, 401, { code: '42501', message: 'permission denied' });
-    if (name === 'vault_purchases_read') return json(route, 200, {});
+    if (name === 'vault_purchases_read') return json(route, 200, state.purchases);
     // Unknown functions behave like an installation that has not run the optional SQL.
     return json(route, 404, {
       code: 'PGRST202',

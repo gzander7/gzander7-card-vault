@@ -17,10 +17,11 @@ function download(text, type, filename) {
  * @param {object} deps
  * @param {() => any} deps.getSession
  * @param {() => any[] | null} deps.getOwnedCards the owner's cards, or null while the collection is loading
+ * @param {() => Promise<boolean>} deps.reloadInventory re-reads every card; resolves false when it fails
  * @param {{ load: (force?: boolean) => Promise<void>, records: Record<string, any>, status: string }} deps.purchases
  * @param {(path: string) => { front: string, back: string }} deps.photoUrls
  */
-export function bindVaultBackup({ getSession, getOwnedCards, purchases, photoUrls }) {
+export function bindVaultBackup({ getSession, getOwnedCards, reloadInventory, purchases, photoUrls }) {
   const status = document.getElementById('backup-status');
   const buttons = [document.getElementById('backup-json'), document.getElementById('backup-csv')];
   let running = false;
@@ -28,20 +29,20 @@ export function bindVaultBackup({ getSession, getOwnedCards, purchases, photoUrl
   async function backup(kind) {
     if (running) return;
     const session = getSession();
-    const cards = getOwnedCards();
-    if (!session?.user?.id || !cards) {
-      status.textContent = 'Wait for your collection to finish loading, then try again.';
-      return;
-    }
+    if (!session?.user?.id) return;
     running = true;
     buttons.forEach(button => (button.disabled = true));
-    status.textContent = 'Preparing your download…';
+    status.textContent = 'Refreshing your collection…';
     try {
-      // An incomplete backup is worse than none: stop if private records are unavailable.
-      try {
-        await purchases.load();
-      } catch {}
+      // Export what the vault holds now, not what this tab loaded earlier: re-read
+      // every card and every purchase cost, and stop rather than export stale or
+      // incomplete records.
+      const [reloaded] = await Promise.all([reloadInventory(), purchases.load(true).catch(() => {})]);
+      if (getSession()?.user?.id !== session.user.id) return;
+      const cards = getOwnedCards();
+      if (!reloaded || !cards) throw new Error('Your collection could not be reloaded.');
       if (purchases.status !== 'ready') throw new Error('Purchases could not be loaded.');
+      status.textContent = 'Preparing your download…';
       const prices = await backupVaultPrices(session, cards);
       if (getSession()?.user?.id !== session.user.id) return;
       const data = buildVaultExport({

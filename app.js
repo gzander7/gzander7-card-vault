@@ -483,6 +483,7 @@ vaultValue.subscribe(() => renderGrid());
 bindVaultBackup({
   getSession: () => session,
   getOwnedCards: () => (inventoryReady && !loadError ? cards.filter(owns) : null),
+  reloadInventory: () => loadCards(),
   purchases: vaultValue.purchases,
   photoUrls: path => ({ front: imageUrl(path), back: imageUrl(backPhotoPath(path)) }),
 });
